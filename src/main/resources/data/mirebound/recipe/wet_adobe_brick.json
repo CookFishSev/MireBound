@@ -1,0 +1,12 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "building",
+  "ingredients": [
+    { "item": "mirebound:mud_ball" },
+    { "item": "minecraft:wheat" }
+  ],
+  "result": {
+    "id": "mirebound:wet_adobe_brick",
+    "count": 4
+  }
+}

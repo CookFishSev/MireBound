@@ -1,0 +1,11 @@
+{
+  "variants": {
+    "stack_filled=false": {
+      "model": "mirebound:block/thin_mud"
+    },
+    "stack_filled=true": {
+      "model": "mirebound:block/thin_mud_filled"
+    }
+  }
+}
+

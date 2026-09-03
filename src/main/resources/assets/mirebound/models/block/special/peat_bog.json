@@ -1,0 +1,6 @@
+{
+  "parent": "mirebound:block/mud_irregular_10",
+  "textures": {
+    "all": "mirebound:block/peat_bog"
+  }
+}

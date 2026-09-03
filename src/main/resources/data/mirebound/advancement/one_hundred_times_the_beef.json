@@ -1,0 +1,20 @@
+{
+  "parent": "mirebound:duckweed_on_a_sullied_stream",
+  "display": {
+    "icon": { "id": "mirebound:maggot" },
+    "title": { "translate": "advancement.mirebound.beef_100x.title" },
+    "description": { "translate": "advancement.mirebound.beef_100x.description" },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "ate_raw_maggot": {
+      "trigger": "minecraft:consume_item",
+      "conditions": {
+        "item": { "items": "mirebound:maggot" }
+      }
+    }
+  }
+}

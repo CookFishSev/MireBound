@@ -1,0 +1,6 @@
+{
+  "parent": "mirebound:block/mud_height_14",
+  "textures": {
+    "all": "mirebound:block/tidal_mud"
+  }
+}

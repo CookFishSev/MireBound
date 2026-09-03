@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    "WWW",
+    "HHH",
+    "WWW"
+  ],
+  "key": {
+    "W": { "item": "minecraft:wheat" },
+    "H": { "item": "minecraft:hay_block" }
+  },
+  "result": {
+    "id": "mirebound:rope",
+    "count": 8
+  }
+}

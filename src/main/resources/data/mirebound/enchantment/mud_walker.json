@@ -1,0 +1,32 @@
+{
+  "anvil_cost": 4,
+  "description": {
+    "translate": "enchantment.mirebound.mud_walker"
+  },
+  "effects": {
+    "mirebound:mud_walker_depth_reduction": {
+      "type": "minecraft:linear",
+      "base": 0.15,
+      "per_level_above_first": 0.15
+    },
+    "mirebound:mud_walker_walk_restoration": {
+      "type": "minecraft:linear",
+      "base": 0.18,
+      "per_level_above_first": 0.15
+    }
+  },
+  "max_cost": {
+    "base": 25,
+    "per_level_above_first": 10
+  },
+  "max_level": 3,
+  "min_cost": {
+    "base": 10,
+    "per_level_above_first": 10
+  },
+  "slots": [
+    "feet"
+  ],
+  "supported_items": "#minecraft:enchantable/foot_armor",
+  "weight": 2
+}

@@ -1,0 +1,1 @@
+{ "parent": "mirebound:block/mud_filled", "textures": { "all": "mirebound:block/tidal_mud" } }

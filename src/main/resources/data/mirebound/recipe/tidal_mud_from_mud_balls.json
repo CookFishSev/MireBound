@@ -1,0 +1,9 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": ["BB", "BB"],
+  "key": {
+    "B": { "item": "mirebound:tidal_mud_ball" }
+  },
+  "result": { "id": "mirebound:tidal_mud" }
+}

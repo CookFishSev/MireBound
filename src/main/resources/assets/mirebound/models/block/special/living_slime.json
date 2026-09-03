@@ -1,0 +1,7 @@
+{
+  "parent": "mirebound:block/mud_height_14",
+  "render_type": "minecraft:translucent",
+  "textures": {
+    "all": "mirebound:block/living_slime"
+  }
+}

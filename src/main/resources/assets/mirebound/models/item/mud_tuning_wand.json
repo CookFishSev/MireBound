@@ -1,0 +1,45 @@
+{
+  "parent": "minecraft:builtin/entity",
+  "ambientocclusion": false,
+  "gui_light": "front",
+  "textures": {
+    "particle": "mirebound:item/mud_tuning_wand"
+  },
+  "display": {
+    "thirdperson_righthand": {
+      "rotation": [5, 90, 0],
+      "translation": [0, -2.2, 2.5],
+      "scale": [0.74, 0.74, 0.74]
+    },
+    "thirdperson_lefthand": {
+      "rotation": [5, 90, 0],
+      "translation": [0, -2.2, 2.5],
+      "scale": [0.74, 0.74, 0.74]
+    },
+    "firstperson_righthand": {
+      "rotation": [30, 104, -40],
+      "translation": [8.5, -2.6, -1],
+      "scale": [0.74, 0.74, 0.74]
+    },
+    "firstperson_lefthand": {
+      "rotation": [30, 104, -40],
+      "translation": [8.5, -2.6, -1],
+      "scale": [0.74, 0.74, 0.74]
+    },
+    "ground": {
+      "rotation": [90, 0, 0],
+      "translation": [0, 0, 0],
+      "scale": [0.72, 0.72, 0.72]
+    },
+    "gui": {
+      "rotation": [0, -35, -50],
+      "translation": [0, 0, 0],
+      "scale": [0.88, 0.88, 0.88]
+    },
+    "fixed": {
+      "rotation": [0, 0, 45],
+      "translation": [-1.25, -4, 0],
+      "scale": [0.58, 0.58, 0.58]
+    }
+  }
+}

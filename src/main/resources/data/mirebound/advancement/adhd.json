@@ -1,0 +1,15 @@
+{
+  "parent": "mirebound:duckweed_on_a_sullied_stream",
+  "display": {
+    "icon": { "id": "mirebound:sculk_mire" },
+    "title": { "translate": "advancement.mirebound.adhd.title" },
+    "description": { "translate": "advancement.mirebound.adhd.description" },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "restrained": { "trigger": "mirebound:sculk_restrained" }
+  }
+}

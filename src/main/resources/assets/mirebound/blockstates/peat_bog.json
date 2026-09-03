@@ -1,0 +1,11 @@
+{
+  "variants": {
+    "stack_filled=false": {
+      "model": "mirebound:block/peat_bog"
+    },
+    "stack_filled=true": {
+      "model": "mirebound:block/peat_bog_filled"
+    }
+  }
+}
+

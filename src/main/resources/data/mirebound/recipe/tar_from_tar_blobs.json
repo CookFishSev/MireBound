@@ -1,0 +1,9 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": ["BBB", "BBB", "BBB"],
+  "key": {
+    "B": { "item": "mirebound:tar_blob" }
+  },
+  "result": { "id": "mirebound:tar" }
+}

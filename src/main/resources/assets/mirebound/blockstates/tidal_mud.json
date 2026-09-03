@@ -1,0 +1,11 @@
+{
+  "variants": {
+    "stack_filled=false": {
+      "model": "mirebound:block/tidal_mud"
+    },
+    "stack_filled=true": {
+      "model": "mirebound:block/tidal_mud_filled"
+    }
+  }
+}
+

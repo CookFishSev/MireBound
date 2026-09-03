@@ -1,0 +1,8 @@
+{
+  "variants": {
+    "dryness=0": { "model": "mirebound:block/wet_adobe_0" },
+    "dryness=1": { "model": "mirebound:block/wet_adobe_1" },
+    "dryness=2": { "model": "mirebound:block/wet_adobe_2" },
+    "dryness=3": { "model": "mirebound:block/wet_adobe_3" }
+  }
+}

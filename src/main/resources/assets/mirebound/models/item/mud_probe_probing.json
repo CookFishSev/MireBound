@@ -1,0 +1,15 @@
+{
+  "parent": "mirebound:item/mud_probe",
+  "display": {
+    "thirdperson_righthand": {
+      "rotation": [0, -90, 55],
+      "translation": [0, 4, 2.5],
+      "scale": [1.05, 1.05, 1.05]
+    },
+    "thirdperson_lefthand": {
+      "rotation": [0, 90, -55],
+      "translation": [0, 4, 2.5],
+      "scale": [1.05, 1.05, 1.05]
+    }
+  }
+}

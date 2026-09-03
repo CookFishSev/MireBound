@@ -1,0 +1,29 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [
+    "WSW",
+    "SAS",
+    "WSW"
+  ],
+  "key": {
+    "W": {
+      "item": "minecraft:potion",
+      "components": {
+        "minecraft:potion_contents": {
+          "potion": "minecraft:water"
+        }
+      }
+    },
+    "S": {
+      "item": "minecraft:stick"
+    },
+    "A": {
+      "item": "minecraft:sand"
+    }
+  },
+  "result": {
+    "id": "mirebound:jungle_quicksand",
+    "count": 1
+  }
+}

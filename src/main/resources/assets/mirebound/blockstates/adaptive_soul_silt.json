@@ -1,0 +1,7 @@
+{
+  "variants": {
+    "": {
+      "model": "mirebound:block/adaptive_proxy"
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "replace": false,
+  "values": [
+    "mirebound:mud",
+    "mirebound:red_quicksand",
+    "mirebound:ash_quicksand",
+    "mirebound:soul_silt",
+    "mirebound:soft_quicksand",
+    "mirebound:silt",
+    "mirebound:thin_mud",
+    "mirebound:shallow_mud",
+    "mirebound:tidal_mud",
+    "mirebound:gel_clay",
+    "mirebound:lime_mud",
+    "mirebound:end_silt",
+    "mirebound:gravel_silt",
+    "mirebound:pale_mire",
+    "mirebound:peat_silt",
+    "mirebound:mire",
+    "mirebound:peat_bog",
+    "mirebound:tar",
+    "mirebound:jungle_quicksand",
+    "mirebound:insect_mound"
+  ]
+}

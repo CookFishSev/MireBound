@@ -1,0 +1,4 @@
+{
+  "parent": "minecraft:block/cube_all",
+  "textures": { "all": "mirebound:block/connected/insect_mound_2" }
+}

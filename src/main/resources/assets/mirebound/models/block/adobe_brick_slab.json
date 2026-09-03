@@ -1,0 +1,8 @@
+{
+  "parent": "minecraft:block/slab",
+  "textures": {
+    "bottom": "mirebound:block/adobe_bricks",
+    "side": "mirebound:block/adobe_bricks",
+    "top": "mirebound:block/adobe_bricks"
+  }
+}

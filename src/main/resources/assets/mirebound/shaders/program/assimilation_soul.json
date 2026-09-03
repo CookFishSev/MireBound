@@ -1,0 +1,27 @@
+{
+  "blend": {
+    "func": "add",
+    "srcrgb": "one",
+    "dstrgb": "zero"
+  },
+  "vertex": "sobel",
+  "fragment": "mirebound:assimilation_soul",
+  "attributes": [ "Position" ],
+  "samplers": [
+    { "name": "DiffuseSampler" }
+  ],
+  "uniforms": [
+    { "name": "ProjMat", "type": "matrix4x4", "count": 16,
+      "values": [ 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0 ] },
+    { "name": "InSize", "type": "float", "count": 2, "values": [ 1.0, 1.0 ] },
+    { "name": "OutSize", "type": "float", "count": 2, "values": [ 1.0, 1.0 ] },
+    { "name": "EffectStrength", "type": "float", "count": 1, "values": [ 0.0 ] },
+    { "name": "PixelSize", "type": "float", "count": 1, "values": [ 1.0 ] },
+    { "name": "BlurRadius", "type": "float", "count": 1, "values": [ 0.0 ] },
+    { "name": "MediumRed", "type": "float", "count": 1, "values": [ 0.33 ] },
+    { "name": "MediumGreen", "type": "float", "count": 1, "values": [ 0.65 ] },
+    { "name": "MediumBlue", "type": "float", "count": 1, "values": [ 0.26 ] },
+    { "name": "ColorStrength", "type": "float", "count": 1, "values": [ 0.0 ] },
+    { "name": "FogStrength", "type": "float", "count": 1, "values": [ 0.0 ] }
+  ]
+}

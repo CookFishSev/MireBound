@@ -1,0 +1,8 @@
+{
+  "type": "minecraft:smelting",
+  "category": "blocks",
+  "cookingtime": 200,
+  "experience": 0.4,
+  "ingredient": { "item": "mirebound:wet_adobe" },
+  "result": { "id": "mirebound:adobe_bricks" }
+}

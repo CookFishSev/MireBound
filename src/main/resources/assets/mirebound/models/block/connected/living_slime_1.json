@@ -1,0 +1,7 @@
+{
+  "parent": "minecraft:block/cube_all",
+  "textures": {
+    "all": "mirebound:block/connected/living_slime_1"
+  },
+  "render_type": "minecraft:translucent"
+}

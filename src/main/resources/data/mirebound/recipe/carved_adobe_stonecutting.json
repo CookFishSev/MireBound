@@ -1,0 +1,5 @@
+{
+  "type": "minecraft:stonecutting",
+  "ingredient": { "item": "mirebound:adobe_bricks" },
+  "result": { "id": "mirebound:carved_adobe", "count": 1 }
+}

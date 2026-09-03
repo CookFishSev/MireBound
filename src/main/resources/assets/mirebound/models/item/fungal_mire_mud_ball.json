@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "mirebound:item/fungal_mire_mud_ball"
+  }
+}

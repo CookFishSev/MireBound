@@ -1,0 +1,6 @@
+{
+  "variants": {
+    "stack_filled=false": { "model": "mirebound:block/insect_mound" },
+    "stack_filled=true": { "model": "mirebound:block/insect_mound_filled" }
+  }
+}

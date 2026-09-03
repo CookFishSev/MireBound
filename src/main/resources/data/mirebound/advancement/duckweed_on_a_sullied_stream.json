@@ -1,0 +1,15 @@
+{
+  "display": {
+    "icon": { "id": "mirebound:soft_quicksand" },
+    "title": { "translate": "advancement.mirebound.duckweed.title" },
+    "description": { "translate": "advancement.mirebound.duckweed.description" },
+    "background": "minecraft:textures/gui/advancements/backgrounds/stone.png",
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "entered_mud": { "trigger": "mirebound:entered_mud" }
+  }
+}

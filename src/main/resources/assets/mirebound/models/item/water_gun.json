@@ -1,0 +1,43 @@
+{
+  "parent": "minecraft:builtin/entity",
+  "ambientocclusion": false,
+  "gui_light": "front",
+  "textures": {
+    "particle": "mirebound:item/water_gun"
+  },
+  "display": {
+    "thirdperson_righthand": {
+      "translation": [0, 0, -0.5],
+      "scale": [0.4, 0.4, 0.4]
+    },
+    "thirdperson_lefthand": {
+      "translation": [0, 0, -0.5],
+      "scale": [0.4, 0.4, 0.4]
+    },
+    "firstperson_righthand": {
+      "translation": [0.5, 2.25, -0.5],
+      "scale": [0.4, 0.4, 0.4]
+    },
+    "firstperson_lefthand": {
+      "translation": [0.5, 2.25, -0.5],
+      "scale": [0.4, 0.4, 0.4]
+    },
+    "ground": {
+      "translation": [0, 2.5, 0],
+      "scale": [0.3, 0.3, 0.3]
+    },
+    "gui": {
+      "rotation": [20, 140, 0],
+      "translation": [0, -1, 0],
+      "scale": [0.42, 0.42, 0.42]
+    },
+    "head": {
+      "rotation": [22, 0, 0],
+      "translation": [0, 8.5, -3.75]
+    },
+    "fixed": {
+      "rotation": [0, 90, 0],
+      "scale": [0.38, 0.38, 0.38]
+    }
+  }
+}

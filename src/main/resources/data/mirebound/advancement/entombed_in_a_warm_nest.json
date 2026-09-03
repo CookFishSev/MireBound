@@ -1,0 +1,15 @@
+{
+  "parent": "mirebound:duckweed_on_a_sullied_stream",
+  "display": {
+    "icon": { "id": "mirebound:tender_flesh" },
+    "title": { "translate": "advancement.mirebound.warm_nest.title" },
+    "description": { "translate": "advancement.mirebound.warm_nest.description" },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "enclosed": { "trigger": "mirebound:tender_flesh_enclosed" }
+  }
+}

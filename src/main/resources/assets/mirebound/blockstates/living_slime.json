@@ -1,0 +1,11 @@
+{
+  "variants": {
+    "stack_filled=false": {
+      "model": "mirebound:block/living_slime"
+    },
+    "stack_filled=true": {
+      "model": "mirebound:block/living_slime_filled"
+    }
+  }
+}
+

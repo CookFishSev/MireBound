@@ -1,0 +1,7 @@
+{
+  "ambientocclusion": false,
+  "textures": {
+    "particle": "minecraft:block/mud"
+  },
+  "elements": []
+}

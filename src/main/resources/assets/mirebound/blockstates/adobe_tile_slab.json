@@ -1,0 +1,7 @@
+{
+  "variants": {
+    "type=bottom": { "model": "mirebound:block/adobe_tile_slab" },
+    "type=double": { "model": "mirebound:block/adobe_tiles" },
+    "type=top": { "model": "mirebound:block/adobe_tile_slab_top" }
+  }
+}

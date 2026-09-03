@@ -1,0 +1,97 @@
+{
+  "parent": "mirebound:item/mud_tuning_wand/body",
+  "elements": [
+    {
+      "name": "upper_collar",
+      "from": [5.55, 15.4, 5.55],
+      "to": [10.45, 17.7, 10.45],
+      "faces": {
+        "north": {"uv": [12, 0, 16, 4], "texture": "#0"},
+        "east": {"uv": [12, 0, 16, 4], "texture": "#0"},
+        "south": {"uv": [12, 0, 16, 4], "texture": "#0"},
+        "west": {"uv": [12, 0, 16, 4], "texture": "#0"},
+        "up": {"uv": [8, 4, 12, 8], "texture": "#0"},
+        "down": {"uv": [12, 0, 16, 4], "texture": "#0"}
+      }
+    },
+    {
+      "name": "instrument_shaft",
+      "from": [6.5, 16.8, 6.5],
+      "to": [9.5, 22.6, 9.5],
+      "faces": {
+        "north": {"uv": [8, 0, 12, 4], "texture": "#0"},
+        "east": {"uv": [8, 0, 12, 4], "texture": "#0"},
+        "south": {"uv": [8, 0, 12, 4], "texture": "#0"},
+        "west": {"uv": [8, 0, 12, 4], "texture": "#0"},
+        "up": {"uv": [8, 8, 12, 12], "texture": "#0"},
+        "down": {"uv": [8, 8, 12, 12], "texture": "#0"}
+      }
+    },
+    {
+      "name": "scanner_housing",
+      "from": [5, 21.4, 5.2],
+      "to": [11, 24, 10.8],
+      "faces": {
+        "north": {"uv": [8, 8, 12, 12], "texture": "#0"},
+        "east": {"uv": [8, 0, 12, 4], "texture": "#0"},
+        "south": {"uv": [8, 8, 12, 12], "texture": "#0"},
+        "west": {"uv": [8, 0, 12, 4], "texture": "#0"},
+        "up": {"uv": [8, 0, 12, 4], "texture": "#0"},
+        "down": {"uv": [8, 8, 12, 12], "texture": "#0"}
+      }
+    },
+    {
+      "name": "cage_base",
+      "from": [4.4, 22.8, 5],
+      "to": [11.6, 24.5, 11],
+      "faces": {
+        "north": {"uv": [12, 0, 16, 4], "texture": "#0"},
+        "east": {"uv": [8, 0, 12, 4], "texture": "#0"},
+        "south": {"uv": [12, 0, 16, 4], "texture": "#0"},
+        "west": {"uv": [8, 0, 12, 4], "texture": "#0"},
+        "up": {"uv": [8, 4, 12, 8], "texture": "#0"},
+        "down": {"uv": [8, 8, 12, 12], "texture": "#0"}
+      }
+    },
+    {
+      "name": "status_lens",
+      "from": [6.5, 21.6, 4.8],
+      "to": [9.5, 23.25, 5.25],
+      "shade": false,
+      "faces": {
+        "north": {"uv": [12, 4, 16, 8], "texture": "#0"},
+        "east": {"uv": [12, 4, 16, 8], "texture": "#0"},
+        "south": {"uv": [12, 4, 16, 8], "texture": "#0"},
+        "west": {"uv": [12, 4, 16, 8], "texture": "#0"},
+        "up": {"uv": [12, 4, 16, 8], "texture": "#0"},
+        "down": {"uv": [12, 4, 16, 8], "texture": "#0"}
+      }
+    },
+    {
+      "name": "front_guard",
+      "from": [6.4, 23.9, 4.65],
+      "to": [9.6, 25.5, 6.25],
+      "faces": {
+        "north": {"uv": [8, 8, 12, 12], "texture": "#0"},
+        "east": {"uv": [12, 0, 16, 4], "texture": "#0"},
+        "south": {"uv": [8, 0, 12, 4], "texture": "#0"},
+        "west": {"uv": [12, 0, 16, 4], "texture": "#0"},
+        "up": {"uv": [8, 4, 12, 8], "texture": "#0"},
+        "down": {"uv": [8, 8, 12, 12], "texture": "#0"}
+      }
+    },
+    {
+      "name": "back_guard",
+      "from": [6.4, 23.9, 9.75],
+      "to": [9.6, 25.5, 11.35],
+      "faces": {
+        "north": {"uv": [8, 0, 12, 4], "texture": "#0"},
+        "east": {"uv": [12, 0, 16, 4], "texture": "#0"},
+        "south": {"uv": [8, 8, 12, 12], "texture": "#0"},
+        "west": {"uv": [12, 0, 16, 4], "texture": "#0"},
+        "up": {"uv": [8, 4, 12, 8], "texture": "#0"},
+        "down": {"uv": [8, 8, 12, 12], "texture": "#0"}
+      }
+    }
+  ]
+}

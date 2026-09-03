@@ -1,0 +1,9 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": ["BB", "BB"],
+  "key": {
+    "B": { "item": "mirebound:stone_clay_ball" }
+  },
+  "result": { "id": "mirebound:stone_clay" }
+}

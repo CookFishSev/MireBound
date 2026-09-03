@@ -1,0 +1,10 @@
+{
+  "variants": {
+    "stack_filled=false": {
+      "model": "mirebound:block/assimilation_slime"
+    },
+    "stack_filled=true": {
+      "model": "mirebound:block/assimilation_slime_filled"
+    }
+  }
+}

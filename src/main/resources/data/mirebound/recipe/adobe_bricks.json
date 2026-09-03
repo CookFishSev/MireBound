@@ -1,0 +1,9 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": ["##", "##"],
+  "key": {
+    "#": { "item": "mirebound:dried_adobe_brick" }
+  },
+  "result": { "id": "mirebound:adobe_bricks" }
+}

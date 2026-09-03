@@ -1,0 +1,44 @@
+# Gradle and IDE output
+.gradle/
+build/
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# Minecraft run state and local configuration
+run/
+logs/
+/config/
+/defaultconfigs/
+*.log
+
+# Generated, extracted, and inspection data
+.mixin.out/
+.pg-native/
+/META-INF/
+net/
+tmp/
+work/
+output/
+outputs/
+patchouli_books/
+tlm_custom_pack/
+tools/pcl2-ce-reference/
+
+# Local previews and reverse-engineering notes
+build-footprint-preview.png
+patchouli_data.json
+ysm_*_javap.txt
+.claude/
+
+# Build and deployment artifacts
+*.class
+*.jar
+*.jar.bak
+
+# OS metadata
+.DS_Store
+Thumbs.db
+Desktop.ini

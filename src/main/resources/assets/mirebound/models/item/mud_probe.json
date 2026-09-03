@@ -1,0 +1,28 @@
+{
+  "parent": "minecraft:item/handheld",
+  "textures": {
+    "layer0": "mirebound:item/mud_probe"
+  },
+  "display": {
+    "thirdperson_righthand": {
+      "rotation": [0, -90, 25],
+      "translation": [0, 0, 0],
+      "scale": [1.05, 1.05, 1.05]
+    },
+    "thirdperson_lefthand": {
+      "rotation": [0, -90, -25],
+      "translation": [0, 0, 0],
+      "scale": [1.05, 1.05, 1.05]
+    },
+    "firstperson_righthand": {
+      "rotation": [0, -90, 25],
+      "translation": [0, 0, 0],
+      "scale": [1.12, 1.12, 1.12]
+    },
+    "firstperson_lefthand": {
+      "rotation": [0, -90, -25],
+      "translation": [0, 0, 0],
+      "scale": [1.12, 1.12, 1.12]
+    }
+  }
+}

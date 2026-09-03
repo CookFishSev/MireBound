@@ -1,0 +1,6 @@
+{
+  "parent": "mirebound:block/mud_height_8",
+  "textures": {
+    "all": "mirebound:block/shallow_mud"
+  }
+}
