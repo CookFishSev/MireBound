@@ -87,6 +87,7 @@ projects:
 
 - **[Memento In Abyss / Made In Abyss](https://github.com/MIA-Development-Team/Made-In-Abyss)** - rope physics implementation ideas;
 - **[Aeronautics / Simulated Project](https://github.com/Creators-of-Aeronautics/Simulated-Project)** - reference material for physical-world compatibility;
+- **[Sable](https://github.com/ryanhcode/sable)** - reference material for physical-structure compatibility;
 - **[Litematica](https://github.com/maruohon/litematica)** - selection rendering and related logic;
 - **[Quicksand-Rehydrated](https://github.com/Theyoungster/Quicksand-Rehydrated)** - gameplay inspiration for a modern quicksand mod;
 - **[MFQM Decompiled Reference](https://github.com/Iwaku-Real/MFQM-decompiled)** - early behavior and presentation reference.

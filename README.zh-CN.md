@@ -70,6 +70,7 @@ gradle "-Dorg.gradle.problems.report=false" build --no-configuration-cache --sta
 
 - **[Memento In Abyss / Made In Abyss]** – 提供了物理绳索的实现思路；
 - **[Aeronautics / Simulated Project]** – 为适配物理世界提供了巨大帮助；
+- **[Sable](https://github.com/ryanhcode/sable)** – 用于物理结构兼容；
 - **[Litematica](https://github.com/maruohon/litematica)** – 参考了其框选内容的渲染方式与逻辑，极大优化了性能；
 - **[Quicksand-Rehydrated]** – 提供了玩法灵感，并激励我在高版本实现流沙模组；
 - **[MFQM Decompiled Reference]** – 为本模组的起步提供了宝贵的指引。
