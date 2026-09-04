@@ -7,7 +7,7 @@
 **Mirebound: Sinking Depths** is a gameplay expansion mod centered on
 quicksand. It currently supports Minecraft 1.21.1 with NeoForge.
 
-This mod continues the design concept of the 1.7.10-era `More Fun Quicksand
+This mod continues the design concept of the 1.7.10 mod `More Fun Quicksand
 Mod`, rebuilding its gameplay balance and physics systems while introducing a
 small number of new items.
 
