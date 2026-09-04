@@ -35,7 +35,18 @@
 
 ## 构建
 
-（待补充构建命令或依赖说明）
+构建要求：
+
+- Java `21`
+- Gradle `8.x` 或兼容版本
+
+在仓库根目录执行：
+
+```text
+gradle "-Dorg.gradle.problems.report=false" build --no-configuration-cache --stacktrace
+```
+
+构建得到的模组 JAR 位于 `build/libs/`。
 
 ---
 
