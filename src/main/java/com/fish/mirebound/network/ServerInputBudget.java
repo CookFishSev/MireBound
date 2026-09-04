@@ -46,6 +46,7 @@ public final class ServerInputBudget {
         ROPE_BREAK(4),
         ROPE_EXTEND(2),
         ROPE_CLIMB(4),
+        ROPE_RESCUE_HAUL(4),
         MUD_TUNING_REQUEST(4),
         MUD_TUNING_APPLY(4);
 

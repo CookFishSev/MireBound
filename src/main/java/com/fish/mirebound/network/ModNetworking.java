@@ -34,6 +34,7 @@ import com.fish.mirebound.network.payload.RopeExtendPayload;
 import com.fish.mirebound.network.payload.RopeConnectPayload;
 import com.fish.mirebound.network.payload.RopeRescueCastPayload;
 import com.fish.mirebound.network.payload.RopeRescueHaulPayload;
+import com.fish.mirebound.network.payload.RopeRescueHaulStatePayload;
 import com.fish.mirebound.network.payload.RopeClimbInputPayload;
 import com.fish.mirebound.network.payload.RopeInteractionReleasePayload;
 import com.fish.mirebound.network.payload.TenderFleshEnclosurePayload;
@@ -78,7 +79,7 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
 import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 
 public final class ModNetworking {
-    private static final String PROTOCOL_VERSION = "171";
+    private static final String PROTOCOL_VERSION = "172";
 
     private ModNetworking() {
     }
@@ -131,6 +132,9 @@ public final class ModNetworking {
                 ModNetworking::handleRopeRescueCast);
         registrar.playToServer(RopeRescueHaulPayload.TYPE, RopeRescueHaulPayload.STREAM_CODEC,
                 ModNetworking::handleRopeRescueHaul);
+        registrar.playToClient(RopeRescueHaulStatePayload.TYPE,
+                RopeRescueHaulStatePayload.STREAM_CODEC,
+                ModNetworking::handleRopeRescueHaulState);
         registrar.playToServer(RopeClimbInputPayload.TYPE, RopeClimbInputPayload.STREAM_CODEC,
                 ModNetworking::handleRopeClimbInput);
         registrar.playToClient(RopeInteractionReleasePayload.TYPE,
@@ -541,10 +545,18 @@ public final class ModNetworking {
     private static void handleRopeRescueHaul(
             RopeRescueHaulPayload payload, IPayloadContext context) {
         context.enqueueWork(() -> {
-            if (context.player() instanceof ServerPlayer player) {
+            if (context.player() instanceof ServerPlayer player
+                    && ServerInputBudget.allow(player,
+                            ServerInputBudget.Channel.ROPE_RESCUE_HAUL)) {
                 com.fish.mirebound.rope.RopeRuntime.handleRescueHaul(player, payload);
             }
         });
+    }
+
+    private static void handleRopeRescueHaulState(
+            RopeRescueHaulStatePayload payload, IPayloadContext context) {
+        enqueueClient(context,
+                () -> ClientNetworkHandlers.handleRopeRescueHaulState(payload));
     }
 
     private static void handleRopeClimbInput(

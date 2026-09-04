@@ -6,6 +6,7 @@ import static com.fish.mirebound.physics.MudMovementControl.updateMudMovement;
 
 import com.fish.mirebound.registry.ModCriteria;
 import com.fish.mirebound.adaptive.MudVisualSource;
+import com.fish.mirebound.rope.RopeClimbing;
 import com.fish.mirebound.rope.RopeRuntime;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
@@ -39,11 +40,6 @@ final class MudPlayerMovement {
             return;
         }
 
-        RopeRuntime.RescuePull worldRescuePull = RopeRuntime.rescuePull(
-                player, data != null && data.holdingStruggle);
-        RopeRuntime.RescuePull frameRescuePull = toSurfaceFrame(
-                worldRescuePull, contact);
-
         Vec3 originalWorldMotion = player.getDeltaMovement();
         player.setDeltaMovement(frameMotion);
         if (contact.physicsMedium() == SinkingMedium.LIVING_SLIME) {
@@ -62,8 +58,7 @@ final class MudPlayerMovement {
             applyPlayerMovement(player, contact.state(), contact.depth(), contact.depthFactor(),
                     contact.horizontalCoverage(), contact.availableDepth(),
                     contact.layerTopDepth(), contact.layerDepth(), contact.hasDeeperLayer(), data,
-                    contact.physicsMedium(), contact.physicsProfilePos(), "sable-gravity-frame",
-                    frameRescuePull);
+                    contact.physicsMedium(), contact.physicsProfilePos(), "sable-gravity-frame");
         }
 
         Vec3 adjustedFrameMotion = player.getDeltaMovement();
@@ -139,18 +134,6 @@ final class MudPlayerMovement {
                 .add(axisZ.scale(frameVector.z));
     }
 
-    private static RopeRuntime.RescuePull toSurfaceFrame(
-            RopeRuntime.RescuePull worldPull, MudContact contact) {
-        if (worldPull == null || !worldPull.active()) {
-            return RopeRuntime.RescuePull.NONE;
-        }
-        Vec3 frameMotion = toSurfaceFrame(worldPull.motion(), contact);
-        return frameMotion == null
-                ? RopeRuntime.RescuePull.NONE
-                : new RopeRuntime.RescuePull(true, frameMotion,
-                        worldPull.sinkRelief(), worldPull.tautness());
-    }
-
     static boolean correctZeroDepthPenetration(Player player, MudContact contact) {
         if (contact.physicsMedium() == SinkingMedium.LIVING_SLIME) {
             return false;
@@ -192,20 +175,6 @@ final class MudPlayerMovement {
             double depthFactor, double horizontalCoverage, double availableDepth,
             double layerTopDepth, double layerDepth, boolean hasDeeperLayer,
             MudPlayerData data, SinkingMedium medium, BlockPos physicsProfilePos, String frame) {
-        RopeRuntime.RescuePull rescuePull = player instanceof ServerPlayer serverPlayer
-                ? RopeRuntime.rescuePull(
-                        serverPlayer, data != null && data.holdingStruggle)
-                : RopeRuntime.RescuePull.NONE;
-        applyPlayerMovement(player, state, depth, depthFactor, horizontalCoverage,
-                availableDepth, layerTopDepth, layerDepth, hasDeeperLayer, data,
-                medium, physicsProfilePos, frame, rescuePull);
-    }
-
-    static void applyPlayerMovement(Player player, BlockState state, double depth,
-            double depthFactor, double horizontalCoverage, double availableDepth,
-            double layerTopDepth, double layerDepth, boolean hasDeeperLayer,
-            MudPlayerData data, SinkingMedium medium, BlockPos physicsProfilePos, String frame,
-            RopeRuntime.RescuePull rescuePull) {
         if (player.tickCount == 0) {
             return;
         }
@@ -233,6 +202,9 @@ final class MudPlayerMovement {
         }
 
         Vec3 motion = player.getDeltaMovement();
+        boolean ropeContact = player instanceof ServerPlayer serverPlayer
+                ? RopeRuntime.isRopeMovementContact(serverPlayer)
+                : RopeClimbing.clientMovementContact(player);
         double horizontalSpeed = motion.horizontalDistance();
         double look = 0.0D;
         if (data != null) {
@@ -253,7 +225,7 @@ final class MudPlayerMovement {
         }
         SinkingPhysicsProfile profile = resolvePhysicsProfile(player, data, medium, physicsProfilePos);
         if (SinkingPhysicsSolver.configuredDepth(profile) <= ZERO_DEPTH_EPSILON) {
-            applyZeroDepthMovement(player, data, rescuePull);
+            applyZeroDepthMovement(player, data);
             return;
         }
         MudEnchantmentEffects.Modifiers enchantments = MudEnchantmentEffects.mudWalker(player);
@@ -297,16 +269,19 @@ final class MudPlayerMovement {
                 enchantments.walkRestoration(),
                 layerTopDepth,
                 layerDepth,
-                hasDeeperLayer,
-                rescuePull.motion().x,
-                rescuePull.motion().y,
-                rescuePull.motion().z,
-                rescuePull.sinkRelief());
+                hasDeeperLayer);
         SinkingPhysicsSolver.Result result = SinkingPhysicsSolver.solve(profile, input);
-        double finalMotionX = result.motionX();
-        double finalMotionY = result.motionY();
-        double finalMotionZ = result.motionZ();
-        double finalWalkScale = result.walkScale();
+        boolean specialMedium = fleshEnabled || sculkEnabled;
+        Vec3 ropeAdjustedMotion = RopeClimbing.restoreMudHorizontalMotion(
+                motion,
+                new Vec3(result.motionX(), result.motionY(), result.motionZ()),
+                ropeContact,
+                specialMedium);
+        double finalMotionX = ropeAdjustedMotion.x;
+        double finalMotionY = ropeAdjustedMotion.y;
+        double finalMotionZ = ropeAdjustedMotion.z;
+        double finalWalkScale = ropeContact && !specialMedium
+                ? 1.0D : result.walkScale();
         TenderFleshMechanics.StepResult fleshResult = null;
         TenderFleshProfile fleshProfile = null;
         if (fleshEnabled && data != null) {
@@ -664,10 +639,18 @@ final class MudPlayerMovement {
                 layerDepth,
                 hasDeeperLayer);
         SinkingPhysicsSolver.Result result = SinkingPhysicsSolver.solve(profile, input);
-        double finalMotionX = result.motionX();
-        double finalMotionY = result.motionY();
-        double finalMotionZ = result.motionZ();
-        double finalWalkScale = result.walkScale();
+        boolean ropeContact = RopeClimbing.clientMovementContact(player);
+        boolean specialMedium = fleshEnabled || sculkEnabled;
+        Vec3 ropeAdjustedMotion = RopeClimbing.restoreMudHorizontalMotion(
+                motion,
+                new Vec3(result.motionX(), result.motionY(), result.motionZ()),
+                ropeContact,
+                specialMedium);
+        double finalMotionX = ropeAdjustedMotion.x;
+        double finalMotionY = ropeAdjustedMotion.y;
+        double finalMotionZ = ropeAdjustedMotion.z;
+        double finalWalkScale = ropeContact && !specialMedium
+                ? 1.0D : result.walkScale();
         TenderFleshMechanics.StepResult fleshResult = null;
         if (fleshEnabled) {
             TenderFleshProfile fleshProfile = resolveTenderFleshProfile(
@@ -789,7 +772,7 @@ final class MudPlayerMovement {
     }
 
     private static void applyZeroDepthMovement(
-            Player player, MudPlayerData data, RopeRuntime.RescuePull rescuePull) {
+            Player player, MudPlayerData data) {
         if (data != null) {
             data.pendingStruggleCharge = -1.0F;
             data.liftTicks = 0;
@@ -801,9 +784,7 @@ final class MudPlayerMovement {
         }
         updateMudMovement(player, 1.0D, 0.0D);
         Vec3 motion = player.getDeltaMovement();
-        Vec3 pull = rescuePull != null && rescuePull.active()
-                ? rescuePull.motion() : Vec3.ZERO;
-        player.setDeltaMovement(motion.x + pull.x, Math.max(0.0D, pull.y), motion.z + pull.z);
+        player.setDeltaMovement(motion.x, Math.max(0.0D, motion.y), motion.z);
         player.setOnGround(true);
         player.hasImpulse = true;
         player.resetFallDistance();

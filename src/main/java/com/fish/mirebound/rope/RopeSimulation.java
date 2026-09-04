@@ -121,19 +121,26 @@ public final class RopeSimulation {
     }
 
     private void solveDistanceConstraints() {
+        solveDistanceConstraints(0, x.length - 1);
+    }
+
+    private void solveDistanceConstraints(int firstSegment,
+            int lastSegmentExclusive) {
         double targetLength = properties.segmentLength();
-        for (int segment = 0; segment < x.length - 1; segment++) {
-            int first = segment;
-            int second = segment + 1;
-            double dx = x[second] - x[first];
-            double dy = y[second] - y[first];
-            double dz = z[second] - z[first];
+        int startSegment = Math.max(0, firstSegment);
+        int endSegment = Math.min(x.length - 1, lastSegmentExclusive);
+        for (int segment = startSegment; segment < endSegment; segment++) {
+            int firstPoint = segment;
+            int secondPoint = segment + 1;
+            double dx = x[secondPoint] - x[firstPoint];
+            double dy = y[secondPoint] - y[firstPoint];
+            double dz = z[secondPoint] - z[firstPoint];
             double distanceSquared = dx * dx + dy * dy + dz * dz;
             if (distanceSquared <= MIN_DISTANCE_SQUARED) {
                 continue;
             }
-            double firstWeight = fixedTargets[first] == null ? 1.0D : 0.0D;
-            double secondWeight = fixedTargets[second] == null ? 1.0D : 0.0D;
+            double firstWeight = fixedTargets[firstPoint] == null ? 1.0D : 0.0D;
+            double secondWeight = fixedTargets[secondPoint] == null ? 1.0D : 0.0D;
             double denominator = firstWeight + secondWeight;
             if (denominator <= 0.0D) {
                 continue;
@@ -142,12 +149,27 @@ public final class RopeSimulation {
             double correction = (distance - targetLength) / distance;
             double firstShare = firstWeight / denominator;
             double secondShare = secondWeight / denominator;
-            x[first] += dx * correction * firstShare;
-            y[first] += dy * correction * firstShare;
-            z[first] += dz * correction * firstShare;
-            x[second] -= dx * correction * secondShare;
-            y[second] -= dy * correction * secondShare;
-            z[second] -= dz * correction * secondShare;
+            x[firstPoint] += dx * correction * firstShare;
+            y[firstPoint] += dy * correction * firstShare;
+            z[firstPoint] += dz * correction * firstShare;
+            x[secondPoint] -= dx * correction * secondShare;
+            y[secondPoint] -= dy * correction * secondShare;
+            z[secondPoint] -= dz * correction * secondShare;
+        }
+    }
+
+    /** Repeats a bounded local solve for a rope tail that needs hard links. */
+    public void enforceDistanceConstraints(int firstSegment,
+            int segmentCount, int iterations) {
+        int first = Math.max(0, firstSegment);
+        int last = Math.min(x.length - 1, first + Math.max(0, segmentCount));
+        int passes = Math.max(0, iterations);
+        if (first >= last || passes == 0) {
+            return;
+        }
+        for (int iteration = 0; iteration < passes; iteration++) {
+            solveDistanceConstraints(first, last);
+            pinFixedPoints();
         }
     }
 
@@ -230,11 +252,20 @@ public final class RopeSimulation {
 
     /** Damps the two free nodes directly attached to a grabbed segment. */
     public void dampFreeVelocities(int grabbedSegment) {
+        dampFreeVelocities(grabbedSegment - 1, grabbedSegment + 2);
+    }
+
+    /** Damps the two free nodes directly attached to one rescue-held point. */
+    public void dampFreeVelocitiesAroundPoint(int fixedPoint) {
+        dampFreeVelocities(fixedPoint - 1, fixedPoint + 1);
+    }
+
+    private void dampFreeVelocities(int firstNeighbor, int secondNeighbor) {
         double damping = properties.dragVelocityDamping();
         for (int point = 0; point < x.length; point++) {
             if (fixedTargets[point] == null) {
-                double pointDamping = point == grabbedSegment - 1
-                        || point == grabbedSegment + 2
+                double pointDamping = point == firstNeighbor
+                        || point == secondNeighbor
                         ? damping * 0.60D : damping;
                 previousX[point] = x[point]
                         - (x[point] - previousX[point]) * pointDamping;

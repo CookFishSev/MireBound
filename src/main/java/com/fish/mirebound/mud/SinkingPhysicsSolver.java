@@ -146,9 +146,6 @@ final class SinkingPhysicsSolver {
             response = Math.max(response, profile.capStopResponse * (1.0D - capFactor));
         }
         double settlingVelocity = lerp(previousSettling, targetSinkSpeed, response);
-        double ropeSinkRelief = Mth.clamp(
-                input.ropeSinkRelief(), 0.0D, profile.maxSinkSpeed);
-        settlingVelocity = Math.max(0.0D, settlingVelocity - ropeSinkRelief);
         if (remaining <= 0.0D) {
             settlingVelocity = 0.0D;
         } else if (remaining <= 0.002D) {
@@ -158,9 +155,6 @@ final class SinkingPhysicsSolver {
         }
 
         double struggleImpulse = 0.0D;
-        double ropePullX = Mth.clamp(input.ropePullX(), -0.08D, 0.08D);
-        double ropePullY = Mth.clamp(input.ropePullY(), 0.0D, 0.10D);
-        double ropePullZ = Mth.clamp(input.ropePullZ(), -0.08D, 0.08D);
         double y;
         if (input.struggleCharge() >= 0.0D) {
             double charge = smooth(Mth.clamp(input.struggleCharge(), 0.0D, 1.0D));
@@ -171,18 +165,18 @@ final class SinkingPhysicsSolver {
             settlingVelocity *= 1.0D - charge;
             y = Math.min(profile.struggleMax + 0.08D,
                     Math.max(0.0D, input.motionY()) * 0.12D
-                            + struggleImpulse + ropePullY);
+                            + struggleImpulse);
         } else if (input.carryingStruggle() && input.motionY() > 0.0D) {
             settlingVelocity = 0.0D;
-            y = input.motionY() * Math.max(0.30D, verticalScale) + ropePullY;
+            y = input.motionY() * Math.max(0.30D, verticalScale);
         } else {
-            y = -settlingVelocity + ropePullY;
+            y = -settlingVelocity;
         }
 
         return new Result(
-                input.motionX() * walkScale + input.wobbleX() + ropePullX,
+                input.motionX() * walkScale + input.wobbleX(),
                 y,
-                input.motionZ() * walkScale + input.wobbleZ() + ropePullZ,
+                input.motionZ() * walkScale + input.wobbleZ(),
                 columnDepth,
                 sinkLimit,
                 naturalLimit,
@@ -357,47 +351,7 @@ final class SinkingPhysicsSolver {
             double walkRestoration,
             double layerTopDepth,
             double layerDepth,
-            boolean hasDeeperLayer,
-            double ropePullX,
-            double ropePullY,
-            double ropePullZ,
-            double ropeSinkRelief) {
-        Input(
-                double depth,
-                double columnDepth,
-                double standingHeight,
-                double motionX,
-                double motionY,
-                double motionZ,
-                double settlingVelocity,
-                double agitation,
-                double lookDelta,
-                boolean crouching,
-                boolean holdingStruggle,
-                double struggleCharge,
-                boolean carryingStruggle,
-                double slurpImpulse,
-                double wobbleX,
-                double wobbleZ,
-                double immersionFraction,
-                double horizontalCoverage,
-                double depthLimitScale,
-                double walkRestoration,
-                double layerTopDepth,
-                double layerDepth,
-                boolean hasDeeperLayer) {
-            this(
-                    depth, columnDepth, standingHeight,
-                    motionX, motionY, motionZ,
-                    settlingVelocity, agitation, lookDelta,
-                    crouching, holdingStruggle, struggleCharge, carryingStruggle,
-                    slurpImpulse, wobbleX, wobbleZ,
-                    immersionFraction, horizontalCoverage,
-                    depthLimitScale, walkRestoration,
-                    layerTopDepth, layerDepth, hasDeeperLayer,
-                    0.0D, 0.0D, 0.0D, 0.0D);
-        }
-
+            boolean hasDeeperLayer) {
         Input(
                 double depth,
                 double columnDepth,

@@ -7,21 +7,17 @@ import com.fish.mirebound.network.payload.RopeBreakPayload;
 import com.fish.mirebound.network.payload.RopeExtendPayload;
 import com.fish.mirebound.network.payload.RopeConnectPayload;
 import com.fish.mirebound.network.payload.RopeRescueHaulPayload;
+import com.fish.mirebound.network.payload.RopeRescueHaulStatePayload;
 import com.fish.mirebound.network.payload.RopeClimbInputPayload;
 import com.fish.mirebound.network.payload.RopeInteractionReleasePayload;
-import com.fish.mirebound.mud.MudPhysics;
 import com.fish.mirebound.mud.MudPhysicsSettings;
-import com.fish.mirebound.mud.MudPlayerData;
-import com.fish.mirebound.mud.MudStateStore;
 import com.fish.mirebound.registry.ModMudworkContent;
 import com.fish.mirebound.registry.ModBlocks;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import java.util.WeakHashMap;
 import net.minecraft.core.BlockPos;
@@ -60,23 +56,19 @@ public final class RopeRuntime {
     private static final int LASSO_SEGMENTS = 5;
     private static final int MINIMUM_RESCUE_SEGMENTS = LASSO_SEGMENTS + 1;
     private static final int MAXIMUM_LASSO_FLIGHT_TICKS = 60;
-    private static final int RESCUE_RELEASE_GRACE_TICKS = 40;
     private static final double LASSO_GRAVITY = 0.035D;
     private static final double LASSO_VELOCITY_DAMPING = 0.985D;
-    private static final double TAUT_START = 0.82D;
-    private static final int RESCUE_HAUL_INPUT_TIMEOUT_TICKS = 3;
-    private static final int RESCUE_HAUL_CYCLE_TICKS = 6;
-    private static final double RESCUE_HAUL_BEHIND_DISTANCE = 0.80D;
-    private static final double RESCUE_HAUL_NODE_SPEED = 0.30D;
-    private static final double RESCUE_HAUL_MUD_PULL_SPEED = 0.060D;
-    private static final double RESCUE_HAUL_PLAYER_ACCELERATION = 0.012D;
-    private static final double RESCUE_HAUL_MAX_PLAYER_SPEED = 0.14D;
-    private static final double RESCUE_HAUL_CLIMB_SPEED = 0.018D;
+    private static final double RESCUE_TAUT_START = 0.92D;
+    private static final int RESCUE_HAUL_INPUT_TIMEOUT_TICKS = 20;
+    private static final double RESCUE_HAUL_BODY_HEIGHT = 0.62D;
+    private static final double RESCUE_GRIP_ARRIVAL_RADIUS = 0.20D;
+    private static final double RESCUE_GRIP_PROGRESS_DISTANCE = 0.035D;
+    private static final double RESCUE_HAUL_MAX_SPEED = 0.075D;
     private static final int CLIMB_INPUT_TIMEOUT_TICKS = 5;
     private static final Map<ServerLevel, LevelRopes> LEVELS = new WeakHashMap<>();
     private static final Map<UUID, RescueCastIntent> RESCUE_CASTS = new HashMap<>();
     private static final Map<UUID, ClimbInput> CLIMB_INPUTS = new HashMap<>();
-    private static final Set<UUID> CLIMB_CONTACTS = new HashSet<>();
+    private static final Map<UUID, ClimbContact> CLIMB_CONTACT_CACHE = new HashMap<>();
 
     private RopeRuntime() {
     }
@@ -94,7 +86,7 @@ public final class RopeRuntime {
             if (ropes.chains.size() >= MAX_ROPES_PER_LEVEL) {
                 break;
             }
-            ActiveRope restored = ActiveRope.restore(state);
+            ActiveRope restored = ActiveRope.restore(state, level);
             if (restored != null) {
                 ropes.chains.add(restored);
             }
@@ -213,14 +205,19 @@ public final class RopeRuntime {
         }
     }
 
-    /** Applies ladder-like rope motion after mud has finished its player tick. */
+    /** Applies rope-owned player motion after every mud movement branch has finished. */
     public static void onPlayerTick(PlayerTickEvent.Post event) {
         if (!(event.getEntity() instanceof ServerPlayer player)) {
             return;
         }
+        applyRescueMotion(player);
+        if (findRescueHaul(player) != null) {
+            CLIMB_INPUTS.remove(player.getUUID());
+            return;
+        }
+        boolean hasClimbContact = isClimbingContact(player);
         ClimbInput input = CLIMB_INPUTS.get(player.getUUID());
         if (input == null) {
-            CLIMB_CONTACTS.remove(player.getUUID());
             return;
         }
         long now = player.serverLevel().getGameTime();
@@ -228,30 +225,87 @@ public final class RopeRuntime {
                 || player.isSpectator() || player.isDeadOrDying()
                 || player.getAbilities().flying || isHoldingTuningWand(player)) {
             CLIMB_INPUTS.remove(player.getUUID());
-            CLIMB_CONTACTS.remove(player.getUUID());
             return;
         }
-        if (findClimbContact(player) == null) {
-            CLIMB_CONTACTS.remove(player.getUUID());
-            return;
-        }
-        boolean continuingContact = !CLIMB_CONTACTS.add(player.getUUID());
-        if (!continuingContact && !input.jumping() && !input.crouching()) {
-            player.setOnGround(false);
-            player.resetFallDistance();
+        if (!hasClimbContact) {
             return;
         }
         player.setDeltaMovement(RopeClimbing.motion(
                 player.getDeltaMovement(), input.jumping(), input.crouching()));
-        player.setOnGround(false);
         player.resetFallDistance();
-        player.hasImpulse = true;
-        player.hurtMarked = true;
+    }
+
+    /** Applies the one server-authoritative rescue displacement for this tick. */
+    private static void applyRescueMotion(ServerPlayer player) {
+        LevelRopes ropes = LEVELS.get(player.serverLevel());
+        if (ropes == null) {
+            return;
+        }
+        for (ActiveRope rope : ropes.chains) {
+            if (!rope.isRescueHauling(player)) {
+                continue;
+            }
+            Vec3 motion = rope.updateRescueHaul(player);
+            if (motion == null || motion.lengthSqr() <= 1.0E-10D) {
+                return;
+            }
+            player.setDeltaMovement(rescueVelocity(
+                    player.getDeltaMovement(), motion));
+            player.resetFallDistance();
+            player.hasImpulse = true;
+            player.hurtMarked = true;
+            return;
+        }
+    }
+
+    /** Returns the cached geometric ladder contact for the current server tick. */
+    public static boolean isClimbingContact(ServerPlayer player) {
+        if (player == null || player.isSpectator() || player.isDeadOrDying()
+                || isHoldingTuningWand(player)) {
+            return false;
+        }
+        UUID playerId = player.getUUID();
+        ServerLevel level = player.serverLevel();
+        long gameTime = player.serverLevel().getGameTime();
+        ClimbContact cached = CLIMB_CONTACT_CACHE.get(playerId);
+        if (cached != null && cached.level() == level && cached.gameTime() == gameTime) {
+            return cached.active();
+        }
+        boolean active = findClimbContact(player) != null;
+        CLIMB_CONTACT_CACHE.put(playerId, new ClimbContact(level, gameTime, active));
+        return active;
+    }
+
+    /** Mud uses the same current-tick rope contact gate for all movement paths. */
+    public static boolean isRopeMovementContact(ServerPlayer player) {
+        if (player == null || player.isSpectator() || player.isDeadOrDying()
+                || isHoldingTuningWand(player)) {
+            return false;
+        }
+        return isClimbingContact(player) || findRescueHaul(player) != null;
+    }
+
+    private static ActiveRope findRescueHaul(ServerPlayer player) {
+        LevelRopes ropes = LEVELS.get(player.serverLevel());
+        if (ropes == null) {
+            return null;
+        }
+        for (ActiveRope rope : ropes.chains) {
+            if (rope.isRescueHauling(player)) {
+                return rope;
+            }
+        }
+        return null;
     }
 
     public static void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
-        CLIMB_INPUTS.remove(event.getEntity().getUUID());
-        CLIMB_CONTACTS.remove(event.getEntity().getUUID());
+        UUID playerId = event.getEntity().getUUID();
+        CLIMB_INPUTS.remove(playerId);
+        CLIMB_CONTACT_CACHE.remove(playerId);
+        RESCUE_CASTS.remove(playerId);
+        for (LevelRopes ropes : LEVELS.values()) {
+            ropes.clearPlayerRescueState(playerId);
+        }
     }
 
     public static void onLevelUnload(LevelEvent.Unload event) {
@@ -270,12 +324,13 @@ public final class RopeRuntime {
         LEVELS.clear();
         RESCUE_CASTS.clear();
         CLIMB_INPUTS.clear();
-        CLIMB_CONTACTS.clear();
+        CLIMB_CONTACT_CACHE.clear();
     }
 
     public static void handleDrag(ServerPlayer player, RopeDragPayload payload) {
         if (player.isSpectator() || payload.inputSession() <= 0L
                 || payload.inputSequence() <= 0L
+                || payload.dragging() && findRescueHaul(player) != null
                 || (isHoldingTuningWand(player) && payload.dragging())) {
             return;
         }
@@ -287,7 +342,7 @@ public final class RopeRuntime {
         if (rope == null) {
             return;
         }
-        if (rope.rescueHaulPlayerId != null) {
+        if (rope.isRescueHauling()) {
             return;
         }
         if (!payload.dragging()) {
@@ -351,7 +406,8 @@ public final class RopeRuntime {
                 pending.segmentIndex(), target, pending.frame());
         if (rope.chain.setDragTarget(
                 pending.segmentIndex(), constrainedTarget, pending.frame())) {
-            if (rope.rescueAnchored && rope.chain.rescueLassoFirstSegment() < 1) {
+            if (rope.rescueState == RescueStateMachine.State.ANCHORED
+                    && rope.chain.rescueLassoFirstSegment() < 1) {
                 rope.clearRescueAnchor(player.serverLevel());
             }
             rope.dragPlayerId = player.getUUID();
@@ -362,7 +418,7 @@ public final class RopeRuntime {
 
     public static void handleAnchor(ServerPlayer player, RopeAnchorPayload payload) {
         if (!player.isCreative() || player.isSpectator()
-                || isHoldingTuningWand(player)) {
+                || isHoldingTuningWand(player) || findRescueHaul(player) != null) {
             return;
         }
         LevelRopes ropes = LEVELS.get(player.serverLevel());
@@ -397,7 +453,8 @@ public final class RopeRuntime {
         if (player.isSpectator()) {
             return;
         }
-        if (isHoldingTuningWand(player) && payload.breaking()) {
+        if ((isHoldingTuningWand(player) || findRescueHaul(player) != null)
+                && payload.breaking()) {
             return;
         }
         LevelRopes ropes = LEVELS.get(player.serverLevel());
@@ -439,7 +496,8 @@ public final class RopeRuntime {
     }
 
     public static void handleExtend(ServerPlayer player, RopeExtendPayload payload) {
-        if (player.isSpectator() || isHoldingTuningWand(player)) {
+        if (player.isSpectator() || isHoldingTuningWand(player)
+                || findRescueHaul(player) != null) {
             return;
         }
         LevelRopes ropes = LEVELS.get(player.serverLevel());
@@ -478,7 +536,8 @@ public final class RopeRuntime {
     }
 
     public static void handleConnect(ServerPlayer player, RopeConnectPayload payload) {
-        if (player.isSpectator() || isHoldingTuningWand(player) || !emptyHands(player)) {
+        if (player.isSpectator() || isHoldingTuningWand(player) || !emptyHands(player)
+                || findRescueHaul(player) != null) {
             return;
         }
         LevelRopes ropes = LEVELS.get(player.serverLevel());
@@ -514,10 +573,9 @@ public final class RopeRuntime {
             ServerPlayer player, RopeClimbInputPayload payload) {
         if (player == null || payload == null || player.isSpectator()
                 || isHoldingTuningWand(player)
-                || !payload.active()) {
+                || !payload.active() || findRescueHaul(player) != null) {
             if (player != null) {
                 CLIMB_INPUTS.remove(player.getUUID());
-                CLIMB_CONTACTS.remove(player.getUUID());
             }
             return;
         }
@@ -528,71 +586,37 @@ public final class RopeRuntime {
 
     public static void handleRescueHaul(
             ServerPlayer player, RopeRescueHaulPayload payload) {
+        if (player == null || payload == null) {
+            return;
+        }
         LevelRopes ropes = LEVELS.get(player.serverLevel());
         ActiveRope rope = ropes == null ? null : ropes.find(payload.ropeId());
-        if (rope == null) {
-            return;
-        }
-        if (!payload.active()) {
-            rope.stopRescueHaul(player.getUUID());
-            return;
-        }
-        int lassoFirst = rope.chain.rescueLassoFirstSegment();
-        if (player.isSpectator() || isHoldingTuningWand(player)
-                || !emptyHands(player)
-                || !rope.ownerId.equals(player.getUUID())
-                || rope.dragging || lassoFirst < 1
-                || payload.segmentIndex() < 0
-                || payload.segmentIndex() >= lassoFirst) {
-            rope.stopRescueHaul(player.getUUID());
-            return;
-        }
-        boolean established = rope.rescueHaulPlayerId != null
-                && rope.rescueHaulPlayerId.equals(player.getUUID());
-        boolean sameGrip = established
-                && payload.segmentIndex() == rope.rescueHaulGripNode;
-        if (!sameGrip && !aimsAtSegment(player, rope.chain, payload.segmentIndex())) {
-            // The initial packet is still required to hit the rope. Once the
-            // session is established, server and client may briefly disagree
-            // about an interpolated segment while the rope is moving. Keep the
-            // confirmed session alive instead of dropping it on one ray miss.
-            if (!established) {
-                rope.stopRescueHaul(player.getUUID());
-                return;
+        if (rope == null || player.isSpectator() || player.isDeadOrDying()
+                || isHoldingTuningWand(player) || !emptyHands(player)) {
+            if (rope != null && rope.isRescueHauling(player)) {
+                rope.stopRescueHaul(player.serverLevel(), true);
+            } else if (payload.operation() == RopeRescueHaulPayload.Operation.START) {
+                sendRescueHaulState(player, payload.ropeId(), payload.segmentIndex(),
+                        payload.sessionId(), false);
             }
-            rope.refreshRescueHaulInput(player);
-        } else if (!sameGrip) {
-            rope.acceptRescueHaul(player, payload.segmentIndex());
-        } else {
-            rope.refreshRescueHaulInput(player);
+            return;
         }
-        // Rescue hauling advances its internal grip along the rope. The grip
-        // is intentionally allowed to move beyond ordinary interaction reach;
-        // the session was already validated when it was first established.
+        if (payload.operation() == RopeRescueHaulPayload.Operation.START
+                && ropes.hasNonRescueInteraction(player.getUUID())) {
+            sendRescueHaulState(player, payload.ropeId(), payload.segmentIndex(),
+                    payload.sessionId(), false);
+            return;
+        }
+        rope.handleRescueHaul(player, payload);
     }
 
-    public static RescuePull rescuePull(ServerPlayer player, boolean pulling) {
-        if (player == null || player.isSpectator() || isHoldingTuningWand(player)) {
-            return RescuePull.NONE;
+    private static void sendRescueHaulState(ServerPlayer player, int ropeId,
+            int segment, long sessionId, boolean active) {
+        if (player != null && sessionId > 0L) {
+            PacketDistributor.sendToPlayer(player,
+                    new RopeRescueHaulStatePayload(
+                            ropeId, segment, sessionId, active));
         }
-        LevelRopes ropes = LEVELS.get(player.serverLevel());
-        if (ropes == null) {
-            return RescuePull.NONE;
-        }
-        for (ActiveRope rope : ropes.chains) {
-            RescuePull haulPull = rope.rescueHaulPull(player);
-            if (haulPull.active()) {
-                return haulPull;
-            }
-            if (!pulling) {
-                continue;
-            }
-            RescuePull pull = rope.rescuePull(player);
-            if (pull.active()) {
-                return pull;
-            }
-        }
-        return RescuePull.NONE;
     }
 
     private static Vec3 horizontalPerpendicular(Vec3 forward) {
@@ -706,6 +730,25 @@ public final class RopeRuntime {
             return null;
         }
 
+        private boolean hasNonRescueInteraction(UUID playerId) {
+            for (ActiveRope rope : chains) {
+                if (playerId.equals(rope.dragPlayerId)
+                        || playerId.equals(rope.breakPlayerId)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private void clearPlayerRescueState(UUID playerId) {
+            for (ActiveRope rope : chains) {
+                rope.stopRescueHaul(playerId);
+                if (playerId.equals(rope.ownerId)) {
+                    rope.lastRescueSessionId = 0L;
+                }
+            }
+        }
+
         private void breakChain(ServerLevel level, ActiveRope active,
                 int segment, boolean allConnected) {
             Vec3 dropPosition = active.chain.segmentCenter(segment);
@@ -713,6 +756,7 @@ public final class RopeRuntime {
                 return;
             }
             int droppedCount = allConnected ? active.chain.segmentCount() : 1;
+            active.stopRescueHaul(level, true);
             active.chain.clearDrag();
             if (allConnected) {
                 level.playSound(null, dropPosition.x, dropPosition.y, dropPosition.z,
@@ -772,7 +816,8 @@ public final class RopeRuntime {
             ActiveRope child = new ActiveRope(nextId++, source.ownerId, childChain);
             int lassoFirst = childChain.rescueLassoFirstSegment();
             if (lassoFirst >= 1 && source.rescueAnchorPos != null) {
-                child.rescueAnchored = source.rescueAnchored;
+                child.rescueState = source.rescueState == RescueStateMachine.State.HAULING
+                        ? RescueStateMachine.State.ANCHORED : source.rescueState;
                 child.rescueHand = source.rescueHand;
                 child.lassoFirstNode = lassoFirst;
                 child.rescueAnchorPos = source.rescueAnchorPos;
@@ -805,25 +850,18 @@ public final class RopeRuntime {
         private int breakTicks;
         private long breakStartTick = Long.MIN_VALUE;
         private long lastBreakInputTick = Long.MIN_VALUE;
-        private boolean rescueHeld;
-        private boolean rescueFlying;
-        private boolean rescueAnchored;
+        private RescueStateMachine.State rescueState = RescueStateMachine.State.IDLE;
         private InteractionHand rescueHand = InteractionHand.MAIN_HAND;
         private int lassoFirstNode = -1;
         private int lassoFlightTicks;
-        private int outsideMudTicks;
         private Vec3 lassoCenter;
         private Vec3 lassoVelocity = Vec3.ZERO;
         private Vec3 lassoRight;
         private Vec3 lassoUp;
         private BlockPos rescueAnchorPos;
         private BlockState rescueAnchorState;
-        private UUID rescueHaulPlayerId;
-        private int rescueHaulGripNode = -1;
-        private int rescueHaulCycleTicks;
-        private boolean rescueHaulTaut;
-        private Vec3 rescueHaulFixedTarget;
-        private long lastRescueHaulInputTick = Long.MIN_VALUE;
+        private RescueSession rescueSession;
+        private long lastRescueSessionId;
 
         private ActiveRope(int id, UUID ownerId, RopeChain chain) {
             this.id = id;
@@ -835,7 +873,8 @@ public final class RopeRuntime {
                 InteractionHand hand, RopeChain chain, int lassoFirstNode,
                 Vec3 center, Vec3 velocity, Vec3 right, Vec3 up) {
             ActiveRope rope = new ActiveRope(id, owner.getUUID(), chain);
-            rope.rescueFlying = true;
+            rope.rescueState = RescueStateMachine.transition(
+                    rope.rescueState, RescueStateMachine.State.FLYING);
             rope.rescueHand = hand;
             rope.lassoFirstNode = lassoFirstNode;
             rope.lassoCenter = center;
@@ -845,7 +884,7 @@ public final class RopeRuntime {
             return rope;
         }
 
-        private static ActiveRope restore(RopeSavedData.State state) {
+        private static ActiveRope restore(RopeSavedData.State state, ServerLevel level) {
             if (state == null || state.properties() == null
                     || state.nodes().size() != state.properties().nodeCount()
                     || state.velocities().size() != state.nodes().size()
@@ -861,54 +900,126 @@ public final class RopeRuntime {
                 ActiveRope restored = new ActiveRope(state.id(), state.ownerId(), chain);
                 restored.age = state.age();
                 restored.lassoFirstNode = chain.rescueLassoFirstSegment();
-                restored.rescueAnchored = restored.lassoFirstNode >= 1;
-                restored.rescueAnchorPos = state.rescueAnchorPos();
+                BlockPos anchorPos = state.rescueAnchorPos();
+                if (restored.lassoFirstNode >= 1 && anchorPos != null) {
+                    restored.rescueState = RescueStateMachine.State.ANCHORED;
+                    restored.rescueAnchorPos = anchorPos;
+                    if (level.getChunkSource().hasChunk(
+                            anchorPos.getX() >> 4, anchorPos.getZ() >> 4)) {
+                        BlockState anchorState = level.getBlockState(anchorPos);
+                        if (!validSavedAnchorState(anchorState)) {
+                            chain.clearRescueAnchors();
+                            restored.lassoFirstNode = -1;
+                            restored.rescueState = RescueStateMachine.State.IDLE;
+                            restored.rescueAnchorPos = null;
+                        } else {
+                            restored.rescueAnchorState = anchorState;
+                        }
+                    }
+                } else if (restored.lassoFirstNode >= 1) {
+                    chain.clearRescueAnchors();
+                    restored.lassoFirstNode = -1;
+                }
                 return restored;
             } catch (IllegalArgumentException exception) {
                 return null;
             }
         }
 
-        private void acceptRescueHaul(ServerPlayer player, int aimedSegment) {
-            if (!player.getUUID().equals(rescueHaulPlayerId)) {
-                releaseRescueGrip();
-                rescueHaulPlayerId = player.getUUID();
-                rescueHaulGripNode = aimedSegment;
-                rescueHaulCycleTicks = 0;
-                rescueHaulTaut = false;
-                rescueHaulFixedTarget = null;
-                Vec3 grip = chain.point(rescueHaulGripNode);
-                if (grip != null) {
-                    chain.setRescueGripTarget(rescueHaulGripNode, grip);
-                }
-            } else if (aimedSegment < rescueHaulGripNode) {
-                // A ray can briefly hit the previous segment while the rope is
-                // moving. Never move the authoritative grip backwards.
-                lastRescueHaulInputTick = player.serverLevel().getGameTime();
-                return;
-            }
-            lastRescueHaulInputTick = player.serverLevel().getGameTime();
+        private boolean isRescueHauling() {
+            return rescueState == RescueStateMachine.State.HAULING
+                    && rescueSession != null;
         }
 
-        private void refreshRescueHaulInput(ServerPlayer player) {
-            if (rescueHaulPlayerId != null
-                    && rescueHaulPlayerId.equals(player.getUUID())) {
-                lastRescueHaulInputTick = player.serverLevel().getGameTime();
+        private boolean isRescueHauling(ServerPlayer player) {
+            return isRescueHauling() && rescueSession.playerId().equals(player.getUUID());
+        }
+
+        private void handleRescueHaul(
+                ServerPlayer player, RopeRescueHaulPayload payload) {
+            if (payload.operation() == null || payload.sessionId() <= 0L
+                    || payload.sequence() <= 0L) {
+                if (payload.operation() == RopeRescueHaulPayload.Operation.START) {
+                    sendRescueHaulState(player, id, payload.segmentIndex(),
+                            payload.sessionId(), false);
+                }
+                return;
+            }
+            long now = player.serverLevel().getGameTime();
+            if (payload.operation() == RopeRescueHaulPayload.Operation.STOP) {
+                if (rescueSession != null
+                        && RescueInputGuard.acceptsFollowUp(
+                                rescueSession.playerId(), rescueSession.sessionId(),
+                                rescueSession.lastSequence(), player.getUUID(), payload,
+                                RopeRescueHaulPayload.Operation.STOP)) {
+                    stopRescueHaul(player.serverLevel(), true);
+                }
+                return;
+            }
+            int lassoFirst = chain.rescueLassoFirstSegment();
+            if (RescueInputGuard.acceptsStart(
+                    ownerId, player.getUUID(), rescueState, rescueSession != null,
+                    lastRescueSessionId, lassoFirst, payload)
+                    && !dragging && pendingDrag == null && breakPlayerId == null
+                    && aimsAtSegment(player, chain, payload.segmentIndex())) {
+                rescueSession = new RescueSession(
+                        player.getUUID(), payload.sessionId(), payload.sequence(),
+                        payload.segmentIndex(), now, null,
+                        RescueHaulPhase.POSITIONING);
+                lastRescueSessionId = payload.sessionId();
+                rescueState = RescueStateMachine.transition(
+                        rescueState, RescueStateMachine.State.HAULING);
+                CLIMB_INPUTS.remove(player.getUUID());
+                Vec3 grip = chain.point(payload.segmentIndex());
+                if (grip != null) {
+                    chain.setRescueTemporaryFixedPoint(payload.segmentIndex(), grip);
+                }
+                sendRescueHaulState(player, id, payload.segmentIndex(),
+                        payload.sessionId(), true);
+                return;
+            }
+            if (payload.operation() == RopeRescueHaulPayload.Operation.START) {
+                sendRescueHaulState(player, id, payload.segmentIndex(),
+                        payload.sessionId(), false);
+                return;
+            }
+            if (rescueState != RescueStateMachine.State.HAULING
+                    || rescueSession == null
+                    || !RescueInputGuard.acceptsFollowUp(
+                            rescueSession.playerId(), rescueSession.sessionId(),
+                            rescueSession.lastSequence(), player.getUUID(), payload,
+                            RopeRescueHaulPayload.Operation.KEEP_ALIVE)) {
+                return;
+            }
+            rescueSession = rescueSession.withInput(now, payload.sequence());
+        }
+
+        private void stopRescueHaul() {
+            chain.clearRescueTemporaryFixedPoint();
+            rescueSession = null;
+            if (rescueState == RescueStateMachine.State.HAULING) {
+                rescueState = RescueStateMachine.transition(
+                        rescueState, RescueStateMachine.State.ANCHORED);
             }
         }
 
         private void stopRescueHaul(UUID playerId) {
-            if (rescueHaulPlayerId == null
-                    || (playerId != null && !playerId.equals(rescueHaulPlayerId))) {
+            if (rescueSession != null
+                    && (playerId == null || rescueSession.playerId().equals(playerId))) {
+                stopRescueHaul();
+            }
+        }
+
+        private void stopRescueHaul(ServerLevel level, boolean notifyClient) {
+            RescueSession stopped = rescueSession;
+            stopRescueHaul();
+            if (!notifyClient || stopped == null) {
                 return;
             }
-            chain.clearRescueGrip();
-            rescueHaulPlayerId = null;
-            rescueHaulGripNode = -1;
-            rescueHaulCycleTicks = 0;
-            rescueHaulTaut = false;
-            rescueHaulFixedTarget = null;
-            lastRescueHaulInputTick = Long.MIN_VALUE;
+            ServerPlayer player = level.getServer().getPlayerList()
+                    .getPlayer(stopped.playerId());
+            sendRescueHaulState(player, id, stopped.gripNode(),
+                    stopped.sessionId(), false);
         }
 
         private void notifyInteractionRelease(ServerPlayer player,
@@ -986,7 +1097,6 @@ public final class RopeRuntime {
                 clearBreak();
             }
             age++;
-            tickRescue(level);
             PendingDrag pending = pendingDrag;
             boolean captureDragTarget = pending != null && pending.dragging();
             if (collision == null || age >= nextCollisionCapture || captureDragTarget) {
@@ -1004,14 +1114,26 @@ public final class RopeRuntime {
                         corridors.add(List.of(current, target));
                     }
                 }
+                if (rescueState == RescueStateMachine.State.FLYING
+                        && lassoCenter != null && validVector(lassoVelocity)) {
+                    corridors.add(List.of(lassoCenter, lassoCenter.add(lassoVelocity)));
+                } else if (isRescueHauling()) {
+                    ServerPlayer player = level.getServer().getPlayerList()
+                            .getPlayer(rescueSession.playerId());
+                    Vec3 current = chain.point(rescueSession.gripNode());
+                    if (player != null && current != null) {
+                        corridors.add(List.of(current, rescueHaulTarget(player)));
+                    }
+                }
                 collision = RopeCollisionWorld.captureCorridors(level,
                         corridors,
                         properties.collisionCapturePadding(),
                         properties.maximumCollisionBlockSamples());
                 nextCollisionCapture = age + refresh;
             }
+            tickRescue(level);
             processPendingDrag(level);
-            tickRescueHaul(level);
+            tickRescueSession(level);
             if (dragging && level.getGameTime() - lastDragInputTick
                     > DRAG_INPUT_TIMEOUT_TICKS) {
                 stopDragAndNotify(level.getServer().getPlayerList().getPlayer(dragPlayerId));
@@ -1035,153 +1157,60 @@ public final class RopeRuntime {
             return true;
         }
 
-        private void tickRescueHaul(ServerLevel level) {
-            if (rescueHaulPlayerId == null) {
+        private void tickRescueSession(ServerLevel level) {
+            if (!isRescueHauling()) {
                 return;
             }
             ServerPlayer player = level.getServer().getPlayerList()
-                    .getPlayer(rescueHaulPlayerId);
-            int lassoFirst = chain.rescueLassoFirstSegment();
-            if (player == null || player.serverLevel() != level
-                    || player.isDeadOrDying() || player.isSpectator()
-                    || !emptyHands(player) || lassoFirst < 1
-                    || rescueHaulGripNode < 0 || rescueHaulGripNode >= lassoFirst
-                    || level.getGameTime() - lastRescueHaulInputTick
+                    .getPlayer(rescueSession.playerId());
+            if (!validRescuePlayer(player, level)
+                    || level.getGameTime() - rescueSession.lastInputTick()
                             > RESCUE_HAUL_INPUT_TIMEOUT_TICKS) {
-                stopRescueHaul(rescueHaulPlayerId);
+                stopRescueHaul(level, true);
                 return;
             }
-
-            Vec3 desired = rescueHaulTarget(player);
-            Vec3 current = chain.point(rescueHaulGripNode);
-            Vec3 knot = chain.point(lassoFirst);
-            if (current == null || knot == null) {
-                stopRescueHaul(rescueHaulPlayerId);
-                return;
-            }
-            int nextGrip = rescueHaulGripNode + 1;
-            double available = (lassoFirst - rescueHaulGripNode)
-                    * chain.properties().segmentLength();
-            Vec3 reachable = collision == null || collision.isEmpty() ? desired
-                    : collision.sweep(
-                    current, desired, chain.properties().collisionRadius());
-            Vec3 goal = clampRescueHaulTarget(reachable, knot, available);
-            Vec3 target = clampRescueHaulTarget(
-                    moveTowards(current, goal, RESCUE_HAUL_NODE_SPEED),
-                    knot, available);
-            chain.setRescueGripTarget(rescueHaulGripNode, target);
-            double tautness = rescueHaulTautness(target, knot, available);
-            rescueHaulTaut = tautness > 0.0D;
-            rescueHaulFixedTarget = rescueHaulTaut ? target : null;
-            if (rescueHaulTaut) {
-                applyRescueHaulPullIfNeeded(player,
-                        rescueHaulDirection(player, target, knot), tautness);
-            }
-            if (target.distanceToSqr(goal) > 0.01D) {
-                rescueHaulCycleTicks = 0;
-                return;
-            }
-            if (++rescueHaulCycleTicks < RESCUE_HAUL_CYCLE_TICKS) {
-                return;
-            }
-            rescueHaulCycleTicks = 0;
-            if (nextGrip < lassoFirst) {
-                advanceRescueHaulGrip(player, nextGrip);
-            }
+            setRescueTarget(player);
         }
 
         private static Vec3 rescueHaulTarget(ServerPlayer player) {
-            Vec3 forward = player.calculateViewVector(0.0F, player.getYRot());
-            forward = new Vec3(forward.x, 0.0D, forward.z);
-            if (forward.lengthSqr() <= 1.0E-8D) {
-                forward = new Vec3(0.0D, 0.0D, 1.0D);
-            } else {
-                forward = forward.normalize();
-            }
-            return player.position().add(0.0D, 0.95D, 0.0D)
-                    .subtract(forward.scale(RESCUE_HAUL_BEHIND_DISTANCE));
-        }
-
-        private Vec3 rescueHaulDirection(
-                ServerPlayer player, Vec3 gripTarget, Vec3 knot) {
-            if (gripTarget != null && knot != null) {
-                Vec3 ropeDirection = knot.subtract(gripTarget);
-                if (ropeDirection.lengthSqr() > 1.0E-8D) {
-                    return ropeDirection.normalize();
-                }
-            }
-            Vec3 look = player.getLookAngle();
-            return look.lengthSqr() <= 1.0E-8D ? Vec3.ZERO : look.normalize();
-        }
-
-        private void advanceRescueHaulGrip(ServerPlayer player, int nextGrip) {
-            Vec3 horizontalLook = new Vec3(
-                    player.getLookAngle().x, 0.0D, player.getLookAngle().z);
-            Vec3 releasedVelocity = horizontalLook.lengthSqr() <= 1.0E-8D
-                    ? new Vec3(0.0D, -0.02D, 0.0D)
-                    : horizontalLook.normalize().scale(-0.16D)
-                            .add(0.0D, -0.02D, 0.0D);
-            Vec3 nextPosition = chain.point(nextGrip);
-            rescueHaulGripNode = nextGrip;
-            rescueHaulCycleTicks = 0;
-            rescueHaulTaut = false;
-            rescueHaulFixedTarget = null;
-            chain.moveRescueGripTarget(
-                    rescueHaulGripNode, nextPosition, releasedVelocity);
-        }
-
-        private static void applyRescueHaulPull(
-                ServerPlayer player, Vec3 ropeDirection, double tautness) {
-            player.setDeltaMovement(rescueHaulMotion(
-                    player.getDeltaMovement(), ropeDirection, tautness,
-                    true));
-            player.hurtMarked = true;
-        }
-
-        private static void applyRescueHaulPullIfNeeded(
-                ServerPlayer player, Vec3 ropeDirection, double tautness) {
-            MudPlayerData data = MudStateStore.get(player);
-            if (!data.inMud && !data.debugPhysicalized) {
-                applyRescueHaulPull(player, ropeDirection, tautness);
-            }
+            double bodyHeight = Math.max(0.95D,
+                    player.getBbHeight() * RESCUE_HAUL_BODY_HEIGHT);
+            return player.position().add(0.0D, bodyHeight, 0.0D);
         }
 
         private void tickRescue(ServerLevel level) {
-            if (!rescueHeld && !rescueFlying && !rescueAnchored) {
+            if (rescueState == RescueStateMachine.State.IDLE) {
                 return;
             }
-            ServerPlayer player = level.getServer().getPlayerList().getPlayer(ownerId);
-            if (player == null || player.serverLevel() != level
-                    || player.isDeadOrDying() || player.isSpectator()) {
-                releaseRescueGrip();
+            ServerPlayer player = ownerId == null ? null
+                    : level.getServer().getPlayerList().getPlayer(ownerId);
+            if (rescueState == RescueStateMachine.State.FLYING
+                    && (player == null || player.serverLevel() != level
+                    || player.isDeadOrDying() || player.isSpectator())) {
                 cancelLassoFlight();
                 return;
             }
-            if (rescueAnchored && rescueAnchorPos != null
-                    && (rescueAnchorState == null
-                            ? level.getBlockState(rescueAnchorPos).isAir()
-                            : !level.getBlockState(rescueAnchorPos).equals(rescueAnchorState))) {
-                clearRescueAnchor(level);
-                return;
+            if (rescueState != RescueStateMachine.State.FLYING
+                    && rescueAnchorPos != null && level.getChunkSource().hasChunk(
+                            rescueAnchorPos.getX() >> 4, rescueAnchorPos.getZ() >> 4)) {
+                BlockState currentAnchorState = level.getBlockState(rescueAnchorPos);
+                if (!validSavedAnchorState(currentAnchorState)
+                        || (rescueAnchorState != null
+                                && currentAnchorState.getBlock()
+                                        != rescueAnchorState.getBlock())) {
+                    clearRescueAnchor(level);
+                    return;
+                }
+                if (rescueAnchorState == null) {
+                    rescueAnchorState = currentAnchorState;
+                }
             }
 
-            Vec3 look = player.getLookAngle().normalize();
-            Vec3 hand = handPosition(player, rescueHand, look);
-            if (rescueHeld) {
-                chain.setRescueGripTarget(0, hand);
-            }
-            if (rescueFlying) {
+            if (rescueState == RescueStateMachine.State.FLYING) {
+                Vec3 look = player.getLookAngle().normalize();
+                Vec3 hand = handPosition(player, rescueHand, look);
                 advanceLasso(level, player, hand);
                 return;
-            }
-            if (!rescueAnchored) {
-                releaseRescueGrip();
-                return;
-            }
-            if (MudPhysics.hasSinkingContact(player)) {
-                outsideMudTicks = 0;
-            } else if (++outsideMudTicks > RESCUE_RELEASE_GRACE_TICKS) {
-                releaseRescueGrip();
             }
         }
 
@@ -1190,7 +1219,7 @@ public final class RopeRuntime {
                     || lassoFirstNode < 1
                     || ++lassoFlightTicks > MAXIMUM_LASSO_FLIGHT_TICKS) {
                 cancelLassoFlight();
-                releaseRescueGrip();
+                stopRescueHaul();
                 return;
             }
             Vec3 desired = lassoCenter.add(lassoVelocity);
@@ -1204,8 +1233,8 @@ public final class RopeRuntime {
             if (hit.getType() == HitResult.Type.BLOCK) {
                 Vec3[] anchored = anchoredLassoPoints(level, hit, hand);
                 if (anchored != null && chain.anchorLasso(lassoFirstNode, anchored)) {
-                    rescueFlying = false;
-                    rescueAnchored = true;
+                    rescueState = RescueStateMachine.transition(
+                            rescueState, RescueStateMachine.State.ANCHORED);
                     rescueAnchorPos = hit.getBlockPos().immutable();
                     rescueAnchorState = level.getBlockState(rescueAnchorPos);
                     lassoCenter = null;
@@ -1216,7 +1245,7 @@ public final class RopeRuntime {
                     return;
                 }
                 cancelLassoFlight();
-                releaseRescueGrip();
+                stopRescueHaul();
                 return;
             }
 
@@ -1225,7 +1254,7 @@ public final class RopeRuntime {
                         lassoCenter, desired, chain.properties().collisionRadius());
                 if (resolved.distanceToSqr(desired) > 1.0E-5D) {
                     cancelLassoFlight();
-                    releaseRescueGrip();
+                    stopRescueHaul();
                     return;
                 }
             }
@@ -1235,83 +1264,138 @@ public final class RopeRuntime {
         }
 
         private void cancelLassoFlight() {
-            if (rescueFlying) {
+            if (rescueState == RescueStateMachine.State.FLYING) {
                 chain.clearMovingLasso();
             }
-            rescueFlying = false;
+            rescueState = RescueStateMachine.transition(
+                    rescueState, RescueStateMachine.State.IDLE);
             lassoCenter = null;
             lassoVelocity = Vec3.ZERO;
         }
 
-        private void releaseRescueGrip() {
-            if (rescueHeld) {
-                chain.clearRescueGrip();
-            }
-            rescueHeld = false;
-            outsideMudTicks = 0;
-        }
-
         private void clearRescueAnchor(ServerLevel level) {
+            stopRescueHaul(level, true);
             chain.clearRescueAnchors();
-            rescueAnchored = false;
+            rescueState = RescueStateMachine.transition(
+                    rescueState, RescueStateMachine.State.IDLE);
             rescueAnchorPos = null;
             rescueAnchorState = null;
             lassoFirstNode = -1;
-            stopRescueHaul(null);
-            releaseRescueGrip();
             send(level, false, 1);
         }
 
-        private RescuePull rescuePull(ServerPlayer player) {
-            if (!rescueHeld || !rescueAnchored
-                    || !ownerId.equals(player.getUUID()) || lassoFirstNode < 1) {
-                return RescuePull.NONE;
-            }
-            Vec3 grip = chain.point(0);
-            Vec3 knot = chain.point(lassoFirstNode);
-            if (grip == null || knot == null) {
-                return RescuePull.NONE;
-            }
-            double available = lassoFirstNode * chain.properties().segmentLength();
-            double ratio = grip.distanceTo(knot) / Math.max(available, 0.01D);
-            double tautness = Mth.clamp((ratio - TAUT_START) / (1.0D - TAUT_START),
-                    0.0D, 1.0D);
-            Vec3 direction = knot.subtract(grip);
-            if (tautness <= 0.0D || direction.lengthSqr() <= 1.0E-10D) {
-                return RescuePull.NONE;
-            }
-            direction = direction.normalize();
-            double pullSpeed = 0.060D * tautness;
-            double sinkRelief = 0.035D * tautness;
-            Vec3 motion = direction.scale(pullSpeed);
-            if (!player.horizontalCollision) {
-                motion = new Vec3(motion.x, 0.0D, motion.z);
-            }
-            return new RescuePull(true, motion, sinkRelief, tautness);
+        private static boolean validRescuePlayer(ServerPlayer player, ServerLevel level) {
+            return player != null && player.serverLevel() == level
+                    && !player.isDeadOrDying() && !player.isSpectator()
+                    && emptyHands(player);
         }
 
-        private RescuePull rescueHaulPull(ServerPlayer player) {
-            if (rescueHaulPlayerId == null
-                    || !rescueHaulPlayerId.equals(player.getUUID())
-                    || !rescueHaulTaut || rescueHaulFixedTarget == null
-                    || lassoFirstNode < 1) {
-                return RescuePull.NONE;
+        private static boolean validSavedAnchorState(BlockState state) {
+            return state != null && !state.isAir() && !state.canBeReplaced();
+        }
+
+        /** Updates the one temporary rope point and returns the bounded pull. */
+        private Vec3 updateRescueHaul(ServerPlayer player) {
+            if (!isRescueHauling(player)
+                    || !validRescuePlayer(player, player.serverLevel())
+                    || player.serverLevel().getGameTime() - rescueSession.lastInputTick()
+                            > RESCUE_HAUL_INPUT_TIMEOUT_TICKS) {
+                stopRescueHaul(player.serverLevel(), true);
+                return Vec3.ZERO;
             }
-            Vec3 knot = chain.point(lassoFirstNode);
+            int grip = rescueSession.gripNode();
+            int lassoFirst = chain.rescueLassoFirstSegment();
+            if (lassoFirst < 1 || grip < 0 || grip >= lassoFirst) {
+                stopRescueHaul(player.serverLevel(), true);
+                return Vec3.ZERO;
+            }
+            Vec3 knot = chain.point(lassoFirst);
+            if (rescueSession.phase() != RescueHaulPhase.READY
+                    || rescueSession.targetCenter() == null) {
+                return Vec3.ZERO;
+            }
+            Vec3 gripTarget = chain.segmentCenter(rescueSession.gripNode());
+            if (knot == null || gripTarget == null) {
+                return Vec3.ZERO;
+            }
+            Vec3 frontSegment = chain.segmentCenter(rescueSession.gripNode() + 1);
+            Vec3 haulPoint = rescueHaulTarget(player);
+            Vec3 ropeVector = frontSegment == null
+                    ? knot.subtract(haulPoint) : frontSegment.subtract(haulPoint);
+            return rescuePull(ropeVector, chain.properties().segmentLength());
+        }
+
+        private void setRescueTarget(ServerPlayer player) {
+            int lassoFirst = chain.rescueLassoFirstSegment();
+            if (lassoFirst < 1 || rescueSession == null
+                    || rescueSession.gripNode() < 0
+                    || rescueSession.gripNode() >= lassoFirst) {
+                stopRescueHaul(player.serverLevel(), true);
+                return;
+            }
+            Vec3 knot = chain.point(lassoFirst);
             if (knot == null) {
-                return RescuePull.NONE;
+                stopRescueHaul(player.serverLevel(), true);
+                return;
             }
-            double available = (lassoFirstNode - rescueHaulGripNode)
-                    * chain.properties().segmentLength();
-            double tautness = rescueHaulTautness(
-                    rescueHaulFixedTarget, knot, available);
-            if (tautness <= 0.0D) {
-                return RescuePull.NONE;
+            Vec3 targetCenter = rescueSession.targetCenter();
+            if (targetCenter == null) {
+                Vec3 desired = rescueHaulTarget(player);
+                double available = (lassoFirst - rescueSession.gripNode())
+                        * chain.properties().segmentLength();
+                targetCenter = clampRescueHaulTarget(desired, knot, available);
+                rescueSession = rescueSession.withTarget(targetCenter);
             }
-            Vec3 direction = rescueHaulDirection(player,
-                    rescueHaulFixedTarget, knot);
-            Vec3 motion = rescueHaulMudPull(direction, tautness);
-            return new RescuePull(true, motion, 0.035D * tautness, tautness);
+            Vec3 current = chain.point(rescueSession.gripNode());
+            Vec3 nextNode = chain.point(rescueSession.gripNode() + 1);
+            if (current == null || nextNode == null) {
+                stopRescueHaul(player.serverLevel(), true);
+                return;
+            }
+            double segmentLength = chain.properties().segmentLength();
+            boolean fixedNextNode = rescueSession.gripNode() + 1 == lassoFirst;
+            Vec3 target = fixedNextNode
+                    ? rescueAnchoredGripNodeTarget(
+                            targetCenter, nextNode, current, segmentLength)
+                    : rescueGripNodeTarget(targetCenter, nextNode);
+            if (current != null && collision != null && !collision.isEmpty()) {
+                target = collision.sweep(
+                        current, target, chain.properties().collisionRadius());
+            }
+            if (fixedNextNode) {
+                target = capRescueNodeDistance(
+                        target, nextNode, segmentLength, current);
+            }
+            chain.setRescueTemporaryFixedPoint(rescueSession.gripNode(), target);
+
+            if (rescueSession.phase() == RescueHaulPhase.POSITIONING) {
+                if (rescueGripReachedTarget(
+                        chain.segmentCenter(rescueSession.gripNode()), targetCenter)) {
+                    rescueSession = rescueSession.withReady();
+                }
+                return;
+            }
+            if (rescueSession.gripNode() + 1 < lassoFirst) {
+                Vec3 currentHaulTarget = rescueHaulTarget(player);
+                Vec3 frontSegment = chain.segmentCenter(
+                        rescueSession.gripNode() + 1);
+                Vec3 pullDirection = frontSegment == null
+                        ? nextNode.subtract(targetCenter)
+                        : frontSegment.subtract(targetCenter);
+                if (!rescueTargetMovedToward(
+                        targetCenter, currentHaulTarget, pullDirection)) {
+                    return;
+                }
+                int next = rescueSession.gripNode() + 1;
+                Vec3 nextPoint = chain.point(next);
+                if (nextPoint != null) {
+                    rescueSession = rescueSession.withGrip(next);
+                    chain.setRescueTemporaryFixedPoint(next, nextPoint);
+                    sendRescueHaulState(player, id, next,
+                            rescueSession.sessionId(), true);
+                    return;
+                }
+            }
         }
 
         private void processPendingDrag(ServerLevel level) {
@@ -1460,9 +1544,14 @@ public final class RopeRuntime {
 
     private static boolean aimsAtSegment(
             ServerPlayer player, RopeChain chain, int segment) {
-        Vec3 start = chain.point(segment);
-        Vec3 end = chain.point(segment + 1);
-        if (start == null || end == null) {
+        return aimsAtSegmentRange(player, chain, segment, segment + 1);
+    }
+
+    private static boolean aimsAtSegmentRange(ServerPlayer player, RopeChain chain,
+            int firstSegment, int endSegmentExclusive) {
+        if (chain == null || firstSegment < 0
+                || endSegmentExclusive <= firstSegment
+                || endSegmentExclusive > chain.segmentCount()) {
             return false;
         }
         Vec3 eye = player.getEyePosition();
@@ -1471,9 +1560,15 @@ public final class RopeRuntime {
         if (direction.lengthSqr() <= 1.0E-8D || range <= 0.0D) {
             return false;
         }
-        double hitDistance = RopeHitGeometry.rayCapsuleHitDistance(
-                eye, direction, start, end,
-                RopeHitGeometry.SELECTION_RADIUS, range);
+        double hitDistance = Double.POSITIVE_INFINITY;
+        for (int segment = firstSegment; segment < endSegmentExclusive; segment++) {
+            double candidate = RopeHitGeometry.rayCapsuleHitDistance(
+                    eye, direction, chain.point(segment), chain.point(segment + 1),
+                    RopeHitGeometry.SELECTION_RADIUS, range);
+            if (candidate < hitDistance) {
+                hitDistance = candidate;
+            }
+        }
         if (!Double.isFinite(hitDistance)) {
             return false;
         }
@@ -1541,13 +1636,6 @@ public final class RopeRuntime {
         return sum.scale(1.0D / nodes.size());
     }
 
-    private static Vec3 moveTowards(Vec3 from, Vec3 to, double maximumDistance) {
-        Vec3 offset = to.subtract(from);
-        double distance = offset.length();
-        return distance <= maximumDistance || distance <= 1.0E-10D
-                ? to : from.add(offset.scale(maximumDistance / distance));
-    }
-
     static Vec3 clampRescueHaulTarget(
             Vec3 target, Vec3 knot, double availableLength) {
         if (target == null || knot == null || !validVector(target)
@@ -1561,64 +1649,93 @@ public final class RopeRuntime {
                 ? target : knot.add(offset.scale(maximum / distance));
     }
 
-    static Vec3 rescueHaulMotion(
-            Vec3 currentMotion, Vec3 ropeDirection, double tautness) {
-        return rescueHaulMotion(currentMotion, ropeDirection, tautness, false);
+    /** Converts a segment-center target into the current segment's free-node target. */
+    static Vec3 rescueGripNodeTarget(Vec3 targetCenter, Vec3 nextNode) {
+        if (!validVector(targetCenter) || !validVector(nextNode)) {
+            return targetCenter;
+        }
+        return targetCenter.scale(2.0D).subtract(nextNode);
     }
 
-    static Vec3 rescueHaulMudPull(Vec3 ropeDirection, double tautness) {
-        if (!validDirection(ropeDirection)) {
+    /** Keeps the last movable node on the fixed-length sphere around the lasso. */
+    static Vec3 rescueAnchoredGripNodeTarget(
+            Vec3 targetCenter, Vec3 fixedNode, Vec3 currentNode, double segmentLength) {
+        if (!validVector(targetCenter) || !validVector(fixedNode)
+                || !Double.isFinite(segmentLength) || segmentLength <= 0.0D) {
+            return currentNode;
+        }
+        Vec3 direction = targetCenter.subtract(fixedNode);
+        if (direction.lengthSqr() <= 1.0E-10D
+                && validVector(currentNode)) {
+            direction = currentNode.subtract(fixedNode);
+        }
+        if (direction.lengthSqr() <= 1.0E-10D) {
+            direction = new Vec3(0.0D, 0.0D, 1.0D);
+        }
+        return fixedNode.add(direction.normalize().scale(segmentLength));
+    }
+
+    static Vec3 capRescueNodeDistance(
+            Vec3 target, Vec3 fixedNode, double maximumDistance, Vec3 fallback) {
+        if (!validVector(target) || !validVector(fixedNode)
+                || !Double.isFinite(maximumDistance) || maximumDistance <= 0.0D) {
+            return target;
+        }
+        Vec3 offset = target.subtract(fixedNode);
+        double distance = offset.length();
+        if (distance <= maximumDistance || distance <= 1.0E-10D) {
+            return target;
+        }
+        Vec3 direction = offset;
+        if (!validVector(direction) && validVector(fallback)) {
+            direction = fallback.subtract(fixedNode);
+        }
+        return fixedNode.add(direction.normalize().scale(maximumDistance));
+    }
+
+    static boolean rescueGripReachedTarget(Vec3 current, Vec3 target) {
+        return validVector(current) && validVector(target)
+                && current.distanceToSqr(target)
+                        <= RESCUE_GRIP_ARRIVAL_RADIUS * RESCUE_GRIP_ARRIVAL_RADIUS;
+    }
+
+    static boolean rescueTargetMovedToward(
+            Vec3 initialTarget, Vec3 currentTarget, Vec3 towardRope) {
+        if (!validVector(initialTarget) || !validVector(currentTarget)
+                || !validVector(towardRope) || towardRope.lengthSqr() <= 1.0E-10D) {
+            return false;
+        }
+        return currentTarget.subtract(initialTarget).dot(towardRope.normalize())
+                >= RESCUE_GRIP_PROGRESS_DISTANCE;
+    }
+
+    static Vec3 rescuePull(Vec3 ropeVector, double availableLength) {
+        if (!validVector(ropeVector) || !Double.isFinite(availableLength)
+                || availableLength <= 0.0D) {
             return Vec3.ZERO;
         }
-        return ropeDirection.normalize().scale(
-                RESCUE_HAUL_MUD_PULL_SPEED
-                        * Mth.clamp(tautness, 0.0D, 1.0D));
+        double distance = ropeVector.length();
+        double slack = availableLength * RESCUE_TAUT_START;
+        if (distance <= slack || distance <= 1.0E-8D) {
+            return Vec3.ZERO;
+        }
+        double tautness = Mth.clamp((distance - slack)
+                / Math.max(availableLength - slack, 0.01D), 0.0D, 1.0D);
+        return ropeVector.scale(RESCUE_HAUL_MAX_SPEED * tautness / distance);
     }
 
-    static double rescueHaulTautness(Vec3 target, Vec3 knot, double available) {
-        if (target == null || knot == null || !validVector(target)
-                || !validVector(knot)) {
-            return 0.0D;
+    static Vec3 rescueVelocity(Vec3 currentVelocity, Vec3 pullVelocity) {
+        if (!validVector(currentVelocity) || !validVector(pullVelocity)
+                || pullVelocity.lengthSqr() <= 1.0E-10D) {
+            return validVector(currentVelocity) ? currentVelocity : Vec3.ZERO;
         }
-        double ratio = target.distanceTo(knot) / Math.max(available, 0.01D);
-        return Mth.clamp((ratio - TAUT_START) / (1.0D - TAUT_START), 0.0D, 1.0D);
-    }
-
-    static Vec3 rescueHaulMotion(
-            Vec3 currentMotion, Vec3 ropeDirection, double tautness,
-            boolean allowClimb) {
-        if (currentMotion == null || ropeDirection == null) {
-            return currentMotion;
-        }
-        Vec3 horizontal = new Vec3(ropeDirection.x, 0.0D, ropeDirection.z);
-        double strength = Mth.clamp(tautness, 0.0D, 1.0D);
-        if (strength <= 0.0D) {
-            return currentMotion;
-        }
-        Vec3 result = currentMotion;
-        if (horizontal.lengthSqr() > 1.0E-8D) {
-            Vec3 axis = horizontal.normalize();
-            double opposing = currentMotion.x * axis.x + currentMotion.z * axis.z;
-            if (opposing < 0.0D) {
-                result = result.subtract(axis.scale(opposing));
-            }
-            Vec3 impulse = horizontal.normalize().scale(
-                    RESCUE_HAUL_PLAYER_ACCELERATION * strength);
-            result = result.add(impulse.x, 0.0D, impulse.z);
-            double horizontalSpeed = Math.sqrt(
-                    result.x * result.x + result.z * result.z);
-            if (horizontalSpeed > RESCUE_HAUL_MAX_PLAYER_SPEED) {
-                double scale = RESCUE_HAUL_MAX_PLAYER_SPEED / horizontalSpeed;
-                result = new Vec3(result.x * scale, result.y, result.z * scale);
-            }
-        }
-        double upwardDirection = Mth.clamp(ropeDirection.y, 0.0D, 1.0D);
-        if (allowClimb && upwardDirection > 0.0D) {
-            double climbSpeed = RESCUE_HAUL_CLIMB_SPEED
-                    * upwardDirection * strength;
-            result = new Vec3(result.x, Math.max(result.y, climbSpeed), result.z);
-        }
-        return result;
+        Vec3 direction = pullVelocity.normalize();
+        double currentAlongRope = currentVelocity.dot(direction);
+        double requiredAlongRope = pullVelocity.length();
+        return currentAlongRope >= requiredAlongRope
+                ? currentVelocity
+                : currentVelocity.add(
+                        direction.scale(requiredAlongRope - currentAlongRope));
     }
 
     private record PendingDrag(UUID playerId, int segmentIndex, RopeFrame frame,
@@ -1632,10 +1749,40 @@ public final class RopeRuntime {
     private record ClimbInput(boolean jumping, boolean crouching, long gameTime) {
     }
 
-    public record RescuePull(
-            boolean active, Vec3 motion, double sinkRelief, double tautness) {
-        public static final RescuePull NONE = new RescuePull(
-                false, Vec3.ZERO, 0.0D, 0.0D);
+    private record ClimbContact(ServerLevel level, long gameTime, boolean active) {
+    }
+
+    private record RescueSession(
+            UUID playerId, long sessionId, long lastSequence, int gripNode,
+            long lastInputTick, Vec3 targetCenter, RescueHaulPhase phase) {
+        private RescueSession withInput(long tick, long sequence) {
+            return new RescueSession(
+                    playerId, sessionId, sequence, gripNode, tick,
+                    targetCenter, phase);
+        }
+
+        private RescueSession withGrip(int node) {
+            return new RescueSession(
+                    playerId, sessionId, lastSequence, node,
+                    lastInputTick, null, RescueHaulPhase.POSITIONING);
+        }
+
+        private RescueSession withTarget(Vec3 newTarget) {
+            return new RescueSession(
+                    playerId, sessionId, lastSequence, gripNode,
+                    lastInputTick, newTarget, RescueHaulPhase.POSITIONING);
+        }
+
+        private RescueSession withReady() {
+            return new RescueSession(
+                    playerId, sessionId, lastSequence, gripNode,
+                    lastInputTick, targetCenter, RescueHaulPhase.READY);
+        }
+    }
+
+    private enum RescueHaulPhase {
+        POSITIONING,
+        READY
     }
 
     static int breakDurationTicks(boolean allConnected) {

@@ -13,6 +13,7 @@ import com.fish.mirebound.network.payload.SculkClampStatePayload;
 import com.fish.mirebound.network.payload.TentacleStateSyncPayload;
 import com.fish.mirebound.network.payload.RopeSnapshotPayload;
 import com.fish.mirebound.network.payload.RopeInteractionReleasePayload;
+import com.fish.mirebound.network.payload.RopeRescueHaulStatePayload;
 import com.fish.mirebound.network.payload.MudSplashPayload;
 import com.fish.mirebound.network.payload.MudClodScreenImpactPayload;
 import com.fish.mirebound.network.payload.DroppedItemMudStatePayload;
@@ -187,6 +188,11 @@ public final class ClientNetworkHandlers {
     public static void handleRopeInteractionRelease(
             RopeInteractionReleasePayload payload) {
         com.fish.mirebound.client.rope.ClientRopes.releaseFromServer(payload);
+    }
+
+    public static void handleRopeRescueHaulState(
+            RopeRescueHaulStatePayload payload) {
+        com.fish.mirebound.client.rope.ClientRopes.acceptRescueHaulState(payload);
     }
 
     public static void handleTenderFleshEnclosure(TenderFleshEnclosurePayload payload) {

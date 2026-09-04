@@ -11,6 +11,7 @@ import com.fish.mirebound.coverage.armor.ArmorTextureMudManager;
 import com.fish.mirebound.coverage.MudCoverageService;
 import com.fish.mirebound.registry.ModBlocks;
 import com.fish.mirebound.registry.ModCriteria;
+import com.fish.mirebound.rope.RopeRuntime;
 import com.fish.mirebound.splash.MudSplashImpactDetector;
 import com.fish.mirebound.stain.MudFootprintSystem;
 import com.fish.mirebound.stain.MudWallStainSystem;
@@ -420,8 +421,12 @@ final class MudPlayerPhysicsController {
         }
         if (volumeContact == null) {
             clearMudMovement(player);
-        } else {
+        } else if (!RopeRuntime.isRopeMovementContact(player)) {
             MudVolumeContactResolver.applyResistance(player, volumeContact);
+        } else {
+            // A rope contact bypasses volume resistance entirely. Remove the
+            // speed modifier left by the previous mud tick as well.
+            clearMudMovement(player);
         }
         boolean contactOnlyCoverage =
                 MudCoverageSampler.updateContactOnlyMudCoverage(

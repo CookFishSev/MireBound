@@ -10,6 +10,8 @@ import net.minecraft.world.phys.Vec3;
 public final class RopeChain {
     private static final double EPSILON = 1.0E-10D;
     private static final int PICKUP_TRANSITION_TICKS = 4;
+    private static final double RESCUE_FIXED_POINT_MAX_STEP = 0.10D;
+    private static final int RESCUE_TAIL_CONSTRAINT_PASSES = 24;
 
     private final RopeProperties properties;
     private final RopeSimulation simulation;
@@ -25,8 +27,9 @@ public final class RopeChain {
     private int dragTransitionTicks;
     private RopeFrame dragFrame;
     private Vec3 dragVelocity = Vec3.ZERO;
-    private int rescueGripNode = -1;
-    private Vec3 rescueGripTarget;
+    private int rescueTemporaryFixedPoint = -1;
+    private Vec3 rescueTemporaryPosition;
+    private Vec3 rescueTemporaryTarget;
     private int movingLassoFirstNode = -1;
     private Vec3[] movingLassoTargets;
     private int rescueLassoFirstSegment = -1;
@@ -78,9 +81,17 @@ public final class RopeChain {
 
     public void step(RopeCollisionWorld collision) {
         advancePickupTransition();
+        advanceRescueTemporaryFixedPoint();
         simulation.step(collision);
+        if (rescueTemporaryFixedPoint >= 0 && rescueLassoFirstSegment >= 3) {
+            simulation.enforceDistanceConstraints(
+                    rescueLassoFirstSegment - 3, 3,
+                    RESCUE_TAIL_CONSTRAINT_PASSES);
+        }
         if (draggedSegment >= 0) {
             simulation.dampFreeVelocities(draggedSegment);
+        } else if (rescueTemporaryFixedPoint >= 0) {
+            simulation.dampFreeVelocitiesAroundPoint(rescueTemporaryFixedPoint);
         }
     }
 
@@ -285,8 +296,8 @@ public final class RopeChain {
                         movingLassoTargets[index]);
             }
         }
-        if (rescueGripNode >= 0 && rescueGripTarget != null) {
-            simulation.fixPoint(rescueGripNode, rescueGripTarget);
+        if (rescueTemporaryFixedPoint >= 0 && rescueTemporaryPosition != null) {
+            simulation.fixPoint(rescueTemporaryFixedPoint, rescueTemporaryPosition);
         }
         if (draggedSegment < 0 || dragCenter == null || dragFrame == null) {
             return;
@@ -359,26 +370,39 @@ public final class RopeChain {
                 ? simulation.point(node) : null;
     }
 
-    public void setRescueGripTarget(int node, Vec3 target) {
-        moveRescueGripTarget(node, target, null);
-    }
-
-    public void moveRescueGripTarget(int node, Vec3 target, Vec3 releasedVelocity) {
+    /** Sets the single temporary point used by the server rescue constraint. */
+    public void setRescueTemporaryFixedPoint(int node, Vec3 target) {
         if (node < 0 || node >= simulation.pointCount() || !finite(target)) {
             return;
         }
-        int releasedNode = rescueGripNode;
-        rescueGripNode = node;
-        rescueGripTarget = target;
-        syncFixedPoints();
-        if (releasedNode >= 0 && releasedNode != node && finite(releasedVelocity)) {
-            simulation.setVelocity(releasedNode, releasedVelocity);
+        if (rescueTemporaryFixedPoint != node || rescueTemporaryPosition == null) {
+            rescueTemporaryPosition = simulation.point(node);
         }
+        rescueTemporaryFixedPoint = node;
+        rescueTemporaryTarget = target;
+        syncFixedPoints();
     }
 
-    public void clearRescueGrip() {
-        rescueGripNode = -1;
-        rescueGripTarget = null;
+    private void advanceRescueTemporaryFixedPoint() {
+        if (rescueTemporaryFixedPoint < 0 || rescueTemporaryPosition == null
+                || rescueTemporaryTarget == null) {
+            return;
+        }
+        Vec3 offset = rescueTemporaryTarget.subtract(rescueTemporaryPosition);
+        double distance = offset.length();
+        if (distance <= RESCUE_FIXED_POINT_MAX_STEP) {
+            rescueTemporaryPosition = rescueTemporaryTarget;
+        } else if (distance > EPSILON) {
+            rescueTemporaryPosition = rescueTemporaryPosition.add(
+                    offset.scale(RESCUE_FIXED_POINT_MAX_STEP / distance));
+        }
+        syncFixedPoints();
+    }
+
+    public void clearRescueTemporaryFixedPoint() {
+        rescueTemporaryFixedPoint = -1;
+        rescueTemporaryPosition = null;
+        rescueTemporaryTarget = null;
         syncFixedPoints();
     }
 
@@ -419,6 +443,7 @@ public final class RopeChain {
             }
         }
         clearMovingLasso();
+        clearRescueTemporaryFixedPoint();
         for (int offset = 0; offset < 5; offset++) {
             int segment = firstSegment + offset;
             Vec3 start = points[offset];
@@ -638,6 +663,12 @@ public final class RopeChain {
             anchorStarts[segment] = null;
             anchorEnds[segment] = null;
         }
+        if (rescueTemporaryFixedPoint >= 0) {
+            rescueTemporaryFixedPoint = -1;
+            rescueTemporaryPosition = null;
+            rescueTemporaryTarget = null;
+            changed = true;
+        }
         if (changed) {
             rescueLassoFirstSegment = -1;
             syncFixedPoints();
@@ -667,6 +698,11 @@ public final class RopeChain {
             anchorFrames[current] = null;
             anchorStarts[current] = null;
             anchorEnds[current] = null;
+        }
+        if (rescueTemporaryFixedPoint >= 0) {
+            rescueTemporaryFixedPoint = -1;
+            rescueTemporaryPosition = null;
+            rescueTemporaryTarget = null;
         }
         if (clearsLasso) {
             rescueLassoFirstSegment = -1;

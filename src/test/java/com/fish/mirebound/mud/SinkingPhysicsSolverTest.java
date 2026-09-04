@@ -10,36 +10,6 @@ class SinkingPhysicsSolverTest {
     private static final double STANDING_HEIGHT = 1.8D;
 
     @Test
-    void tautRescueRopeRelievesSettlingInsideTheSolver() {
-        SinkingPhysicsProfile profile =
-                SinkingPhysicsProfile.forMedium(SinkingMedium.SOFT_QUICKSAND);
-        SinkingPhysicsSolver.Input baseline = new SinkingPhysicsSolver.Input(
-                0.9D, 2.0D, STANDING_HEIGHT,
-                0.0D, -0.03D, 0.0D,
-                0.03D, 0.25D, 0.0D,
-                false, true, -1.0D, false,
-                0.0D, 0.0D, 0.0D,
-                0.5D, 1.0D, 1.0D, 0.0D,
-                0.0D, 2.0D, false);
-        SinkingPhysicsSolver.Input assisted = new SinkingPhysicsSolver.Input(
-                0.9D, 2.0D, STANDING_HEIGHT,
-                0.0D, -0.03D, 0.0D,
-                0.03D, 0.25D, 0.0D,
-                false, true, -1.0D, false,
-                0.0D, 0.0D, 0.0D,
-                0.5D, 1.0D, 1.0D, 0.0D,
-                0.0D, 2.0D, false,
-                0.025D, 0.045D, 0.0D, 0.025D);
-
-        SinkingPhysicsSolver.Result normal = SinkingPhysicsSolver.solve(profile, baseline);
-        SinkingPhysicsSolver.Result rescued = SinkingPhysicsSolver.solve(profile, assisted);
-
-        assertTrue(rescued.motionY() > normal.motionY());
-        assertTrue(rescued.settlingVelocity() < normal.settlingVelocity());
-        assertEquals(normal.motionX() + 0.025D, rescued.motionX(), 1.0E-9D);
-    }
-
-    @Test
     void horizontalBodyCoverageBlendsDeepResistanceContinuously() {
         SinkingPhysicsProfile profile =
                 SinkingPhysicsProfile.forMedium(SinkingMedium.SOFT_QUICKSAND);

@@ -289,7 +289,6 @@ public final class ClientEvents {
         ClientMudDebugState.tick();
         ClientSwarmState.tick();
         ClientTentacleManager.tick();
-        ClientRopes.tick();
         TentacleGrabCamera.tick();
         SwarmScreenOverlay.tick();
         MudSurfaceEffectManager.tick();
@@ -439,6 +438,7 @@ public final class ClientEvents {
 
     private static void onClientTickPre(ClientTickEvent.Pre event) {
         Minecraft minecraft = Minecraft.getInstance();
+        ClientRopes.tick();
         ClientPollutionVisibility.updateExternalCameraPhysics(minecraft);
         ClientPollutionVisibility.syncViewMode(minecraft);
     }

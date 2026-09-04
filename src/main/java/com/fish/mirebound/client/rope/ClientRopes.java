@@ -7,6 +7,7 @@ import com.fish.mirebound.network.payload.RopeDragPayload;
 import com.fish.mirebound.network.payload.RopeExtendPayload;
 import com.fish.mirebound.network.payload.RopeRescueCastPayload;
 import com.fish.mirebound.network.payload.RopeRescueHaulPayload;
+import com.fish.mirebound.network.payload.RopeRescueHaulStatePayload;
 import com.fish.mirebound.network.payload.RopeClimbInputPayload;
 import com.fish.mirebound.network.payload.RopeSnapshotPayload;
 import com.fish.mirebound.network.payload.RopeInteractionReleasePayload;
@@ -25,6 +26,7 @@ import java.util.Map;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.level.ClipContext;
@@ -43,6 +45,9 @@ public final class ClientRopes {
     private static final int ANCHOR_CONFIRM_TIMEOUT_TICKS = 30;
     private static final int BREAK_DURATION_TICKS = 15;
     private static final int RESCUE_HAUL_HOLD_TICKS = 5;
+    private static final int RESCUE_HAUL_HEARTBEAT_TICKS = 3;
+    private static final int RESCUE_HAUL_CONFIRM_TIMEOUT_TICKS = 20;
+    private static final int RESCUE_HAUL_SIGHT_TOLERANCE_TICKS = 3;
     private static final Map<Integer, InterpolatedRope> ROPES = new HashMap<>();
     private static ClientLevel level;
     private static Selection selected;
@@ -73,11 +78,16 @@ public final class ClientRopes {
     private static boolean rescueCastArmed;
     private static Selection pendingRescueHaul;
     private static long pendingRescueHaulStartTick = Long.MIN_VALUE;
+    private static int pendingRescueHaulSightLostTicks;
+    private static boolean rescueHaulRequested;
+    private static long rescueHaulRequestTick = Long.MIN_VALUE;
     private static boolean rescueHauling;
     private static int rescueHaulRopeId = -1;
     private static int rescueHaulSegment = -1;
-    private static int rescueHaulInputSegment = -1;
     private static long lastRescueHaulSendTick = Long.MIN_VALUE;
+    private static long nextRescueHaulSession = 1L;
+    private static long rescueHaulSession;
+    private static long rescueHaulSequence;
     private static boolean climbInputActive;
     private static boolean climbInputJumping;
     private static boolean climbInputCrouching;
@@ -101,7 +111,8 @@ public final class ClientRopes {
                     && pendingRescueHaul.ropeId() == payload.ropeId()) {
                 clearPendingRescueHaul();
             }
-            if (rescueHauling && rescueHaulRopeId == payload.ropeId()) {
+            if ((rescueHaulRequested || rescueHauling)
+                    && rescueHaulRopeId == payload.ropeId()) {
                 clearRescueHaulVisualState();
             }
             if (breaking && breakRopeId == payload.ropeId()) {
@@ -131,13 +142,32 @@ public final class ClientRopes {
                     && pendingRescueHaul.ropeId() == payload.ropeId()) {
                 clearPendingRescueHaul();
             }
-            if (rescueHauling && rescueHaulRopeId == payload.ropeId()) {
+            if ((rescueHaulRequested || rescueHauling)
+                    && rescueHaulRopeId == payload.ropeId()) {
                 clearRescueHaulVisualState();
             }
         } else if (dragging && dragRopeId == payload.ropeId()) {
             clearDragVisualState();
         }
         selected = null;
+        viewRevision++;
+    }
+
+    public static void acceptRescueHaulState(RopeRescueHaulStatePayload payload) {
+        if (payload == null || payload.sessionId() <= 0L
+                || payload.sessionId() != rescueHaulSession
+                || payload.ropeId() != rescueHaulRopeId) {
+            return;
+        }
+        if (!payload.active() || payload.segmentIndex() < 0) {
+            clearRescueHaulVisualState();
+            selected = null;
+            viewRevision++;
+            return;
+        }
+        rescueHaulRequested = false;
+        rescueHauling = true;
+        rescueHaulSegment = payload.segmentIndex();
         viewRevision++;
     }
 
@@ -153,6 +183,7 @@ public final class ClientRopes {
         viewRevision++;
         updateInteraction(minecraft);
         updateClimbInput(minecraft);
+        RopeClimbing.setClientRescueContact(minecraft.player, rescueHauling);
         if (rescueCastArmed && (!minecraft.player.isUsingItem()
                 || !(minecraft.player.getUseItem().getItem() instanceof RopeItem))) {
             PacketDistributor.sendToServer(new RopeRescueCastPayload(false));
@@ -233,6 +264,7 @@ public final class ClientRopes {
 
     public static void reset() {
         ROPES.clear();
+        RopeClimbing.clearClientContacts();
         level = null;
         selected = null;
         dragging = false;
@@ -304,7 +336,7 @@ public final class ClientRopes {
         if (button != GLFW.GLFW_MOUSE_BUTTON_RIGHT) {
             return false;
         }
-        if (action == GLFW.GLFW_RELEASE && rescueHauling) {
+        if (action == GLFW.GLFW_RELEASE && (rescueHaulRequested || rescueHauling)) {
             stopRescueHaul(minecraft);
             suppressRightRelease = false;
             return true;
@@ -359,6 +391,7 @@ public final class ClientRopes {
             if (isRescueHaulSelection(selected)) {
                 pendingRescueHaul = selected;
                 pendingRescueHaulStartTick = minecraft.level.getGameTime();
+                pendingRescueHaulSightLostTicks = 0;
                 return true;
             }
             beginDrag(minecraft, selected);
@@ -541,6 +574,13 @@ public final class ClientRopes {
         return dragging;
     }
 
+    /** Returns whether the local player's third-person model should pose for rope handling. */
+    public static boolean isDragging(AbstractClientPlayer player) {
+        Minecraft minecraft = Minecraft.getInstance();
+        return player != null && player == minecraft.player
+                && (dragging || rescueHauling);
+    }
+
     public static boolean isRescueCastArmed() {
         return rescueCastArmed;
     }
@@ -637,7 +677,7 @@ public final class ClientRopes {
     private static void updateInteraction(Minecraft minecraft) {
         if (minecraft.player == null || minecraft.level == null
                 || minecraft.screen != null || minecraft.options.hideGui) {
-            if (rescueHauling) {
+            if (rescueHaulRequested || rescueHauling) {
                 stopRescueHaul(minecraft);
             }
             if (dragging) {
@@ -678,23 +718,43 @@ public final class ClientRopes {
             if (!rightButtonDown(minecraft)) {
                 return;
             }
-            Selection hit = findHit(
-                    minecraft, rescueHaulRopeId, rescueHaulSegment);
+            Selection hit = findExactHit(
+                    minecraft, pendingRescueHaul.ropeId(),
+                    pendingRescueHaul.segmentIndex());
             if (hit == null || hit.ropeId() != pendingRescueHaul.ropeId()
+                    || hit.segmentIndex() != pendingRescueHaul.segmentIndex()
                     || !isRescueHaulSelection(hit)) {
-                clearPendingRescueHaul();
+                if (++pendingRescueHaulSightLostTicks
+                        > RESCUE_HAUL_SIGHT_TOLERANCE_TICKS) {
+                    clearPendingRescueHaul();
+                }
                 return;
             }
+            pendingRescueHaulSightLostTicks = 0;
             selected = hit;
             if (minecraft.level.getGameTime() - pendingRescueHaulStartTick
                     >= RESCUE_HAUL_HOLD_TICKS) {
                 clearPendingRescueHaul();
-                rescueHauling = true;
+                rescueHaulRequested = true;
+                rescueHauling = false;
                 rescueHaulRopeId = hit.ropeId();
                 rescueHaulSegment = hit.segmentIndex();
-                rescueHaulInputSegment = rescueHaulSegment;
+                rescueHaulSession = nextRescueHaulSession++;
+                if (nextRescueHaulSession <= 0L) {
+                    nextRescueHaulSession = 1L;
+                }
+                rescueHaulSequence = 0L;
                 lastRescueHaulSendTick = Long.MIN_VALUE;
+                rescueHaulRequestTick = minecraft.level.getGameTime();
                 sendRescueHaul(minecraft, true, true);
+            }
+            return;
+        }
+        if (rescueHaulRequested) {
+            if (!emptyHands(minecraft.player) || !rightButtonDown(minecraft)
+                    || minecraft.level.getGameTime() - rescueHaulRequestTick
+                            > RESCUE_HAUL_CONFIRM_TIMEOUT_TICKS) {
+                stopRescueHaul(minecraft);
             }
             return;
         }
@@ -716,20 +776,10 @@ public final class ClientRopes {
                 stopRescueHaul(minecraft);
                 return;
             }
-            Selection hit = findHit(minecraft);
-            if (hit == null || hit.ropeId() != rescueHaulRopeId
-                    || !isRescueHaulSelection(hit)) {
-                // The server owns the active rescue session. A moving rope can
-                // briefly miss the client ray between snapshots; keep sending
-                // the last confirmed segment instead of treating that as a
-                // right-button release.
-                sendRescueHaul(minecraft, true, false);
-                return;
-            }
-            selected = hit;
-            rescueHaulInputSegment = hit.segmentIndex();
-            rescueHaulSegment = Math.max(rescueHaulSegment, hit.segmentIndex());
-            sendRescueHaul(minecraft, true, false);
+            // The server owns the confirmed grip. Do not replace it with a
+            // moving client ray hit while snapshots are being interpolated.
+            selected = rescueHaulSelection(currentPartialTick(minecraft));
+            sendRescueHaul(minecraft, false, false);
             return;
         }
         if (dragging) {
@@ -751,21 +801,20 @@ public final class ClientRopes {
         boolean wasActive = climbInputActive;
         boolean wantsJump = minecraft.player.input.jumping;
         boolean wantsCrouch = minecraft.player.isShiftKeyDown();
-        boolean shouldProbe = wantsJump || wantsCrouch || climbInputActive
-                || minecraft.player.getDeltaMovement().y < -0.01D;
-        boolean active = shouldProbe && minecraft.screen == null
-                && canInteract(minecraft) && findClimbContact(minecraft) != null;
+        boolean active = minecraft.screen == null && canInteract(minecraft)
+                && !minecraft.player.getAbilities().flying
+                && !ropeInteractionOwnsInput()
+                && findClimbContact(minecraft) != null;
+        RopeClimbing.setClientContact(minecraft.player, active);
         boolean jumping = active && wantsJump;
         boolean crouching = active && wantsCrouch;
         if (active && (wasActive || jumping || crouching)) {
             minecraft.player.setDeltaMovement(RopeClimbing.motion(
                     minecraft.player.getDeltaMovement(), jumping, crouching));
-            minecraft.player.setOnGround(false);
             minecraft.player.resetFallDistance();
         } else if (active) {
             // Preserve the incoming fall speed on the first contact tick. The
             // ladder-like slide limit starts on the following tick.
-            minecraft.player.setOnGround(false);
             minecraft.player.resetFallDistance();
         }
         boolean changed = active != climbInputActive
@@ -812,6 +861,9 @@ public final class ClientRopes {
         climbInputJumping = false;
         climbInputCrouching = false;
         climbInputRefreshTicks = 0;
+        if (Minecraft.getInstance().player != null) {
+            RopeClimbing.setClientContact(Minecraft.getInstance().player, false);
+        }
     }
 
     private static boolean leftButtonDown(Minecraft minecraft) {
@@ -831,6 +883,11 @@ public final class ClientRopes {
                 && !minecraft.player.isSpectator()
                 && !FreecamCompat.isExternalCameraActive(minecraft)
                 && !isHoldingTuningWand(minecraft.player);
+    }
+
+    private static boolean ropeInteractionOwnsInput() {
+        return dragging || breaking || pendingRescueHaul != null
+                || rescueHaulRequested || rescueHauling || rescueCastArmed;
     }
 
     private static void clearDragVisualState() {
@@ -857,7 +914,7 @@ public final class ClientRopes {
             rescueCastArmed = false;
         }
         clearPendingRescueHaul();
-        if (rescueHauling) {
+        if (rescueHaulRequested || rescueHauling) {
             stopRescueHaul(minecraft);
         }
         if (dragging) {
@@ -913,37 +970,52 @@ public final class ClientRopes {
     private static void clearPendingRescueHaul() {
         pendingRescueHaul = null;
         pendingRescueHaulStartTick = Long.MIN_VALUE;
+        pendingRescueHaulSightLostTicks = 0;
     }
 
     private static void stopRescueHaul(Minecraft minecraft) {
         if (minecraft.level != null && rescueHaulRopeId >= 0
-                && rescueHaulInputSegment >= 0) {
+                && rescueHaulSession > 0L) {
             PacketDistributor.sendToServer(new RopeRescueHaulPayload(
-                    false, rescueHaulRopeId, rescueHaulInputSegment));
+                    RopeRescueHaulPayload.Operation.STOP,
+                    rescueHaulRopeId, -1, rescueHaulSession, ++rescueHaulSequence));
         }
         clearRescueHaulVisualState();
     }
 
     private static void clearRescueHaulVisualState() {
+        rescueHaulRequested = false;
+        rescueHaulRequestTick = Long.MIN_VALUE;
         rescueHauling = false;
         rescueHaulRopeId = -1;
         rescueHaulSegment = -1;
-        rescueHaulInputSegment = -1;
         lastRescueHaulSendTick = Long.MIN_VALUE;
+        rescueHaulSession = 0L;
+        rescueHaulSequence = 0L;
+        Minecraft minecraft = Minecraft.getInstance();
+        RopeClimbing.setClientRescueContact(minecraft.player, false);
     }
 
     private static void sendRescueHaul(
-            Minecraft minecraft, boolean active, boolean force) {
-        if (!rescueHauling || rescueHaulRopeId < 0 || rescueHaulSegment < 0
-                || minecraft.level == null) {
+            Minecraft minecraft, boolean start, boolean force) {
+        if ((!rescueHaulRequested && !rescueHauling)
+                || rescueHaulRopeId < 0 || rescueHaulSegment < 0
+                || minecraft.level == null || rescueHaulSession <= 0L) {
             return;
         }
         long tick = minecraft.level.getGameTime();
-        if (!force && tick - lastRescueHaulSendTick < DRAG_HEARTBEAT_TICKS) {
+        if (!force && lastRescueHaulSendTick != Long.MIN_VALUE
+                && tick - lastRescueHaulSendTick < RESCUE_HAUL_HEARTBEAT_TICKS) {
             return;
         }
-        PacketDistributor.sendToServer(new RopeRescueHaulPayload(
-                active, rescueHaulRopeId, rescueHaulInputSegment));
+        RopeRescueHaulPayload payload = start
+                ? RopeRescueHaulPayload.start(
+                        rescueHaulRopeId, rescueHaulSegment,
+                        rescueHaulSession, ++rescueHaulSequence)
+                : RopeRescueHaulPayload.keepAlive(
+                        rescueHaulRopeId, rescueHaulSession,
+                        ++rescueHaulSequence);
+        PacketDistributor.sendToServer(payload);
         lastRescueHaulSendTick = tick;
     }
 
@@ -1074,6 +1146,34 @@ public final class ClientRopes {
         return findHit(minecraft, -1, minimumSegment);
     }
 
+    private static Selection findExactHit(
+            Minecraft minecraft, int ropeId, int segmentIndex) {
+        float partialTick = currentPartialTick(minecraft);
+        Vec3 origin = minecraft.player.getEyePosition(partialTick);
+        Vec3 direction = minecraft.player.getViewVector(partialTick).normalize();
+        double pickRange = connectionPickRange(minecraft, origin, direction);
+        for (View view : views(partialTick)) {
+            if (view.id() != ropeId || segmentIndex < 0
+                    || segmentIndex + 1 >= view.nodes().size()) {
+                continue;
+            }
+            Vec3 start = view.nodes().get(segmentIndex);
+            Vec3 end = view.nodes().get(segmentIndex + 1);
+            double hitDistance = RopeHitGeometry.rayCapsuleHitDistance(
+                    origin, direction, start, end,
+                    RopeHitGeometry.SELECTION_RADIUS, pickRange);
+            if (!Double.isFinite(hitDistance)) {
+                return null;
+            }
+            return new Selection(view.id(), segmentIndex, start, end,
+                    hitDistance, origin.add(direction.scale(hitDistance)),
+                    view.frames()[segmentIndex], false,
+                    view.anchoredSegments().contains(segmentIndex)
+                            || view.rescueAnchoredSegments().contains(segmentIndex));
+        }
+        return null;
+    }
+
     private static Selection findHit(
             Minecraft minecraft, int ropeId, int minimumSegment) {
         float partialTick = currentPartialTick(minecraft);
@@ -1142,6 +1242,7 @@ public final class ClientRopes {
     private static boolean ensureLevel(Minecraft minecraft) {
         if (minecraft.level != level) {
             ROPES.clear();
+            RopeClimbing.clearClientContacts();
             level = minecraft.level;
             selected = null;
             dragging = false;

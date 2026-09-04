@@ -1,28 +1,30 @@
 # Mirebound
 
-Mirebound is a work-in-progress NeoForge mod for Minecraft 1.21.1. It adds
-dangerous sinking terrain, material-specific physics, environmental stains,
-and tools for exploring and escaping unstable ground.
+Mirebound is a NeoForge mod for Minecraft 1.21.1 focused on sinking terrain,
+material-specific physics, and the tools needed to explore and escape it.
+
+The project is still under active development. Gameplay, configuration, and
+save compatibility may change between development releases.
 
 ## Features
 
-- Multiple sinking materials with distinct movement and sinking behavior.
-- Configurable natural generation across supported dimensions and biomes.
-- Mud coverage on players, armor, dropped items, and nearby surfaces.
+- Multiple sinking materials with distinct physics and surface behavior.
+- Configurable natural generation across supported biomes and dimensions.
+- Persistent mud coverage for players, armor, dropped items, and surfaces.
 - Footprints, wall stains, splashes, bubbles, and other material effects.
-- In-game tools for probing depth, tuning sinking blocks, and washing mud away.
-- Optional integration with Sable physical structures.
+- A depth probe, tuning wand, water gun, and rope-based rescue tools.
 - Client and world-generation settings with multilingual interface support.
-
-Mirebound is still under active development. Features, configuration, and save
-compatibility may change before a stable release.
+- Optional compatibility with Sable physical structures.
 
 ## Requirements
 
 - Minecraft `1.21.1`
 - NeoForge `21.1.233` or a compatible `21.1.x` release
 - Java `21`
-- Curios `9.5+` (optional)
+- Curios `9.5+` is optional
+
+Install Mirebound on the server and on every client that joins a multiplayer
+world. Back up important worlds before testing development builds.
 
 ## Building
 
@@ -32,25 +34,33 @@ Run the following command from the repository root:
 gradle "-Dorg.gradle.problems.report=false" build --no-configuration-cache --stacktrace
 ```
 
-The built mod JAR is written to `build/libs/`.
+The built JAR is written to `build/libs/`.
 
-## Installing
+## Feedback And Contributions
 
-Place the built JAR in the `mods` directory of a NeoForge 1.21.1 instance.
-Install Mirebound on both the server and every connecting client when playing
-multiplayer. Back up important worlds before testing development builds.
+Bug reports and focused improvement proposals are welcome on the
+[issue tracker](https://github.com/CookFishSev/MireBound/issues). Please
+include the Minecraft and NeoForge versions, the Mirebound version, a clear
+reproduction path, and the relevant `latest.log` or crash report.
+
+For code contributions, please discuss larger changes in an issue first and
+include tests where practical. Keep changes focused and do not include local
+configuration, generated build output, or private development files.
 
 ## Credits
 
-Thanks to the developers of
-[Made In Abyss](https://github.com/MIA-Development-Team/Made-In-Abyss),
-[Aeronautics](https://github.com/Creators-of-Aeronautics/Simulated-Project),
-[Sable](https://github.com/ryanhcode/sable),
-[Litematica](https://github.com/maruohon/litematica),
-[Quicksand-Rehydrated](https://github.com/Theyoungster/Quicksand-Rehydrated),
-and [MFQM](https://github.com/Iwaku-Real/MFQM-decompiled) for the projects and
-ideas that informed parts of Mirebound's design and implementation.
+Mirebound was informed by the work and ideas in the following projects:
+
+- [Made In Abyss](https://github.com/MIA-Development-Team/Made-In-Abyss)
+- [Aeronautics / Simulated Project](https://github.com/Creators-of-Aeronautics/Simulated-Project)
+- [Sable](https://github.com/ryanhcode/sable)
+- [Litematica](https://github.com/maruohon/litematica)
+- [Quicksand-Rehydrated](https://github.com/Theyoungster/Quicksand-Rehydrated)
+- [MFQM Decompiled Reference](https://github.com/Iwaku-Real/MFQM-decompiled)
+
+See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the project-specific
+relationship and license notes.
 
 ## License
 
-See [LICENSE](LICENSE).
+Mirebound is released under the [MIT License](LICENSE).

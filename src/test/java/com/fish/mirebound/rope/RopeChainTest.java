@@ -225,73 +225,11 @@ class RopeChainTest {
     }
 
     @Test
-    void rescueHaulMovesHorizontallyWithoutAddingLift() {
-        Vec3 current = new Vec3(0.02D, -0.18D, -0.01D);
-
-        Vec3 pulled = RopeRuntime.rescueHaulMotion(
-                current, new Vec3(1.0D, 3.0D, 0.0D), 1.0D);
-
-        assertEquals(current.y, pulled.y, 0.0D);
-        assertTrue(pulled.x > current.x);
-        assertEquals(current.z, pulled.z, 1.0E-12D);
-    }
-
-    @Test
-    void rescueHaulRemovesVelocityOpposingTheAnchor() {
-        Vec3 pulled = RopeRuntime.rescueHaulMotion(
-                new Vec3(-0.12D, 0.0D, 0.0D),
-                new Vec3(1.0D, 0.0D, 0.0D), 1.0D);
-
-        assertTrue(pulled.x > 0.0D);
-        assertEquals(0.0D, pulled.z, 1.0E-12D);
-    }
-
-    @Test
-    void rescueHaulDoesNotEnterTautStateWhileTheTargetIsTooClose() {
-        assertEquals(0.0D, RopeRuntime.rescueHaulTautness(
-                new Vec3(0.0D, 0.0D, 2.0D),
-                Vec3.ZERO, 3.0D), 1.0E-12D);
-        assertTrue(RopeRuntime.rescueHaulTautness(
-                new Vec3(0.0D, 0.0D, 3.0D), Vec3.ZERO, 3.0D) > 0.0D);
-    }
-
-    @Test
     void draggingReleasesOnlyAfterTheConfiguredDistanceIsExceeded() {
         assertTrue(!RopeRuntime.dragDistanceExceeded(
                 Vec3.ZERO, new Vec3(6.0D, 0.0D, 0.0D), 6.0D));
         assertTrue(RopeRuntime.dragDistanceExceeded(
                 Vec3.ZERO, new Vec3(6.01D, 0.0D, 0.0D), 6.0D));
-    }
-
-    @Test
-    void rescueHaulCanClimbOnlyWhenARealUpwardRopeDirectionIsBlocked() {
-        Vec3 current = new Vec3(0.02D, -0.18D, -0.01D);
-
-        Vec3 pulled = RopeRuntime.rescueHaulMotion(
-                current, new Vec3(1.0D, 0.75D, 0.0D), 1.0D, true);
-
-        assertTrue(pulled.y > 0.0D);
-        assertTrue(pulled.y < 0.02D);
-    }
-
-    @Test
-    void rescueHaulCanClimbAVerticalRope() {
-        Vec3 pulled = RopeRuntime.rescueHaulMotion(
-                Vec3.ZERO, new Vec3(0.0D, 1.0D, 0.0D), 1.0D, true);
-
-        assertTrue(pulled.y > 0.0D);
-        assertEquals(0.0D, pulled.x, 1.0E-12D);
-        assertEquals(0.0D, pulled.z, 1.0E-12D);
-    }
-
-    @Test
-    void rescueHaulKeepsUsefulPullStrengthInsideMud() {
-        Vec3 pull = RopeRuntime.rescueHaulMudPull(
-                new Vec3(1.0D, 0.0D, 0.0D), 1.0D);
-
-        assertTrue(pull.x >= 0.05D);
-        assertEquals(0.0D, pull.y, 1.0E-12D);
-        assertEquals(0.0D, pull.z, 1.0E-12D);
     }
 
     @Test
@@ -319,6 +257,20 @@ class RopeChainTest {
     }
 
     @Test
+    void diagonalVerticalRopeUsesItsWholeCapsuleForContact() {
+        AABB player = new AABB(-0.3D, 0.0D, -0.3D, 0.3D, 1.8D, 0.3D);
+
+        Vec3 contact = RopeClimbing.contactPoint(
+                player,
+                new Vec3(-0.55D, -1.0D, 0.42D),
+                new Vec3(0.55D, 3.0D, 0.42D),
+                RopeProperties.DEFAULT.collisionRadius());
+
+        assertTrue(contact != null,
+                "the closest point can be in the middle of the rope capsule");
+    }
+
+    @Test
     void ropeClimbingRisesOrHoldsLikeALadder() {
         Vec3 rising = RopeClimbing.motion(
                 new Vec3(0.02D, -0.08D, 0.01D), true, false);
@@ -334,12 +286,137 @@ class RopeChainTest {
     }
 
     @Test
+    void ropeClimbingAlwaysUsesTheCurrentDownwardSlideSpeed() {
+        Vec3 sliding = RopeClimbing.motion(
+                new Vec3(0.02D, 0.60D, 0.01D), false, false);
+
+        assertEquals(-0.15D, sliding.y, 1.0E-12D);
+        assertEquals(0.02D, sliding.x, 1.0E-12D);
+        assertEquals(0.01D, sliding.z, 1.0E-12D);
+    }
+
+    @Test
+    void ropeContactRestoresOnlyMudHorizontalResistance() {
+        Vec3 original = new Vec3(0.24D, -0.08D, -0.11D);
+        Vec3 solved = new Vec3(0.03D, -0.08D, -0.02D);
+
+        Vec3 restored = RopeClimbing.restoreMudHorizontalMotion(
+                original, solved, true, false);
+        assertEquals(original.x, restored.x, 1.0E-12D);
+        assertEquals(solved.y, restored.y, 1.0E-12D);
+        assertEquals(original.z, restored.z, 1.0E-12D);
+        assertEquals(solved, RopeClimbing.restoreMudHorizontalMotion(
+                original, solved, true, true));
+        assertEquals(solved, RopeClimbing.restoreMudHorizontalMotion(
+                original, solved, false, false));
+    }
+
+    @Test
     void rescueHaulTargetCannotExceedItsRemainingRopeLength() {
         Vec3 clamped = RopeRuntime.clampRescueHaulTarget(
                 new Vec3(5.0D, 0.0D, 0.0D), Vec3.ZERO, 3.0D);
 
         assertTrue(clamped.length() < 3.0D);
         assertEquals(2.9999D, clamped.length(), 1.0E-9D);
+    }
+
+    @Test
+    void rescueGripUsesTheSegmentMiddleAsItsTarget() {
+        Vec3 target = RopeRuntime.rescueGripNodeTarget(
+                new Vec3(0.0D, 1.0D, 0.0D),
+                new Vec3(0.0D, 1.0D, 2.0D));
+
+        assertEquals(new Vec3(0.0D, 1.0D, -2.0D), target);
+        assertTrue(RopeRuntime.rescueGripReachedTarget(target, target));
+        assertTrue(!RopeRuntime.rescueGripReachedTarget(
+                target.add(0.21D, 0.0D, 0.0D), target));
+        assertTrue(RopeRuntime.rescueGripReachedTarget(
+                target.add(0.1D, 0.0D, 0.0D), target));
+        assertTrue(!RopeRuntime.rescueTargetMovedToward(
+                target, target, new Vec3(1.0D, 0.0D, 0.0D)));
+        assertTrue(RopeRuntime.rescueTargetMovedToward(
+                target, target.add(0.04D, 0.0D, 0.0D),
+                new Vec3(1.0D, 0.0D, 0.0D)));
+        assertTrue(!RopeRuntime.rescueTargetMovedToward(
+                target, target.add(-0.04D, 0.0D, 0.0D),
+                new Vec3(1.0D, 0.0D, 0.0D)));
+        Vec3 fixedNode = new Vec3(0.0D, 0.0D, 1.0D);
+        Vec3 anchoredTarget = RopeRuntime.rescueAnchoredGripNodeTarget(
+                target, fixedNode, new Vec3(0.0D, 0.0D, 0.0D), 1.0D);
+        assertEquals(1.0D, anchoredTarget.distanceTo(fixedNode), 1.0E-12D);
+        assertEquals(1.0D, RopeRuntime.capRescueNodeDistance(
+                new Vec3(0.0D, 0.0D, 3.0D), fixedNode, 1.0D,
+                Vec3.ZERO).distanceTo(fixedNode), 1.0E-12D);
+    }
+
+    @Test
+    void rescueFixedPointApproachesItsTargetWithoutTeleporting() {
+        RopeProperties properties = RopeProperties.DEFAULT.withSegmentCount(6);
+        Vec3[] positions = new Vec3[properties.nodeCount()];
+        Vec3[] velocities = new Vec3[positions.length];
+        for (int node = 0; node < positions.length; node++) {
+            positions[node] = new Vec3(node, 3.0D, 0.0D);
+            velocities[node] = Vec3.ZERO;
+        }
+        RopeChain rope = new RopeChain(properties, positions, velocities);
+        Vec3 start = rope.point(2);
+
+        rope.setRescueTemporaryFixedPoint(2, start.add(0.0D, 0.0D, 4.0D));
+        assertEquals(start, rope.point(2));
+
+        rope.step(null);
+        assertTrue(rope.point(2).distanceTo(start) <= 0.10D + 1.0E-9D);
+        assertTrue(rope.point(2).z > start.z);
+    }
+
+    @Test
+    void rescueTailConstraintKeepsTheLastThreeLinksAtRestLength() {
+        RopeProperties properties = RopeProperties.DEFAULT.withSegmentCount(3);
+        Vec3[] positions = {
+                new Vec3(0.0D, 0.0D, 0.0D),
+                new Vec3(4.0D, 0.0D, 0.0D),
+                new Vec3(8.0D, 0.0D, 0.0D),
+                new Vec3(3.0D, 0.0D, 0.0D)
+        };
+        Vec3[] velocities = {Vec3.ZERO, Vec3.ZERO, Vec3.ZERO, Vec3.ZERO};
+        RopeSimulation simulation = new RopeSimulation(
+                properties, positions, velocities, 2, 1);
+        simulation.fixPoint(0, positions[0]);
+        simulation.fixPoint(3, positions[3]);
+
+        simulation.enforceDistanceConstraints(0, 3, 24);
+
+        for (int segment = 0; segment < 3; segment++) {
+            assertEquals(properties.segmentLength(),
+                    simulation.point(segment).distanceTo(simulation.point(segment + 1)),
+                    1.0E-8D);
+        }
+    }
+
+    @Test
+    void rescuePullStartsOnlyWhenTautAndUsesTheAnchorDirection() {
+        assertEquals(Vec3.ZERO, RopeRuntime.rescuePull(
+                new Vec3(4.0D, 0.0D, 0.0D), 5.0D));
+
+        Vec3 pull = RopeRuntime.rescuePull(
+                new Vec3(3.0D, 4.0D, 0.0D), 5.0D);
+        assertTrue(pull.x > 0.0D);
+        assertTrue(pull.y > 0.0D);
+        assertEquals(4.0D / 3.0D, pull.y / pull.x, 1.0E-9D);
+        assertTrue(pull.length() <= 0.075D + 1.0E-12D);
+    }
+
+    @Test
+    void rescueVelocityUsesVanillaMotionWithoutAccumulatingPullSpeed() {
+        Vec3 pull = new Vec3(0.06D, 0.08D, 0.0D);
+        Vec3 current = new Vec3(0.0D, 0.0D, 0.04D);
+
+        Vec3 applied = RopeRuntime.rescueVelocity(current, pull);
+        Vec3 appliedAgain = RopeRuntime.rescueVelocity(applied, pull);
+
+        assertEquals(0.04D, applied.z, 1.0E-12D);
+        assertEquals(pull.length(), applied.dot(pull.normalize()), 1.0E-12D);
+        assertEquals(applied, appliedAgain);
     }
 
     @Test

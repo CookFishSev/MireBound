@@ -4,6 +4,7 @@ import static com.fish.mirebound.physics.MudMovementControl.clearMudMovement;
 import static com.fish.mirebound.physics.MudMovementControl.updateMudMovementSpeed;
 
 import com.fish.mirebound.compat.sable.SableCompat;
+import com.fish.mirebound.rope.RopeClimbing;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -253,9 +254,13 @@ final class MudClientPhysics {
                     MudVolumeContactResolver.findPhysicsContact(player, snapshot);
             if (volumeContact == null || player.isSpectator()) {
                 clearMudMovement(player);
-            } else {
+            } else if (!RopeClimbing.clientMovementContact(player)) {
                 MudVolumeContactResolver.applyResistance(player, volumeContact);
                 state.lastContactTick = player.tickCount;
+            } else {
+                // Keep the client movement attribute in sync when a rope
+                // bypasses the volume-resistance path.
+                clearMudMovement(player);
             }
             boolean wasInContact = state.inContact;
             state.inContact = false;

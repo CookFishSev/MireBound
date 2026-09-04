@@ -4,6 +4,7 @@ import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.fish.mirebound.client.AssimilationPlayerAnimation;
 import com.fish.mirebound.client.MudProbePlayerAnimation;
+import com.fish.mirebound.client.rope.RopePlayerAnimation;
 import com.fish.mirebound.client.tentacle.TentacleGrabPlayerRenderer;
 import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.model.PlayerModel;
@@ -47,6 +48,10 @@ public abstract class LivingEntityRendererRagdollMixin {
             }
             AssimilationPlayerAnimation.applyAfterSetup(
                     player, (PlayerModel<AbstractClientPlayer>) playerModel);
+            if (!grabbed) {
+                RopePlayerAnimation.applyAfterSetup(
+                        player, (PlayerModel<AbstractClientPlayer>) playerModel);
+            }
             return;
         }
         original.call(model, rawEntity, limbSwing, limbSwingAmount,
