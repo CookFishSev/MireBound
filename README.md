@@ -97,7 +97,8 @@ projects:
 ### Development Note
 
 ChatGPT and Claude were used as programming assistants during development.
-All features were reviewed and tested during the project's development.
+I have spent several months carefully polishing and testing every feature in
+the actual game to provide players with the best possible experience.
 
 > For detailed third-party relationship and license information, see
 > [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md).
