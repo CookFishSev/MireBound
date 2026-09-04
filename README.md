@@ -1,21 +1,41 @@
 # Mirebound: Sinking Depths
 
-![Mirebound icon](src/main/resources/icon.png)
+<p>
+  <img src="src/main/resources/icon.png" alt="Mirebound icon" width="128">
+</p>
 
-Mirebound is a NeoForge mod for Minecraft 1.21.1 centered on sinking terrain,
-material-specific physics, environmental contamination, and practical tools
-for exploration and escape.
+**Mirebound: Sinking Depths** is a gameplay expansion for Minecraft centered
+on quicksand and other sinking materials. It currently targets Minecraft
+1.21.1 with NeoForge.
+
+The project continues the design direction of the 1.7.10-era *More Fun
+Quicksand Mod*, while rebuilding its physics, gameplay balance, and visual
+systems for a modern Minecraft version.
 
 The project is under active development. Features, configuration formats, and
 save compatibility may change between development releases.
 
+## Design Goals
+
+- Deliver stable and clear visual effects while keeping performance in mind.
+- Make the physics immersive without turning the experience into a chore.
+- Provide enough configuration options for different play styles.
+- Maintain broad compatibility with common mods and custom content.
+
 ## Features
 
-- Multiple sinking materials with distinct physics, visuals, and gameplay.
-- Configurable natural generation across supported biomes and dimensions.
-- Persistent mud coverage for player skins, armor, dropped items, and surfaces.
-- Footprints, wall stains, splashes, bubbles, and other material effects.
-- A depth probe, tuning wand, water gun, and rope-based rescue tools.
+- 27 sinking-material types built around the idea that almost any block can
+  become dangerous terrain, while preserving as much of its original identity
+  as possible.
+- Persistent contamination effects for player skins, armor, dropped items,
+  and nearby surfaces, with support for custom content and resource packs.
+- Configurable sinking physics with depth, movement resistance, struggle, and
+  material-specific behavior.
+- Configurable natural generation across biomes and dimensions.
+- Environmental effects including footprints, wall contamination, splashes,
+  bubbles, and other surface details.
+- Exploration and escape tools including the mud probe, tuning wand, water
+  gun, and rescue rope.
 - Client and world-generation settings with multilingual interface support.
 - Optional compatibility with Sable physical structures.
 
@@ -37,7 +57,7 @@ Run the following command from the repository root:
 gradle "-Dorg.gradle.problems.report=false" build --no-configuration-cache --stacktrace
 ```
 
-The built JAR is written to `build/libs/`.
+The built mod JAR is written to `build/libs/`.
 
 ## Feedback And Contributions
 
@@ -49,6 +69,12 @@ reproduction steps, and the relevant `latest.log` or crash report.
 For code contributions, discuss larger changes in an issue first and include
 tests where practical. Keep changes focused and do not include local
 configuration, generated build output, or private development files.
+
+## Roadmap
+
+The immediate focus is stability and refinement of the core experience. Future
+work may expand the project with companion content, new dimensions, tools, and
+environmental events.
 
 ## Credits
 
