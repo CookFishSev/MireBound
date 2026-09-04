@@ -1,5 +1,7 @@
 # Mirebound: Sinking Depths
 
+![Mirebound icon](src/main/resources/icon.png)
+
 Mirebound is a NeoForge mod for Minecraft 1.21.1 centered on sinking terrain,
 material-specific physics, environmental contamination, and practical tools
 for exploration and escape.
