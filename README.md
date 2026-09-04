@@ -70,14 +70,11 @@ The built mod JAR is written to `build/libs/`.
 
 Feedback and support from players and developers are welcome!
 
-- **Report a bug**: please visit [GitHub Issues](https://github.com/你的用户名/你的仓库名/issues). When submitting an issue, please include:
+- **Report a bug**: please visit [GitHub Issues](https://github.com/CookFishSev/MireBound/issues). When submitting an issue, please include:
   - The mod and game version, such as `v1.0.0`;
   - The complete error log (`latest.log` or a crash report);
   - Clear steps to reproduce the problem.
-- **Submit code**: if you would like to contribute code, please discuss the
-  approach in an Issue before opening a Pull Request. Keep the code style
-  consistent with the project and include tests where practical.
-- **Other feedback**: suggestions and questions are also welcome in Issues.
+- **Other feedback**: suggestions and questions are also welcome in [Issues](https://github.com/CookFishSev/MireBound/issues).
 
 Thank you for helping make Mirebound better!
 

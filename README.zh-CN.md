@@ -54,12 +54,11 @@ gradle "-Dorg.gradle.problems.report=false" build --no-configuration-cache --sta
 
 欢迎所有玩家和开发者为本模组提供反馈与支持！
 
-- **报告 Bug**：请前往 [GitHub Issues](https://github.com/你的用户名/你的仓库名/issues) 提交问题。提交时请务必附上：
+- **报告 Bug**：请前往 [GitHub Issues](https://github.com/CookFishSev/MireBound/issues) 提交问题。提交时请务必附上：
   - 模组版本（如 `v1.0.0`）；
   - 完整的错误日志（`latest.log` 或崩溃报告）；
   - 清晰的重现步骤。
-- **提交代码**：如果你希望为本模组贡献代码，请先开一个 Issue 讨论方案，再提交 Pull Request。请确保代码风格与现有代码保持一致，并尽量提供测试用例。
-- **其他反馈**：如果你有任何建议或疑问，也可以在 Issues 中提出，我会尽快回复。
+- **其他反馈**：如果你有任何建议或疑问，也可以在 [Issues](https://github.com/CookFishSev/MireBound/issues) 中提出，我会尽快回复。
 
 感谢你的参与，让 Mirebound 变得更好！
 
