@@ -1,70 +1,71 @@
-# Mirebound：沉陷之境
+# Mirebound: Sinking Depths
 
-Mirebound 是一个面向 Minecraft 1.21.1 NeoForge 的模组，围绕流沙与其
-他沉陷介质，提供材质差异化物理、环境污染，以及探索和脱困工具。
+**Mirebound: Sinking Depths** 是一个以流沙为核心的玩法扩展模组，目前仅支持 Minecraft 1.21.11 NeoForge 版本。
 
-项目仍在持续开发中。不同开发版本之间可能调整功能、配置格式和存档兼容性。
+本模组延续了 1.7.10 时期 `More Fun Quicksand Mod` 的设计理念，对玩法平衡性与物理系统进行了重构，并引入少量新道具。
+
+---
 
 ## 设计理念
 
-- 在保证性能的前提下提供稳定、清晰的视觉效果；
-- 让物理表现有沉浸感，同时保持可游玩性；
-- 提供足够的配置选项，适应不同玩法需求；
-- 尽量兼容常见模组和自定义内容。
+- 在保证良好性能的前提下，呈现最优质的视觉效果；
+- 力求贴近真实物理，同时不破坏游戏平衡；
+- 提供高度可配置性，满足不同玩家的偏好；
+- 追求与各类模组的最大兼容性。
+
+---
 
 ## 内容特色
 
-- 多种具有不同物理、视觉和玩法表现的沉陷介质；
-- 支持按群系和维度配置自然生成；
-- 支持玩家皮肤、盔甲、掉落物和环境表面的持久污染效果；
-- 提供脚印、墙面污染、水花、气泡等环境表现；
-- 提供探泥杖、权杖、水枪和救援绳索等工具；
-- 提供客户端设置和世界生成设置，并支持多语言界面；
-- 可选的 Sable 物理结构兼容。
+- **27 种流沙类型**：贯彻“万物皆可流沙”的理念，支持几乎所有方块的流沙化，并尽可能保留其原有特性；
+- **精细的污染效果**：皮肤和盔甲会受流沙影响，且最大限度兼容自定义模组和材质包；
+- **拟真物理系统**：可高度自定义的流沙物理参数，带来真实的下沉与挣扎体验；
+- **丰富的事件系统**：提供多种可配置的流沙特殊事件，增加游戏变数；
+- **全新的挣扎机制**：玩家陷入流沙后的操作反馈更加丰富；
+- **渲染优化**：兼容大部分自定义渲染器，并呈现有趣而不突兀的流沙表面效果。
 
-## 环境要求
+---
 
-- Minecraft `1.21.1`
-- NeoForge `21.1.233` 或兼容的 `21.1.x` 版本
-- Java `21`
-- Curios `9.5+` 为可选依赖
+## 后续规划
 
-多人游戏时，服务端和所有加入的客户端都需要安装 Mirebound。测试开发版前，
-请先备份重要存档。
+目前模组主体将专注于核心体验的稳定，短期内不再新增内容。  
+未来，我将以本模组为基石，着力开发附属模组，可能会带来全新的维度、道具和特殊事件，敬请期待。
+
+---
 
 ## 构建
 
-在仓库根目录执行：
+（待补充构建命令或依赖说明）
 
-```text
-gradle "-Dorg.gradle.problems.report=false" build --no-configuration-cache --stacktrace
-```
-
-构建得到的模组 JAR 位于 `build/libs/`。
+---
 
 ## 反馈与贡献
 
-欢迎在 [Issues](https://github.com/CookFishSev/MireBound/issues) 提交 Bug
-或改进建议。请尽量附上 Minecraft 和 NeoForge 版本、Mirebound 版本、清晰的
-复现步骤，以及相关的 `latest.log` 或崩溃报告。
+欢迎所有玩家和开发者为本模组提供反馈与支持！
 
-较大的代码改动建议先通过 Issue 讨论，并在适当情况下附带测试。请保持改动
-范围清晰，不要提交本机配置、构建产物或私人开发文件。
+- **报告 Bug**：请前往 [GitHub Issues](https://github.com/你的用户名/你的仓库名/issues) 提交问题。提交时请务必附上：
+  - 模组版本（如 `v1.0.0`）；
+  - 完整的错误日志（`latest.log` 或崩溃报告）；
+  - 清晰的重现步骤。
+- **提交代码**：如果你希望为本模组贡献代码，请先开一个 Issue 讨论方案，再提交 Pull Request。请确保代码风格与现有代码保持一致，并尽量提供测试用例。
+- **其他反馈**：如果你有任何建议或疑问，也可以在 Issues 中提出，我会尽快回复。
 
-## 致谢
+感谢你的参与，让 Mirebound 变得更好！
 
-Mirebound 的部分设计和实现参考了以下项目：
+---
 
-- [Made In Abyss](https://github.com/MIA-Development-Team/Made-In-Abyss)
-- [Aeronautics / Simulated Project](https://github.com/Creators-of-Aeronautics/Simulated-Project)
-- [Sable](https://github.com/ryanhcode/sable)
-- [Litematica](https://github.com/maruohon/litematica)
-- [Quicksand-Rehydrated](https://github.com/Theyoungster/Quicksand-Rehydrated)
-- [MFQM Decompiled Reference](https://github.com/Iwaku-Real/MFQM-decompiled)
+## 特别致谢
 
-具体的项目关系和许可证说明请参阅
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+本模组的开发离不开以下开源项目的启发与帮助，特此致谢：
 
-## 许可证
+- **[Memento In Abyss / Made In Abyss]** – 提供了物理绳索的实现思路；
+- **[Aeronautics / Simulated Project]** – 为适配物理世界提供了巨大帮助；
+- **[Litematica](https://github.com/maruohon/litematica)** – 参考了其框选内容的渲染方式与逻辑，极大优化了性能；
+- **[Quicksand-Rehydrated]** – 提供了玩法灵感，并激励我在高版本实现流沙模组；
+- **[MFQM Decompiled Reference]** – 为本模组的起步提供了宝贵的指引。
 
-Mirebound 使用 [MIT License](LICENSE) 发布。
+### 开发备注
+
+本模组在开发过程中借助了 ChatGPT 与 Claude 进行辅助编程，但所有功能均经过本人数月的细致打磨与实机调试，以确保玩家获得最佳体验。
+
+> 更详细的第三方依赖及许可证信息，请参阅 [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md)
