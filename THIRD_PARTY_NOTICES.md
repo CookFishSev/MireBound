@@ -13,6 +13,7 @@ Full license texts for all referenced third-party projects are available in `src
 - **Repository**: <https://github.com/MIA-Development-Team/Made-In-Abyss>
 - **License**: MIT, copyright 2025 MIA Development Team
 - **Relationship**: rope simulation and collision logic were adapted into Mirebound's NeoForge 1.21.1 implementation, with modifications for server-authoritative behavior and coordinate handling.
+- **Resources**: rope textures and models from this project are used by Mirebound's rope implementation.
 
 ## Aeronautics / Simulated Project
 
