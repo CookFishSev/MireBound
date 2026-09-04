@@ -4,52 +4,57 @@
   <img src="src/main/resources/icon.png" alt="Mirebound icon" width="128">
 </p>
 
-**Mirebound: Sinking Depths** is a gameplay expansion for Minecraft centered
-on quicksand and other sinking materials. It currently targets Minecraft
-1.21.1 with NeoForge.
+**Mirebound: Sinking Depths** is a gameplay expansion mod centered on
+quicksand. It currently supports Minecraft 1.21.11 with NeoForge.
 
-The project continues the design direction of the 1.7.10-era *More Fun
-Quicksand Mod*, while rebuilding its physics, gameplay balance, and visual
-systems for a modern Minecraft version.
+This mod continues the design concept of the 1.7.10-era `More Fun Quicksand
+Mod`, rebuilding its gameplay balance and physics systems while introducing a
+small number of new items.
 
-The project is under active development. Features, configuration formats, and
-save compatibility may change between development releases.
+---
 
-## Design Goals
+## Design Philosophy
 
-- Deliver stable and clear visual effects while keeping performance in mind.
-- Make the physics immersive without turning the experience into a chore.
-- Provide enough configuration options for different play styles.
-- Maintain broad compatibility with common mods and custom content.
+- Deliver the best possible visual quality while maintaining good performance;
+- Keep the physics immersive without compromising gameplay balance;
+- Provide a high degree of configurability for different preferences;
+- Pursue broad compatibility with different mods.
+
+---
 
 ## Features
 
-- 27 sinking-material types built around the idea that almost any block can
-  become dangerous terrain, while preserving as much of its original identity
-  as possible.
-- Persistent contamination effects for player skins, armor, dropped items,
-  and nearby surfaces, with support for custom content and resource packs.
-- Configurable sinking physics with depth, movement resistance, struggle, and
-  material-specific behavior.
-- Configurable natural generation across biomes and dimensions.
-- Environmental effects including footprints, wall contamination, splashes,
-  bubbles, and other surface details.
-- Exploration and escape tools including the mud probe, tuning wand, water
-  gun, and rescue rope.
-- Client and world-generation settings with multilingual interface support.
-- Optional compatibility with Sable physical structures.
+- **27 types of quicksand**: following the idea that almost anything can become
+  quicksand, with as much of the original block identity retained as possible;
+- **Detailed contamination effects**: player skins and armor can be affected
+  by quicksand, with broad support for custom mods and resource packs;
+- **Physics simulation**: highly configurable quicksand physics for sinking and
+  struggling;
+- **Rich event systems**: multiple configurable quicksand events add variety
+  to the gameplay;
+- **New struggle mechanics**: more detailed feedback and interaction after a
+  player becomes trapped in quicksand;
+- **Rendering optimization**: compatibility with most custom renderers while
+  keeping quicksand surface effects distinctive and unobtrusive.
 
-## Requirements
+---
 
-- Minecraft `1.21.1`
-- NeoForge `21.1.233` or a compatible `21.1.x` release
-- Java `21`
-- Curios `9.5+` is optional
+## Future Plans
 
-Install Mirebound on the server and on every client that joins a multiplayer
-world. Back up important worlds before testing development builds.
+The core mod is currently focused on stability, and no major new content is
+planned in the short term.
+
+In the future, I plan to build companion mods on top of this project, which
+may introduce new dimensions, items, and special events.
+
+---
 
 ## Building
+
+Build requirements:
+
+- Java `21`
+- Gradle `8.x` or a compatible version
 
 Run the following command from the repository root:
 
@@ -59,39 +64,40 @@ gradle "-Dorg.gradle.problems.report=false" build --no-configuration-cache --sta
 
 The built mod JAR is written to `build/libs/`.
 
+---
+
 ## Feedback And Contributions
 
-Bug reports and focused improvement proposals are welcome on the
-[issue tracker](https://github.com/CookFishSev/MireBound/issues). Please
-include the Minecraft and NeoForge versions, the Mirebound version, clear
-reproduction steps, and the relevant `latest.log` or crash report.
+Feedback and support from players and developers are welcome!
 
-For code contributions, discuss larger changes in an issue first and include
-tests where practical. Keep changes focused and do not include local
-configuration, generated build output, or private development files.
+- **Report a bug**: please visit [GitHub Issues](https://github.com/你的用户名/你的仓库名/issues). When submitting an issue, please include:
+  - The mod and game version, such as `v1.0.0`;
+  - The complete error log (`latest.log` or a crash report);
+  - Clear steps to reproduce the problem.
+- **Submit code**: if you would like to contribute code, please discuss the
+  approach in an Issue before opening a Pull Request. Keep the code style
+  consistent with the project and include tests where practical.
+- **Other feedback**: suggestions and questions are also welcome in Issues.
 
-## Roadmap
+Thank you for helping make Mirebound better!
 
-The immediate focus is stability and refinement of the core experience. Future
-work may expand the project with companion content, new dimensions, tools, and
-environmental events.
+---
 
-## Credits
+## Special Thanks
 
-Mirebound was informed by the work and ideas in the following projects:
+The development of this mod was informed by the following open-source
+projects:
 
-- [Made In Abyss](https://github.com/MIA-Development-Team/Made-In-Abyss)
-- [Aeronautics / Simulated Project](https://github.com/Creators-of-Aeronautics/Simulated-Project)
-- [Sable](https://github.com/ryanhcode/sable)
-- [Litematica](https://github.com/maruohon/litematica)
-- [Quicksand-Rehydrated](https://github.com/Theyoungster/Quicksand-Rehydrated)
-- [MFQM Decompiled Reference](https://github.com/Iwaku-Real/MFQM-decompiled)
+- **[Memento In Abyss / Made In Abyss](https://github.com/MIA-Development-Team/Made-In-Abyss)** - rope physics implementation ideas;
+- **[Aeronautics / Simulated Project](https://github.com/Creators-of-Aeronautics/Simulated-Project)** - reference material for physical-world compatibility;
+- **[Litematica](https://github.com/maruohon/litematica)** - selection rendering and related logic;
+- **[Quicksand-Rehydrated](https://github.com/Theyoungster/Quicksand-Rehydrated)** - gameplay inspiration for a modern quicksand mod;
+- **[MFQM Decompiled Reference](https://github.com/Iwaku-Real/MFQM-decompiled)** - early behavior and presentation reference.
 
-See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for project-specific
-relationship and license notes.
+### Development Note
 
-For Chinese documentation, see [README.zh-CN.md](README.zh-CN.md).
+ChatGPT and Claude were used as programming assistants during development.
+All features were reviewed and tested during the project's development.
 
-## License
-
-Mirebound is released under the [MIT License](LICENSE).
+> For detailed third-party relationship and license information, see
+> [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md).
