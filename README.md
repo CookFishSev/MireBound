@@ -1,16 +1,17 @@
-# Mirebound
+# Mirebound: Sinking Depths
 
-Mirebound is a NeoForge mod for Minecraft 1.21.1 focused on sinking terrain,
-material-specific physics, and the tools needed to explore and escape it.
+Mirebound is a NeoForge mod for Minecraft 1.21.1 centered on sinking terrain,
+material-specific physics, environmental contamination, and practical tools
+for exploration and escape.
 
-The project is still under active development. Gameplay, configuration, and
+The project is under active development. Features, configuration formats, and
 save compatibility may change between development releases.
 
 ## Features
 
-- Multiple sinking materials with distinct physics and surface behavior.
+- Multiple sinking materials with distinct physics, visuals, and gameplay.
 - Configurable natural generation across supported biomes and dimensions.
-- Persistent mud coverage for players, armor, dropped items, and surfaces.
+- Persistent mud coverage for player skins, armor, dropped items, and surfaces.
 - Footprints, wall stains, splashes, bubbles, and other material effects.
 - A depth probe, tuning wand, water gun, and rope-based rescue tools.
 - Client and world-generation settings with multilingual interface support.
@@ -40,11 +41,11 @@ The built JAR is written to `build/libs/`.
 
 Bug reports and focused improvement proposals are welcome on the
 [issue tracker](https://github.com/CookFishSev/MireBound/issues). Please
-include the Minecraft and NeoForge versions, the Mirebound version, a clear
-reproduction path, and the relevant `latest.log` or crash report.
+include the Minecraft and NeoForge versions, the Mirebound version, clear
+reproduction steps, and the relevant `latest.log` or crash report.
 
-For code contributions, please discuss larger changes in an issue first and
-include tests where practical. Keep changes focused and do not include local
+For code contributions, discuss larger changes in an issue first and include
+tests where practical. Keep changes focused and do not include local
 configuration, generated build output, or private development files.
 
 ## Credits
@@ -58,8 +59,10 @@ Mirebound was informed by the work and ideas in the following projects:
 - [Quicksand-Rehydrated](https://github.com/Theyoungster/Quicksand-Rehydrated)
 - [MFQM Decompiled Reference](https://github.com/Iwaku-Real/MFQM-decompiled)
 
-See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the project-specific
+See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for project-specific
 relationship and license notes.
+
+For Chinese documentation, see [README.zh-CN.md](README.zh-CN.md).
 
 ## License
 
