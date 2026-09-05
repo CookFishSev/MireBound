@@ -22,8 +22,11 @@ import net.minecraft.world.level.block.state.BlockState;
 /** Bounded client mirror of adaptive source states used during chunk compilation. */
 public final class AdaptiveMudClientCache {
     private static final int MAX_RETAINED_CHUNKS = 1024;
+    private static final int MAX_RETAINED_REMOVED_SOURCES = 4096;
     private static final int PENDING_REMOVAL_BUDGET = 256;
     private static final Map<PositionKey, BlockState> SOURCES = new HashMap<>();
+    private static final LinkedHashMap<PositionKey, BlockState> REMOVED_SOURCES =
+            new LinkedHashMap<>(256, 0.75F, true);
     private static final AppearanceRevisionIndex<PositionKey> APPEARANCE_REVISIONS =
             new AppearanceRevisionIndex<>();
     private static final LinkedHashMap<ChunkKey, Set<PositionKey>> CHUNKS =
@@ -66,6 +69,7 @@ public final class AdaptiveMudClientCache {
             }
             PositionKey key = new PositionKey(payload.dimension(), entry.blockPos());
             BlockState previousSource = SOURCES.put(key, entry.sourceState());
+            REMOVED_SOURCES.remove(key);
             if (!entry.sourceState().equals(previousSource)) {
                 APPEARANCE_REVISIONS.update(key);
                 appearanceChanged = true;
@@ -84,7 +88,12 @@ public final class AdaptiveMudClientCache {
                 positions.add(key);
                 PENDING_REMOVALS.stage(key);
             } else {
-                appearanceChanged |= SOURCES.remove(key) != null;
+                BlockState removed = SOURCES.remove(key);
+                if (removed != null) {
+                    REMOVED_SOURCES.put(key, removed);
+                    trimRemovedSources();
+                    appearanceChanged = true;
+                }
                 APPEARANCE_REVISIONS.remove(key);
                 PENDING_REMOVALS.cancel(key);
             }
@@ -116,7 +125,11 @@ public final class AdaptiveMudClientCache {
                 key -> proxyStillPresent.test(
                         key.dimension(), BlockPos.of(key.blockPos())));
         for (PositionKey key : removedKeys) {
-            SOURCES.remove(key);
+            BlockState removed = SOURCES.remove(key);
+            if (removed != null) {
+                REMOVED_SOURCES.put(key, removed);
+                trimRemovedSources();
+            }
             APPEARANCE_REVISIONS.remove(key);
             BlockPos pos = BlockPos.of(key.blockPos());
             ChunkKey chunk = new ChunkKey(
@@ -148,6 +161,14 @@ public final class AdaptiveMudClientCache {
         return source;
     }
 
+    public static synchronized BlockState removedSourceState(Level level, BlockPos pos) {
+        if (level == null || pos == null || !level.isClientSide()) {
+            return null;
+        }
+        return REMOVED_SOURCES.get(new PositionKey(
+                level.dimension().location(), pos.asLong()));
+    }
+
     public static int appearanceRevision(
             Level level, long visualSource) {
         if (level == null || !level.isClientSide()
@@ -173,6 +194,7 @@ public final class AdaptiveMudClientCache {
 
     public static synchronized void reset() {
         SOURCES.clear();
+        REMOVED_SOURCES.clear();
         APPEARANCE_REVISIONS.clear();
         CHUNKS.clear();
         PENDING_REMOVALS.clear();
@@ -185,12 +207,23 @@ public final class AdaptiveMudClientCache {
         }
     }
 
+    private static void trimRemovedSources() {
+        while (REMOVED_SOURCES.size() > MAX_RETAINED_REMOVED_SOURCES) {
+            REMOVED_SOURCES.remove(REMOVED_SOURCES.keySet().iterator().next());
+        }
+    }
+
     private static void removeChunk(ChunkKey chunk) {
         Set<PositionKey> removed = CHUNKS.remove(chunk);
         if (removed != null) {
             boolean appearanceChanged = false;
             for (PositionKey key : removed) {
-                appearanceChanged |= SOURCES.remove(key) != null;
+                BlockState source = SOURCES.remove(key);
+                if (source != null) {
+                    REMOVED_SOURCES.put(key, source);
+                    trimRemovedSources();
+                    appearanceChanged = true;
+                }
                 APPEARANCE_REVISIONS.remove(key);
                 PENDING_REMOVALS.cancel(key);
             }

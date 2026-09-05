@@ -301,14 +301,14 @@ public final class MudFootprintSystem {
         for (int y = startY; y >= startY - 2; y--) {
             BlockPos supportPos = BlockPos.containing(footPoint.x, y, footPoint.z);
             BlockState support = level.getBlockState(supportPos);
-            if (support.isAir() || ModBlocks.isSinkingBlock(support.getBlock())
-                    || support.getBlock() == ModBlocks.MUD_FOOTPRINT.get()) {
+            if (!MudFootprintBlock.isValidSupport(support, level, supportPos)) {
                 continue;
             }
             double localX = footPoint.x - supportPos.getX();
             double localZ = footPoint.z - supportPos.getZ();
             double surfaceY = Double.NEGATIVE_INFINITY;
-            for (AABB box : support.getCollisionShape(level, supportPos).toAabbs()) {
+            for (AABB box : MudFootprintBlock.supportShape(
+                    support, level, supportPos).toAabbs()) {
                 if (localX < box.minX - 0.015D || localX > box.maxX + 0.015D
                         || localZ < box.minZ - 0.015D || localZ > box.maxZ + 0.015D) {
                     continue;

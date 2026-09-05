@@ -333,11 +333,12 @@ final class MudFootprintTextureCache {
                     }
                 }
                 List<AABB> shapes = shapeCache.computeIfAbsent(supportPos.asLong(), ignored -> {
-                    if (state.isAir() || state.getBlock() == ModBlocks.MUD_FOOTPRINT.get()
-                            || ModBlocks.isSinkingBlock(state.getBlock())) {
+                    if (!MudFootprintBlock.isValidSupport(
+                            state, blockEntity.getLevel(), supportPos)) {
                         return Collections.emptyList();
                     }
-                    return state.getCollisionShape(blockEntity.getLevel(), supportPos).toAabbs().stream()
+                    return MudFootprintBlock.supportShape(
+                            state, blockEntity.getLevel(), supportPos).toAabbs().stream()
                             .map(box -> box.move(supportPos))
                             .toList();
                 });

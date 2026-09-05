@@ -22,10 +22,6 @@ final class MudTuningSelectionRenderer {
             {0, 1}, {0, 2}, {0, 4}, {1, 3}, {1, 5}, {2, 3},
             {2, 6}, {3, 7}, {4, 5}, {4, 6}, {5, 7}, {6, 7}
     };
-    private static final float SELECTED_RED = 0.18F;
-    private static final float SELECTED_GREEN = 0.96F;
-    private static final float SELECTED_BLUE = 0.98F;
-    private static final int SELECTED_COLOR = 0x2EF5FA;
     private static final float AREA_OUTLINE = 0.62F;
     private static final float SELECTED_AREA_OUTLINE = 0.84F;
 
@@ -99,8 +95,12 @@ final class MudTuningSelectionRenderer {
         if (firstPos.equals(secondPos)) {
             if (selected == MudTuningSelectionElement.BODY) {
                 renderBlockBox(pose, lines, firstPos, subLevel, camera, 0.006D,
-                        SELECTED_AREA_OUTLINE, SELECTED_AREA_OUTLINE,
-                        SELECTED_AREA_OUTLINE, 0.94F);
+                        red(MudTuningClientSettings.color(
+                                MudTuningClientSettings.HudColor.TARGET)),
+                        green(MudTuningClientSettings.color(
+                                MudTuningClientSettings.HudColor.TARGET)),
+                        blue(MudTuningClientSettings.color(
+                                MudTuningClientSettings.HudColor.TARGET)), 0.94F);
             } else {
                 renderOverlappingPointBox(
                         pose, lines, firstPos, subLevel, camera, selected);
@@ -132,9 +132,12 @@ final class MudTuningSelectionRenderer {
             BlockPos pos, Object subLevel, Vec3 camera, boolean selected,
             int color) {
         renderBlockBox(pose, lines, pos, subLevel, camera, 0.006D,
-                selected ? SELECTED_RED : red(color),
-                selected ? SELECTED_GREEN : green(color),
-                selected ? SELECTED_BLUE : blue(color), 0.98F);
+                selected ? red(MudTuningClientSettings.color(
+                        MudTuningClientSettings.HudColor.TARGET)) : red(color),
+                selected ? green(MudTuningClientSettings.color(
+                        MudTuningClientSettings.HudColor.TARGET)) : green(color),
+                selected ? blue(MudTuningClientSettings.color(
+                        MudTuningClientSettings.HudColor.TARGET)) : blue(color), 0.98F);
     }
 
     private static void renderOverlappingPointBox(PoseStack.Pose pose, VertexConsumer lines,
@@ -151,11 +154,13 @@ final class MudTuningSelectionRenderer {
             int color;
             if (edge[0] == 0 || edge[1] == 0) {
                 color = selected == MudTuningSelectionElement.FIRST
-                        ? SELECTED_COLOR : MudTuningClientSettings.color(
+                        ? MudTuningClientSettings.color(MudTuningClientSettings.HudColor.TARGET)
+                        : MudTuningClientSettings.color(
                                 MudTuningClientSettings.HudColor.POINT_ONE);
             } else if (edge[0] == 7 || edge[1] == 7) {
                 color = selected == MudTuningSelectionElement.SECOND
-                        ? SELECTED_COLOR : MudTuningClientSettings.color(
+                        ? MudTuningClientSettings.color(MudTuningClientSettings.HudColor.TARGET)
+                        : MudTuningClientSettings.color(
                                 MudTuningClientSettings.HudColor.POINT_TWO);
             } else {
                 color = 0x9E9E9E;

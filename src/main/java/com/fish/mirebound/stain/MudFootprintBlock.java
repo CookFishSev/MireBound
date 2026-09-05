@@ -1,5 +1,6 @@
 package com.fish.mirebound.stain;
 
+import com.fish.mirebound.adaptive.AdaptiveMudBlock;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -78,11 +79,19 @@ public final class MudFootprintBlock extends Block implements EntityBlock {
 
     public static boolean isValidSupport(
             BlockState support, BlockGetter level, BlockPos supportPos) {
+        boolean adaptive = support.getBlock() instanceof AdaptiveMudBlock;
         return isValidSupport(
                 support.isAir(),
                 support.getBlock() == ModBlocks.MUD_FOOTPRINT.get(),
-                ModBlocks.isSinkingBlock(support.getBlock()),
-                support.getCollisionShape(level, supportPos).isEmpty());
+                ModBlocks.isSinkingBlock(support.getBlock()) && !adaptive,
+                supportShape(support, level, supportPos).isEmpty());
+    }
+
+    public static VoxelShape supportShape(
+            BlockState support, BlockGetter level, BlockPos supportPos) {
+        return support.getBlock() instanceof AdaptiveMudBlock
+                ? AdaptiveMudBlock.sourceShape(level, supportPos, support)
+                : support.getCollisionShape(level, supportPos);
     }
 
     static boolean isValidSupport(

@@ -4,7 +4,6 @@ import com.fish.mirebound.client.compat.ClientRenderCompat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.CameraType;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.util.Mth;
@@ -55,12 +54,8 @@ final class ArmorMudProxyRenderer {
         double z = Mth.lerp(partialTick, player.zOld, player.getZ()) - cameraPosition.z;
         int packedLight = minecraft.getEntityRenderDispatcher().getPackedLightCoords(player, partialTick);
         boolean wasInvisible = player.isInvisible();
-        CameraType previousCameraType = minecraft.options.getCameraType();
         try {
             capturePass = true;
-            if (previousCameraType.isFirstPerson()) {
-                minecraft.options.setCameraType(CameraType.THIRD_PERSON_BACK);
-            }
             if (wasInvisible) {
                 player.setInvisible(false);
             }
@@ -72,9 +67,6 @@ final class ArmorMudProxyRenderer {
         } finally {
             if (wasInvisible) {
                 player.setInvisible(true);
-            }
-            if (minecraft.options.getCameraType() != previousCameraType) {
-                minecraft.options.setCameraType(previousCameraType);
             }
             capturePass = false;
         }

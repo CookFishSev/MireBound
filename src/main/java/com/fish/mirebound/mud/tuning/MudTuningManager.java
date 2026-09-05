@@ -76,6 +76,8 @@ public final class MudTuningManager {
     private static final int MAX_HIGHLIGHT_BLOCKS =
             MudTuningSelectionPayload.MAX_HIGHLIGHT_PRIMITIVES;
     private static final int MAX_HIGHLIGHT_PER_KIND = 1_024;
+    private static final int MAX_MODIFIED_HIGHLIGHT_CANDIDATES =
+            MAX_HIGHLIGHT_PER_KIND * 4;
     private static final int MAX_HIGHLIGHT_SCAN_BLOCKS = 65_536;
     private static final int HIGHLIGHT_RADIUS = 48;
     private static final int HIGHLIGHT_CENTER_GRID = 8;
@@ -93,6 +95,7 @@ public final class MudTuningManager {
         selection.first = anchor;
         selection.second = null;
         selection.summary = null;
+        selection.scanResult = null;
         displaySelectedPoint(player, "first", anchor);
         syncSelection(player);
         broadcastSelectionBeam(player, anchor, mainHand);
@@ -112,6 +115,7 @@ public final class MudTuningManager {
         }
         selection.second = anchor;
         selection.summary = null;
+        selection.scanResult = null;
         displaySelectedPoint(player, "second", anchor);
         syncSelection(player);
         broadcastSelectionBeam(player, anchor, mainHand);
@@ -215,6 +219,7 @@ public final class MudTuningManager {
         selection.first = first;
         selection.second = second;
         selection.summary = null;
+        selection.scanResult = null;
         SESSION_WATCHES.remove(player.getUUID());
         syncSelection(player);
     }
@@ -225,6 +230,7 @@ public final class MudTuningManager {
         selection.first = null;
         selection.second = null;
         selection.summary = null;
+        selection.scanResult = null;
         SESSION_WATCHES.remove(player.getUUID());
         syncSelection(player);
     }
@@ -753,6 +759,7 @@ public final class MudTuningManager {
         selection.summary = null;
         selection.incompatiblePositions = new long[0];
         selection.highlightSample = null;
+        selection.scanResult = null;
         syncSelection(player);
     }
 
@@ -765,10 +772,7 @@ public final class MudTuningManager {
         MudTuningAnchor minimum = first.withPos(bounds.minimum);
         MudTuningAnchor maximum = second.withPos(bounds.maximum);
         MudTuningObjectScanner.ScanResult scan = scope == MudTuningScope.WORLD
-                ? null
-                : MudTuningObjectScanner.scan(player.serverLevel(), bounds.minimum,
-                        bounds.maximum, first.isSable(), MAX_HIGHLIGHT_PER_KIND,
-                        MudTuningConversionSafety.isUnrestrictedEnabled(player));
+                ? null : sessionScan(player, scope, minimum, maximum, first.isSable());
         List<MudTuningSessionPayload.MediumProfile> profiles = scan == null
                 ? worldProfiles(player.serverLevel())
                 : scan.groups().stream()
@@ -998,6 +1002,38 @@ public final class MudTuningManager {
         selection.incompatiblePositions = scan.incompatiblePositions();
         selection.highlightSample = null;
         selection.forceAllBlocks = MudTuningConversionSafety.isUnrestrictedEnabled(player);
+        selection.scanResult = scan;
+        selection.scanMinimum = minimum;
+        selection.scanMaximum = maximum;
+        selection.scanRevision = levelRevision(player.serverLevel());
+        selection.scanForceAllBlocks = selection.forceAllBlocks;
+    }
+
+    private static MudTuningObjectScanner.ScanResult sessionScan(
+            ServerPlayer player, MudTuningScope scope,
+            MudTuningAnchor minimum, MudTuningAnchor maximum, boolean sableScope) {
+        Selection selection = selection(player);
+        boolean forceAllBlocks = MudTuningConversionSafety.isUnrestrictedEnabled(player);
+        long revision = levelRevision(player.serverLevel());
+        if (scope == MudTuningScope.RANGE
+                && selection.scanResult != null
+                && selection.scanRevision == revision
+                && selection.scanForceAllBlocks == forceAllBlocks
+                && minimum.equals(selection.scanMinimum)
+                && maximum.equals(selection.scanMaximum)) {
+            return selection.scanResult;
+        }
+        MudTuningObjectScanner.ScanResult scan = MudTuningObjectScanner.scan(
+                player.serverLevel(), minimum.pos(), maximum.pos(), sableScope,
+                MAX_HIGHLIGHT_PER_KIND, forceAllBlocks);
+        if (scope == MudTuningScope.RANGE) {
+            selection.scanResult = scan;
+            selection.scanMinimum = minimum;
+            selection.scanMaximum = maximum;
+            selection.scanRevision = revision;
+            selection.scanForceAllBlocks = forceAllBlocks;
+        }
+        return scan;
     }
 
     private static void invalidateStaleHighlights(ServerLevel level, Selection selection) {
@@ -1036,6 +1072,7 @@ public final class MudTuningManager {
             if (inside(bounds, pos)) {
                 selection.summary = null;
                 selection.incompatiblePositions = new long[0];
+                selection.scanResult = null;
             }
         }
     }
@@ -1149,7 +1186,7 @@ public final class MudTuningManager {
         Set<Long> nativeFlow = new HashSet<>();
         Set<Long> nativeFlowMixed = new HashSet<>();
         for (BlockPos pos : store.modifiedIn(
-                bounds.minimum, bounds.maximum, Integer.MAX_VALUE)) {
+                bounds.minimum, bounds.maximum, MAX_MODIFIED_HIGHLIGHT_CANDIDATES)) {
             UUID owner = SableCompat.subLevelIdAtStorage(level, pos);
             BlockState state = level.getBlockState(pos);
             if ((subLevel == null ? owner == null : subLevelId.equals(owner))
@@ -1272,6 +1309,11 @@ public final class MudTuningManager {
         private long[] incompatiblePositions = new long[0];
         private HighlightSample highlightSample;
         private boolean forceAllBlocks;
+        private MudTuningObjectScanner.ScanResult scanResult;
+        private MudTuningAnchor scanMinimum;
+        private MudTuningAnchor scanMaximum;
+        private long scanRevision = Long.MIN_VALUE;
+        private boolean scanForceAllBlocks;
 
         private boolean complete(ServerLevel level) {
             return dimension != null && dimension.equals(level.dimension())

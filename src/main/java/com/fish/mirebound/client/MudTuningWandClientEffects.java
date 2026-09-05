@@ -2,6 +2,7 @@ package com.fish.mirebound.client;
 
 import com.fish.mirebound.compat.sable.SableCompat;
 import com.fish.mirebound.client.tuning.MudTuningInputController;
+import com.fish.mirebound.client.tuning.MudTuningClientSettings;
 import com.fish.mirebound.client.generation.MudTerrainGenerationController;
 import com.fish.mirebound.client.tuning.MudTuningSpatialPlacement;
 import com.fish.mirebound.client.tuning.MudTuningTentacleTargeting;
@@ -277,7 +278,8 @@ public final class MudTuningWandClientEffects {
     }
 
     static int activeColor(double coreTime) {
-        return brighten(MudTuningWandCoreTexture.beamColor(coreTime));
+        return brighten(MudTuningClientSettings.color(
+                MudTuningClientSettings.HudColor.TARGET));
     }
 
     static int targetColor(int playerEntityId, double time) {

@@ -114,6 +114,23 @@ final class MudSurfaceAppearance {
                     && cached.appearanceRevision == appearanceRevision) {
                 return cached.appearance;
             }
+            if (origin != null) {
+                BlockState removedSource = AdaptiveMudClientCache.removedSourceState(
+                        level, origin);
+                if (removedSource != null) {
+                    Appearance removedAppearance = resolveSource(
+                            level, origin, MudVisualSource.face(visualSource),
+                            removedSource, -1,
+                            MudVisualSource.smoothingRadius(visualSource),
+                            MudVisualSource.textureDetail(visualSource));
+                    if (removedAppearance != null) {
+                        SOURCE_CACHE.put(visualSource, new CachedSource(
+                                removedAppearance, gameTime, appearanceRevision));
+                        trimCache();
+                        return removedAppearance;
+                    }
+                }
+            }
             return fallback(fallbackTexture, MudVisualSource.color(visualSource));
         }
         if (cached != null) {
