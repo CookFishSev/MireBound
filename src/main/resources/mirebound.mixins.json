@@ -22,6 +22,7 @@
     "client.adaptive.AdaptiveMudFaceCullingMixin",
     "client.tuning.LevelTuningHighlightMixin",
     "client.worldgen.CreateWorldScreenNaturalMudMixin",
+    "client.worldgen.GridLayoutTabAccessMixin",
     "client.worldgen.CreateWorldScreenWorldTabMixin",
     "client.creative.CreativeModeTabSectionsMixin",
     "client.creative.CreativeModeInventoryScreenSectionsMixin",
