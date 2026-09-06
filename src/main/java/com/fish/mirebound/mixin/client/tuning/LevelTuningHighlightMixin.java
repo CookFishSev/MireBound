@@ -1,5 +1,6 @@
 package com.fish.mirebound.mixin.client.tuning;
 
+import com.fish.mirebound.adaptive.AdaptiveMudBlock;
 import com.fish.mirebound.client.MudTuningSectionHighlightCache;
 import com.fish.mirebound.mud.MudBlock;
 import com.fish.mirebound.mud.MudBlockVariant;
@@ -8,6 +9,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
@@ -21,9 +23,22 @@ abstract class LevelTuningHighlightMixin {
     private void mirebound$invalidateTuningHighlight(BlockPos pos, BlockState state,
             int flags, int recursionLeft, CallbackInfoReturnable<Boolean> callback) {
         if (callback.getReturnValueZ() && (Object) this instanceof ClientLevel
-                && !(state.getBlock() instanceof MudBlock
-                && MudBlock.variant(state) != MudBlockVariant.SPECIAL)) {
+                && mirebound$requiresInvalidation(state)) {
             MudTuningSectionHighlightCache.invalidate(pos);
         }
+    }
+
+    @Unique
+    private static boolean mirebound$requiresInvalidation(BlockState state) {
+        return mirebound$requiresInvalidation(
+                state.getBlock() instanceof AdaptiveMudBlock,
+                state.getBlock() instanceof MudBlock
+                        && MudBlock.variant(state) != MudBlockVariant.SPECIAL);
+    }
+
+    @Unique
+    private static boolean mirebound$requiresInvalidation(
+            boolean adaptiveBlock, boolean ordinaryMudShape) {
+        return adaptiveBlock || !ordinaryMudShape;
     }
 }
