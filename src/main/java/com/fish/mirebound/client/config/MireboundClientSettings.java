@@ -74,6 +74,7 @@ public final class MireboundClientSettings {
     private static final ModConfigSpec.BooleanValue ERUPTION_EFFECTS;
     private static final ModConfigSpec.BooleanValue SURFACE_DECALS;
     private static final ModConfigSpec.BooleanValue PLAYER_COVERAGE_RENDERING;
+    private static final ModConfigSpec.BooleanValue INDEPENDENT_SURFACE_COVERAGE;
     private static final ModConfigSpec.BooleanValue ENTITY_COVERAGE_RENDERING;
     private static final ModConfigSpec.BooleanValue MUD_SCREEN_EFFECTS;
     private static final ModConfigSpec.BooleanValue ASSIMILATION_SCREEN_EFFECTS;
@@ -297,6 +298,10 @@ public final class MireboundClientSettings {
         PLAYER_COVERAGE_RENDERING = builder
                 .comment("Render mud and assimilation coverage on player skins, capes, and equipment.")
                 .define("player_coverage", true);
+        INDEPENDENT_SURFACE_COVERAGE = builder
+                .comment("Experimental: use independent model-surface pollution instead of the classic texture system. "
+                        + "Disabled by default. Existing data for both systems is retained when switching.")
+                .define("independent_surface_coverage", false);
         ENTITY_COVERAGE_RENDERING = builder
                 .comment("Render mud coverage on non-player living entities.")
                 .define("entity_coverage", true);
@@ -464,6 +469,10 @@ public final class MireboundClientSettings {
         return optionValue(option).get();
     }
 
+    public static boolean independentSurfaceCoverage() {
+        return clientOptionEnabled(ClientOption.INDEPENDENT_SURFACE_COVERAGE);
+    }
+
     public static EnumMap<ClientOption, Boolean> clientOptions() {
         EnumMap<ClientOption, Boolean> options = new EnumMap<>(ClientOption.class);
         for (ClientOption option : ClientOption.values()) {
@@ -491,6 +500,7 @@ public final class MireboundClientSettings {
             case INSECT_SURFACE -> INSECT_MOUND_SURFACE_ENABLED;
             case TENTACLES -> TENTACLE_RENDERING;
             case PLAYER_COVERAGE -> PLAYER_COVERAGE_RENDERING;
+            case INDEPENDENT_SURFACE_COVERAGE -> INDEPENDENT_SURFACE_COVERAGE;
             case ENTITY_COVERAGE -> ENTITY_COVERAGE_RENDERING;
             case MUD_SCREEN -> MUD_SCREEN_EFFECTS;
             case ASSIMILATION_SCREEN -> ASSIMILATION_SCREEN_EFFECTS;
@@ -1048,6 +1058,7 @@ public final class MireboundClientSettings {
         INSECT_SURFACE(true),
         TENTACLES(true),
         PLAYER_COVERAGE(true),
+        INDEPENDENT_SURFACE_COVERAGE(false),
         ENTITY_COVERAGE(true),
         MUD_SCREEN(true),
         ASSIMILATION_SCREEN(true),

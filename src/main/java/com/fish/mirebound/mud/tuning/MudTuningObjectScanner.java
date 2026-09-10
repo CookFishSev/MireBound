@@ -17,6 +17,7 @@ import com.fish.mirebound.registry.ModBlocks;
 import com.fish.mirebound.stain.MudFootprintBlock;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.EnumMap;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -84,6 +85,7 @@ public final class MudTuningObjectScanner {
         AdaptiveMudSourceStore sources = collectGroups ? AdaptiveMudSourceStore.get(level) : null;
         double[] adaptiveBaseline = collectGroups
                 ? AdaptiveMudBehaviorSettings.get(level).values() : null;
+        Map<SinkingMedium, double[]> nativeBaselines = new EnumMap<>(SinkingMedium.class);
         int convertible = 0;
         int adaptiveCount = 0;
         int mud = 0;
@@ -118,14 +120,12 @@ public final class MudTuningObjectScanner {
                         SinkingMedium storedMedium = adaptive.medium();
                         MudBlockProfileStore.Profile local = profiles.profile(level, pos, storedMedium);
                         boolean legacy = storedMedium != SinkingMedium.MUD;
-                        double[] values = local != null
-                                ? local.values()
-                                : legacy
-                                        ? MudPhysicsSettings.values(storedMedium)
-                                        : adaptiveBaseline;
+                        double[] baseline = legacy
+                                ? nativeBaselines.computeIfAbsent(storedMedium, MudPhysicsSettings::values)
+                                : adaptiveBaseline;
                         groups.computeIfAbsent(id, ignored -> new Accumulator(
                                 id, adaptiveBaseline, capabilities(id, sableScope, null)))
-                                .offer(pos, source, state, storedMedium, values,
+                                .offer(pos, source, state, storedMedium, baseline, local,
                                         local != null || legacy, false);
                         continue;
                     }
@@ -137,12 +137,11 @@ public final class MudTuningObjectScanner {
                         SinkingMedium medium = mudBlock.medium();
                         MudTuningObjectId id = MudTuningObjectId.nativeMedium(medium);
                         MudBlockProfileStore.Profile local = profiles.profile(level, pos, medium);
-                        double[] baseline = MudPhysicsSettings.values(medium);
-                        double[] values = local == null ? baseline : local.values();
+                        double[] baseline = nativeBaselines.computeIfAbsent(medium, MudPhysicsSettings::values);
                         profiles.trackShapeState(level, pos, state);
                         groups.computeIfAbsent(id, ignored -> new Accumulator(
                                 id, baseline, capabilities(id, sableScope, medium)))
-                                .offer(pos, state, state, medium, values, local != null, true);
+                                .offer(pos, state, state, medium, baseline, local, local != null, true);
                         continue;
                     }
                     AdaptiveMudEligibility.Result eligibility =
@@ -155,7 +154,7 @@ public final class MudTuningObjectScanner {
                             groups.computeIfAbsent(id, ignored -> new Accumulator(
                                     id, adaptiveBaseline, capabilities(id, sableScope, null)))
                                     .offer(pos, state, state, SinkingMedium.MUD,
-                                            adaptiveBaseline, false, false);
+                                            adaptiveBaseline, null, false, false);
                         }
                     } else if (!isIgnoredState(state)) {
                         unsupported++;
@@ -168,7 +167,7 @@ public final class MudTuningObjectScanner {
                             groups.computeIfAbsent(id, ignored -> new Accumulator(
                                     id, adaptiveBaseline, capabilities(id, sableScope, null)))
                                     .offer(pos, state, state, SinkingMedium.MUD,
-                                            adaptiveBaseline, false, false);
+                                            adaptiveBaseline, null, false, false);
                         }
                     }
                 }
@@ -189,6 +188,58 @@ public final class MudTuningObjectScanner {
         return new ScanResult(result, new MudTuningSelectionPayload.SelectionSummary(
                 volume(minimum, maximum), convertible, adaptiveCount, mud, unsupported, unloaded),
                 incompatiblePositions);
+    }
+
+    /** Combines bounded main-thread scans while preserving the normal mixed-value semantics. */
+    static ScanResult merge(List<ScanResult> scans, BlockPos priorityCenter,
+            int incompatiblePositionLimit) {
+        Map<MudTuningObjectId, MergeAccumulator> merged = new LinkedHashMap<>();
+        MudTuningSelectionPayload.SelectionSummary summary =
+                new MudTuningSelectionPayload.SelectionSummary(0L, 0, 0, 0, 0, 0);
+        MudTuningHighlightGeometry.NearestPositions incompatible =
+                incompatiblePositionLimit > 0
+                        ? new MudTuningHighlightGeometry.NearestPositions(
+                                incompatiblePositionLimit, priorityCenter)
+                        : null;
+        for (ScanResult scan : scans) {
+            if (scan == null) {
+                continue;
+            }
+            var part = scan.summary();
+            summary = new MudTuningSelectionPayload.SelectionSummary(
+                    safeAdd(summary.volume(), part.volume()),
+                    safeAdd(summary.convertible(), part.convertible()),
+                    safeAdd(summary.adaptive(), part.adaptive()),
+                    safeAdd(summary.mud(), part.mud()),
+                    safeAdd(summary.unsupported(), part.unsupported()),
+                    safeAdd(summary.unloaded(), part.unloaded()));
+            if (incompatible != null) {
+                for (long position : scan.incompatiblePositions()) {
+                    incompatible.offer(BlockPos.of(position));
+                }
+            }
+            for (ObjectGroup group : scan.groups()) {
+                merged.computeIfAbsent(group.id(), MergeAccumulator::new).offer(group);
+            }
+        }
+        List<ObjectGroup> groups = merged.values().stream()
+                .map(MergeAccumulator::finish)
+                .sorted(Comparator.comparingInt(
+                                (ObjectGroup group) -> group.id().kind().ordinal())
+                        .thenComparing(group -> group.id().sourceBlockId().toString())
+                        .thenComparingInt(group -> group.id().mediumId()))
+                .limit(MudTuningSessionPayload.MAX_OBJECTS)
+                .toList();
+        return new ScanResult(groups, summary,
+                incompatible == null ? new long[0] : incompatible.finish());
+    }
+
+    private static int safeAdd(int first, int second) {
+        return first > Integer.MAX_VALUE - second ? Integer.MAX_VALUE : first + second;
+    }
+
+    private static long safeAdd(long first, long second) {
+        return first > Long.MAX_VALUE - second ? Long.MAX_VALUE : first + second;
     }
 
     private static long volume(BlockPos minimum, BlockPos maximum) {
@@ -302,8 +353,7 @@ public final class MudTuningObjectScanner {
         private final double[] baseline;
         private final int capabilities;
         private final List<BlockPos> positions = new ArrayList<>();
-        private double[] values;
-        private boolean[] mixed;
+        private final MudTuningProfileSummary parameters = new MudTuningProfileSummary();
         private int localCount;
         private int representativeStateId;
         private int variant;
@@ -317,7 +367,8 @@ public final class MudTuningObjectScanner {
         }
 
         private void offer(BlockPos pos, BlockState representative, BlockState mudState,
-                SinkingMedium medium, double[] offered, boolean local, boolean shape) {
+                SinkingMedium medium, double[] offeredBaseline, MudBlockProfileStore.Profile profile,
+                boolean local, boolean shape) {
             positions.add(pos.immutable());
             int offeredVariant = MudBlockVariant.DEFAULT.ordinal();
             int offeredHeight = 16;
@@ -329,31 +380,21 @@ public final class MudTuningObjectScanner {
                         ? MudShapeProfile.special(medium).heightPixels()
                         : MudBlock.storedHeight(mudState);
             }
-            if (values == null) {
-                values = Arrays.copyOf(offered, MudPhysicsParameter.COUNT);
-                mixed = new boolean[MudPhysicsParameter.COUNT];
+            if (positions.size() == 1) {
                 representativeStateId = Block.getId(representative);
                 variant = offeredVariant;
                 height = offeredHeight;
             } else {
-                for (MudPhysicsParameter parameter : MudPhysicsParameter.values()) {
-                    int index = parameter.ordinal();
-                    mixed[index] |= !parameter.displayEquivalent(values[index], offered[index]);
-                }
                 shapeMixed |= shape && (variant != offeredVariant || height != offeredHeight);
             }
+            parameters.offer(offeredBaseline, profile);
             if (local) {
                 localCount++;
             }
         }
 
         private ObjectGroup finish() {
-            double[] displayed = Arrays.copyOf(values, values.length);
-            for (MudPhysicsParameter parameter : MudPhysicsParameter.values()) {
-                if (mixed[parameter.ordinal()]) {
-                    displayed[parameter.ordinal()] = baseline[parameter.ordinal()];
-                }
-            }
+            double[] displayed = parameters.displayed(baseline);
             MudTuningSessionPayload.MediumProfile profile =
                     new MudTuningSessionPayload.MediumProfile(
                             id, positions.size(), localCount > 0,
@@ -363,6 +404,69 @@ public final class MudTuningObjectScanner {
                             representativeStateId, capabilities,
                             displayed, Arrays.copyOf(baseline, baseline.length));
             return new ObjectGroup(id, List.copyOf(positions), profile);
+        }
+    }
+
+    private static final class MergeAccumulator {
+        private final MudTuningObjectId id;
+        private final List<BlockPos> positions = new ArrayList<>();
+        private double[] values;
+        private double[] baseline;
+        private boolean[] mixed;
+        private boolean anyLocal;
+        private boolean allLocal = true;
+        private int blockCount;
+        private int representativeStateId;
+        private int capabilities;
+        private int variant;
+        private int height;
+        private boolean shapeMixed;
+
+        private MergeAccumulator(MudTuningObjectId id) {
+            this.id = id;
+        }
+
+        private void offer(ObjectGroup group) {
+            MudTuningSessionPayload.MediumProfile profile = group.profile();
+            positions.addAll(group.positions());
+            blockCount = safeAdd(blockCount, profile.blockCount());
+            anyLocal |= profile.anyLocal();
+            allLocal &= profile.allLocal();
+            if (values == null) {
+                values = profile.values().clone();
+                baseline = profile.resetValues().clone();
+                mixed = new boolean[values.length];
+                representativeStateId = profile.representativeStateId();
+                capabilities = profile.capabilities();
+                variant = profile.blockVariant();
+                height = profile.blockHeight();
+            } else {
+                for (MudPhysicsParameter parameter : MudPhysicsParameter.values()) {
+                    int index = parameter.ordinal();
+                    mixed[index] |= !parameter.displayEquivalent(
+                            values[index], profile.values()[index]);
+                }
+                shapeMixed |= profile.shapeMixed()
+                        || variant != profile.blockVariant()
+                        || height != profile.blockHeight();
+            }
+        }
+
+        private ObjectGroup finish() {
+            double[] displayed = values.clone();
+            for (MudPhysicsParameter parameter : MudPhysicsParameter.values()) {
+                if (mixed[parameter.ordinal()]) {
+                    displayed[parameter.ordinal()] = baseline[parameter.ordinal()];
+                }
+            }
+            return new ObjectGroup(id, List.copyOf(positions),
+                    new MudTuningSessionPayload.MediumProfile(
+                            id, blockCount, anyLocal, allLocal,
+                            shapeMixed ? MudBlockVariant.DEFAULT.ordinal() : variant,
+                            shapeMixed ? 16 : height, shapeMixed,
+                            representativeStateId,
+                            capabilities,
+                            displayed, baseline));
         }
     }
 }

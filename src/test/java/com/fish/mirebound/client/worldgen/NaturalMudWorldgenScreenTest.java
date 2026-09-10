@@ -65,7 +65,8 @@ class NaturalMudWorldgenScreenTest {
         String mixin = Files.readString(Path.of(
                 "src/main/java/com/fish/mirebound/mixin/client/worldgen/"
                         + "CreateWorldScreenWorldTabMixin.java"));
-        assertTrue(mixin.contains("mirebound$getLayout().addChild"));
+        assertTrue(mixin.contains("mirebound$findFreeRow"));
+        assertTrue(mixin.contains("mirebound$getCellInhabitants"));
         assertTrue(mixin.contains("MireflowButton"));
         assertFalse(mixin.contains("openPresetEditor"));
         assertFalse(mixin.contains("customizeTypeButton.setMessage"));
@@ -74,5 +75,9 @@ class NaturalMudWorldgenScreenTest {
                 "src/main/java/com/fish/mirebound/mixin/client/worldgen/"
                         + "GridLayoutTabAccessMixin.java"));
         assertTrue(layoutAccessor.contains("@Accessor(\"layout\")"));
+        String cellsAccessor = Files.readString(Path.of(
+                "src/main/java/com/fish/mirebound/mixin/client/worldgen/"
+                        + "GridLayoutCellsAccessMixin.java"));
+        assertTrue(cellsAccessor.contains("@Accessor(\"cellInhabitants\")"));
     }
 }

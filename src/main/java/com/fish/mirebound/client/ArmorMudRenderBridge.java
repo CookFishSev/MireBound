@@ -2,14 +2,11 @@ package com.fish.mirebound.client;
 
 import com.fish.mirebound.client.config.MireboundClientSettings;
 import com.fish.mirebound.client.config.MireboundClientSettings.ClientOption;
-import com.fish.mirebound.mud.ArmorMudData;
-import com.fish.mirebound.mud.ArmorMudManager;
-import com.fish.mirebound.mud.ArmorTextureMudData;
 import com.fish.mirebound.mud.MudBodyPart;
+import com.fish.mirebound.client.coverage.EquipmentSurfaceRenderer;
+import com.fish.mirebound.coverage.armor.EquipmentSurfaceTarget;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
-import java.util.HashMap;
-import java.util.Map;
 import net.minecraft.client.model.HumanoidModel;
 import net.minecraft.client.model.Model;
 import net.minecraft.client.model.geom.ModelPart;
@@ -22,14 +19,17 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
 
 public final class ArmorMudRenderBridge {
-    private static final Map<Long, Long> COMPOSITED_SLOTS = new HashMap<>();
-    private static long compositedGameTime = Long.MIN_VALUE;
 
     private ArmorMudRenderBridge() {
     }
 
     public static void renderArmorLayer(PoseStack poseStack, MultiBufferSource buffers, int packedLight,
             Model model, int tint, ResourceLocation baseTexture, LivingEntity entity, EquipmentSlot slot) {
+        if (!MireboundClientSettings.independentSurfaceCoverage()) {
+            ClassicArmorMudRenderer.renderArmorLayer(
+                    poseStack, buffers, packedLight, model, tint, baseTexture, entity, slot);
+            return;
+        }
         if (!MireboundClientSettings.clientOptionEnabled(
                 ClientOption.PLAYER_COVERAGE)
                 || ClientPollutionVisibility.isSuppressed(entity)) {
@@ -37,79 +37,28 @@ public final class ArmorMudRenderBridge {
             return;
         }
         ItemStack stack = entity.getItemBySlot(slot);
-        ArmorMudData data = ArmorMudManager.data(stack);
-        if (data.isEmpty() || !(model instanceof HumanoidModel<?> humanoid)) {
+        if (!(model instanceof HumanoidModel<?> humanoid)) {
             renderWholeModel(poseStack, buffers, packedLight, model, tint, baseTexture);
             return;
         }
 
-        boolean composited = false;
-        long gameTime = entity.level().getGameTime();
+        var surfaceBuffers = new com.fish.mirebound.client.coverage.SurfaceDrawQueue(buffers);
         for (Part part : partsForSlot(humanoid, slot)) {
-            if (!part.modelPart.visible || part.modelPart.skipDraw) {
+            if (!part.modelPart.visible) {
                 continue;
             }
-            ResourceLocation composite = ArmorMudCompositeTextureCache.textureFor(
-                    entity.getId(), baseTexture, tint, slot, part.bodyPart, part.modelPart, data, gameTime);
-            if (composite == null) {
-                renderPart(poseStack, buffers, packedLight, part.modelPart, tint, baseTexture);
-            } else {
-                renderPart(poseStack, buffers, packedLight, part.modelPart, 0xFFFFFFFF, composite);
-                composited = true;
-            }
+            renderPart(poseStack, surfaceBuffers.baseBuffers(), packedLight, part.modelPart, tint, baseTexture);
+            EquipmentSurfaceRenderer.modelPart(entity, stack, EquipmentSurfaceTarget.armor(slot),
+                    part.bodyPart.name(), part.modelPart, baseTexture, poseStack, surfaceBuffers,
+                    packedLight, OverlayTexture.NO_OVERLAY, tint, true);
         }
-        if (composited) {
-            prepareCompositeTick(gameTime);
-            COMPOSITED_SLOTS.put(key(entity.getId(), slot), gameTime);
-        }
-    }
-
-    public static ResourceLocation accessoryTextureFor(LivingEntity entity, EquipmentSlot slot,
-            MudBodyPart bodyPart, ModelPart projectionModel, ResourceLocation baseTexture) {
-        ItemStack stack = entity.getItemBySlot(slot);
-        return accessoryTextureFor(entity, stack, "armor:" + slot.getName(), bodyPart,
-                projectionModel, baseTexture);
-    }
-
-    public static ResourceLocation accessoryTextureFor(LivingEntity entity, ItemStack stack,
-            String targetKey, MudBodyPart bodyPart, ModelPart projectionModel,
-            ResourceLocation baseTexture) {
-        if (!MireboundClientSettings.clientOptionEnabled(
-                ClientOption.PLAYER_COVERAGE)
-                || ClientPollutionVisibility.isSuppressed(entity)) {
-            return baseTexture;
-        }
-        ArmorMudData data = ArmorMudManager.data(stack);
-        ArmorTextureMudData textureData = ArmorMudManager.textureData(stack);
-        if (data.isEmpty() && textureData.isEmpty()) {
-            return baseTexture;
-        }
-        ResourceLocation composite = ArmorMudCompositeTextureCache.accessoryTextureFor(
-                entity.getId(), baseTexture, targetKey, bodyPart, projectionModel, data, textureData,
-                entity.level().getGameTime());
-        return composite == null ? baseTexture : composite;
-    }
-
-    static boolean wasComposited(int entityId, EquipmentSlot slot, long gameTime) {
-        if (compositedGameTime != gameTime) {
-            return false;
-        }
-        return COMPOSITED_SLOTS.getOrDefault(key(entityId, slot), Long.MIN_VALUE) == gameTime;
+        surfaceBuffers.flush();
     }
 
     static void reset() {
-        COMPOSITED_SLOTS.clear();
-        compositedGameTime = Long.MIN_VALUE;
-        ArmorMudCompositeTextureCache.reset();
+        ClassicArmorMudRenderer.reset();
     }
 
-    private static void prepareCompositeTick(long gameTime) {
-        if (compositedGameTime == gameTime) {
-            return;
-        }
-        COMPOSITED_SLOTS.clear();
-        compositedGameTime = gameTime;
-    }
 
     private static void renderWholeModel(PoseStack poseStack, MultiBufferSource buffers, int packedLight,
             Model model, int tint, ResourceLocation texture) {
@@ -147,9 +96,6 @@ public final class ArmorMudRenderBridge {
         };
     }
 
-    private static long key(int entityId, EquipmentSlot slot) {
-        return (long) entityId << 8 | slot.ordinal();
-    }
 
     private record Part(ModelPart modelPart, MudBodyPart bodyPart) {
     }

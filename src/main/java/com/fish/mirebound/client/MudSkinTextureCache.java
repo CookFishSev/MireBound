@@ -27,6 +27,15 @@ import net.minecraft.util.FastColor;
 import net.minecraft.util.Mth;
 
 public final class MudSkinTextureCache {
+    public static ResourceLocation originalSkinTexture(ResourceLocation texture) {
+        return resolveSkin(texture, false).skinTexture;
+    }
+    public static com.fish.mirebound.client.coverage.SurfaceMaterial currentMaterial(ResourceLocation texture) {
+        return SkinPixelCache.material(texture);
+    }
+    public static int currentMaterialPixel(ResourceLocation texture, float u, float v) {
+        return SkinPixelCache.currentPixel(texture, u, v);
+    }
     private static final FaceSection[] WIDE_FACE_SECTIONS = createFaceSections(false);
     private static final FaceSection[] SLIM_FACE_SECTIONS = createFaceSections(true);
     private static final Map<Integer, Entry> CACHE_BY_ENTITY = new HashMap<>();
@@ -35,10 +44,13 @@ public final class MudSkinTextureCache {
     private static final Map<ResourceLocation, Entry> BAKED_CACHE_BY_TEXTURE = new HashMap<>();
     private static final Map<ResourceLocation, MudTexturePixels> COVER_TEXTURE_PIXELS = new HashMap<>();
     private static final Map<ResourceLocation, AnimatedRenderEntry> ANIMATED_RENDER_TEXTURES = new HashMap<>();
+    private static final Map<Long, PartEntry> PART_CACHE_BY_KEY = new HashMap<>();
+    private static final Map<ResourceLocation, PartEntry> PART_CACHE_BY_TEXTURE = new HashMap<>();
     private static final float EDGE_BAND_THRESHOLD = 0.00035F;
     private static final float ASSIMILATION_BLEND_RADIUS = 1.65F;
     private static final DateTimeFormatter EXPORT_TIMESTAMP = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
     private static final int MAXIMUM_ENTITY_ENTRIES = 256;
+    private static final int MAXIMUM_PART_ENTRIES = MAXIMUM_ENTITY_ENTRIES * MudBodyPart.COUNT;
     private static final int UNUSED_ENTITY_TICKS = 200;
     private static final int PRUNE_INTERVAL_TICKS = 100;
     private static int clientTick;
@@ -54,6 +66,47 @@ public final class MudSkinTextureCache {
     static ResourceLocation overlayTextureFor(int entityId, ResourceLocation skinTexture, boolean slimModel) {
         ResolvedSkin resolved = resolveSkin(skinTexture, slimModel);
         return textureFor(entityId, resolved.skinTexture, resolved.slimModel, false);
+    }
+
+    /** Builds a coverage-only texture for one model part, avoiding shared-UV aliasing. */
+    static ResourceLocation partTextureFor(int entityId, ResourceLocation skinTexture,
+            boolean slimModel, MudBodyPart part) {
+        if (part == null || !MireboundClientSettings.clientOptionEnabled(
+                ClientOption.PLAYER_COVERAGE) || !SkinPixelCache.hasPixels(skinTexture)) {
+            return null;
+        }
+        int width = SkinPixelCache.width(skinTexture);
+        int height = SkinPixelCache.height(skinTexture);
+        long key = ((long) entityId << 3) | part.ordinal();
+        if (!PART_CACHE_BY_KEY.containsKey(key) && PART_CACHE_BY_KEY.size() >= MAXIMUM_PART_ENTRIES) {
+            pruneParts();
+            if (PART_CACHE_BY_KEY.size() >= MAXIMUM_PART_ENTRIES) {
+                return null;
+            }
+        }
+        PartEntry entry = PART_CACHE_BY_KEY.computeIfAbsent(key,
+                ignored -> new PartEntry(width, height, part));
+        entry.lastSeenTick = clientTick;
+        if (!entry.matchesSize(width, height)) {
+            closePartEntry(entry);
+            entry.width = width;
+            entry.height = height;
+            entry.skinTexture = null;
+            entry.signature = Long.MIN_VALUE;
+        }
+        if (entry.texture == null || entry.location == null) {
+            entry.texture = new DynamicTexture(width, height, true);
+            entry.texture.setFilter(false, false);
+            entry.location = Minecraft.getInstance().getTextureManager().register(
+                    "mirebound_mud_skin_part", entry.texture);
+            PART_CACHE_BY_TEXTURE.put(entry.location, entry);
+        }
+        long signature = signature(entityId) * 31L + part.ordinal();
+        if (!skinTexture.equals(entry.skinTexture) || signature != entry.signature
+                || slimModel != entry.slimModel) {
+            rebuildPart(entry, entityId, skinTexture, slimModel, signature, part);
+        }
+        return entry.location;
     }
 
     public static ResourceLocation bakedSkinFor(int entityId, ResourceLocation skinTexture, boolean slimModel) {
@@ -120,11 +173,18 @@ public final class MudSkinTextureCache {
                 return null;
             }
         }
-        Entry entry = cacheByEntity.computeIfAbsent(entityId, ignored -> new Entry());
+        int width = SkinPixelCache.width(skinTexture);
+        int height = SkinPixelCache.height(skinTexture);
+        Entry entry = cacheByEntity.computeIfAbsent(entityId, ignored -> new Entry(width, height));
         entry.lastSeenTick = clientTick;
+        if (!entry.matchesSize(width, height)) {
+            closeEntry(entry, cacheByTexture);
+            entry.texture = null;
+            entry.location = null;
+            entry.skinTexture = null;
+            entry.signature = Long.MIN_VALUE;
+        }
         if (entry.texture == null || entry.location == null) {
-            int width = SkinPixelCache.width(skinTexture);
-            int height = SkinPixelCache.height(skinTexture);
             entry.texture = new DynamicTexture(width, height, true);
             entry.texture.setFilter(false, false);
             entry.location = Minecraft.getInstance().getTextureManager().register(bakedSkin ? "mirebound_baked_mud_skin" : "mirebound_mud_skin", entry.texture);
@@ -141,6 +201,7 @@ public final class MudSkinTextureCache {
     }
 
     static void reset() {
+        com.fish.mirebound.client.skin.SkinStainMaskTextures.reset();
         for (Entry entry : CACHE_BY_ENTITY.values()) {
             closeEntry(entry, CACHE_BY_TEXTURE);
         }
@@ -151,6 +212,11 @@ public final class MudSkinTextureCache {
         BAKED_CACHE_BY_ENTITY.clear();
         CACHE_BY_TEXTURE.clear();
         BAKED_CACHE_BY_TEXTURE.clear();
+        for (PartEntry entry : PART_CACHE_BY_KEY.values()) {
+            closePartEntry(entry);
+        }
+        PART_CACHE_BY_KEY.clear();
+        PART_CACHE_BY_TEXTURE.clear();
         for (AnimatedRenderEntry entry : ANIMATED_RENDER_TEXTURES.values()) {
             MudSurfaceDecalRenderTypes.release(entry.location);
             Minecraft.getInstance().getTextureManager().release(entry.location);
@@ -169,11 +235,16 @@ public final class MudSkinTextureCache {
         pruneTicks = 0;
         prune(minecraft, CACHE_BY_ENTITY, CACHE_BY_TEXTURE, false);
         prune(minecraft, BAKED_CACHE_BY_ENTITY, BAKED_CACHE_BY_TEXTURE, false);
+        pruneParts();
     }
 
     static void clearEntity(int entityId) {
         closeEntry(CACHE_BY_ENTITY.remove(entityId), CACHE_BY_TEXTURE);
         closeEntry(BAKED_CACHE_BY_ENTITY.remove(entityId), BAKED_CACHE_BY_TEXTURE);
+        for (MudBodyPart part : MudBodyPart.values()) {
+            PartEntry entry = PART_CACHE_BY_KEY.remove(((long) entityId << 3) | part.ordinal());
+            closePartEntry(entry);
+        }
     }
 
     static void invalidateOrdinaryEntity(int entityId) {
@@ -223,6 +294,32 @@ public final class MudSkinTextureCache {
         }
     }
 
+    private static void closePartEntry(PartEntry entry) {
+        if (entry == null) {
+            return;
+        }
+        if (entry.location != null) {
+            PART_CACHE_BY_TEXTURE.remove(entry.location);
+            Minecraft.getInstance().getTextureManager().release(entry.location);
+        } else if (entry.texture != null) {
+            entry.texture.close();
+        }
+        entry.texture = null;
+        entry.location = null;
+    }
+
+    private static void pruneParts() {
+        long oldestTick = clientTick - UNUSED_ENTITY_TICKS;
+        var iterator = PART_CACHE_BY_KEY.entrySet().iterator();
+        while (iterator.hasNext()) {
+            PartEntry entry = iterator.next().getValue();
+            if (entry.lastSeenTick < oldestTick) {
+                closePartEntry(entry);
+                iterator.remove();
+            }
+        }
+    }
+
     static int textureWidth(ResourceLocation mudTexture) {
         Entry entry = CACHE_BY_TEXTURE.get(mudTexture);
         return entry == null ? 64 : entry.width;
@@ -260,7 +357,29 @@ public final class MudSkinTextureCache {
         applyAssimilationLayer(pixels, entityId, skinTexture, slimModel, bakedSkin);
         PaintPlan plan = buildPaintPlan(entityId, skinTexture, slimModel, entry.width, entry.height);
         applyPaintPlan(pixels, skinTexture, bakedSkin, plan);
+        applyLocalSkinMask(pixels, entityId, skinTexture, bakedSkin);
 
+        entry.texture.upload();
+        entry.texture.setFilter(false, false);
+        entry.skinTexture = skinTexture;
+        entry.slimModel = slimModel;
+        entry.signature = signature;
+    }
+
+    private static void rebuildPart(PartEntry entry, int entityId,
+            ResourceLocation skinTexture, boolean slimModel, long signature,
+            MudBodyPart part) {
+        NativeImage pixels = entry.texture.getPixels();
+        if (pixels == null) {
+            pixels = new NativeImage(entry.width, entry.height, true);
+            entry.texture.setPixels(pixels);
+        }
+        pixels.fillRect(0, 0, entry.width, entry.height, 0);
+        applyAssimilationLayer(pixels, entityId, skinTexture, slimModel, false, part);
+        applyPaintPlan(pixels, skinTexture, false,
+                buildPaintPlan(entityId, skinTexture, slimModel,
+                        entry.width, entry.height, part));
+        applyLocalSkinMask(pixels, entityId, skinTexture, false);
         entry.texture.upload();
         entry.texture.setFilter(false, false);
         entry.skinTexture = skinTexture;
@@ -276,13 +395,31 @@ public final class MudSkinTextureCache {
         }
     }
 
+    private static void applyLocalSkinMask(NativeImage image, int entityId,
+            ResourceLocation skinTexture, boolean bakedSkin) {
+        var mask = com.fish.mirebound.client.skin.ClientSkinStainRules.forEntity(entityId);
+        if (mask == null) return;
+        int width = image.getWidth();
+        mask.forEachBlocked(width, image.getHeight(), index -> image.setPixelRGBA(index % width, index / width,
+                bakedSkin ? SkinPixelCache.pixel(skinTexture, index % width, index / width) : 0));
+    }
+
     private static void applyAssimilationLayer(NativeImage target, int entityId,
             ResourceLocation skinTexture, boolean slimModel, boolean bakedSkin) {
+        applyAssimilationLayer(target, entityId, skinTexture, slimModel, bakedSkin, null);
+    }
+
+    private static void applyAssimilationLayer(NativeImage target, int entityId,
+            ResourceLocation skinTexture, boolean slimModel, boolean bakedSkin,
+            MudBodyPart onlyPart) {
         if (ClientAssimilationState.signature(entityId) == 0L) {
             return;
         }
         FaceSection[] sections = slimModel ? SLIM_FACE_SECTIONS : WIDE_FACE_SECTIONS;
         for (FaceSection section : sections) {
+            if (onlyPart != null && section.part != onlyPart) {
+                continue;
+            }
             SectionBounds bounds = sectionBounds(section, target.getWidth(), target.getHeight());
             MudSurfaceLayout.Face face = MudSurfaceLayout.face(section.part, section.surface);
             for (int py = bounds.y; py < bounds.y + bounds.height; py++) {
@@ -367,14 +504,31 @@ public final class MudSkinTextureCache {
     }
 
     private static PaintPlan buildPaintPlan(int entityId, ResourceLocation skinTexture, boolean slimModel, int textureWidth, int textureHeight) {
+        return buildPaintPlan(entityId, skinTexture, slimModel,
+                textureWidth, textureHeight, null);
+    }
+
+    private static PaintPlan buildPaintPlan(int entityId, ResourceLocation skinTexture,
+            boolean slimModel, int textureWidth, int textureHeight,
+            MudBodyPart onlyPart) {
         int patternSeed = ClientMudState.coveragePatternSeed(entityId);
         PaintPlan plan = new PaintPlan(textureWidth, textureHeight, patternSeed);
         FaceSection[] sections = slimModel ? SLIM_FACE_SECTIONS : WIDE_FACE_SECTIONS;
         ClientMudState.CoverageState display = ClientMudState.displaySnapshot(entityId);
         for (FaceSection section : sections) {
+            if (onlyPart != null && section.part != onlyPart) {
+                continue;
+            }
             planSection(plan, display, skinTexture, section, patternSeed);
         }
-        diffusePlan(plan, skinTexture, sections);
+        if (onlyPart == null) {
+            diffusePlan(plan, skinTexture, sections);
+        } else {
+            FaceSection[] partSections = java.util.Arrays.stream(sections)
+                    .filter(section -> section.part == onlyPart)
+                    .toArray(FaceSection[]::new);
+            diffusePlan(plan, skinTexture, partSections);
+        }
         return plan;
     }
 
@@ -679,6 +833,47 @@ public final class MudSkinTextureCache {
         int y = bounds.y + Math.min(bounds.height - 1,
                 ((uvRow * 2 + 1) * bounds.height) / Math.max(2, face.height() * 2));
         return new TexturePixel(x, y);
+    }
+
+    static boolean skinSurfacePixelOpaque(ResourceLocation skinTexture,
+            MudBodyPart part, MudSurface surface, int row, int column,
+            boolean slimModel) {
+        FaceSection[] sections = slimModel ? SLIM_FACE_SECTIONS : WIDE_FACE_SECTIONS;
+        for (FaceSection section : sections) {
+            if (section.part != part || section.surface != surface) {
+                continue;
+            }
+            SectionBounds bounds = sectionBounds(section,
+                    SkinPixelCache.width(skinTexture), SkinPixelCache.height(skinTexture));
+            TexturePixel pixel = texturePixel(section, bounds, row, column);
+            if (FastColor.ABGR32.alpha(SkinPixelCache.pixel(
+                    skinTexture, pixel.x, pixel.y)) > 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    static int skinSurfacePixel(ResourceLocation skinTexture,
+            MudBodyPart part, MudSurface surface, int row, int column,
+            boolean slimModel) {
+        FaceSection[] sections = slimModel ? SLIM_FACE_SECTIONS : WIDE_FACE_SECTIONS;
+        int first = 0;
+        for (FaceSection section : sections) {
+            if (section.part == part && section.surface == surface) {
+                SectionBounds bounds = sectionBounds(section,
+                        SkinPixelCache.width(skinTexture), SkinPixelCache.height(skinTexture));
+                TexturePixel pixel = texturePixel(section, bounds, row, column);
+                int color = SkinPixelCache.pixel(skinTexture, pixel.x, pixel.y);
+                if (first == 0) {
+                    first = color;
+                }
+                if (FastColor.ABGR32.alpha(color) > 0) {
+                    return color;
+                }
+            }
+        }
+        return first;
     }
 
     private static void paintCoverageMask(NativeImage target, PaintPlan plan) {
@@ -1338,6 +1533,7 @@ public final class MudSkinTextureCache {
             return 0L;
         }
         long signature = mudSignature * 31L + assimilationSignature;
+        signature = signature * 31L + com.fish.mirebound.client.skin.ClientSkinStainRules.revision();
         long mediumMask = ClientMudState.displaySurfaceMediumMask(entityId);
         if (assimilationSignature != 0L) {
             ClientAssimilationState.View view = ClientAssimilationState.view(entityId);
@@ -1497,15 +1693,46 @@ public final class MudSkinTextureCache {
         }
     }
 
-    private static final class Entry {
+    static final class Entry {
         private DynamicTexture texture;
         private ResourceLocation location;
         private ResourceLocation skinTexture;
         private long signature = Long.MIN_VALUE;
-        private int width = 64;
-        private int height = 64;
+        private int width;
+        private int height;
         private boolean slimModel;
         private int lastSeenTick;
+
+        Entry(int width, int height) {
+            this.width = width;
+            this.height = height;
+        }
+
+        boolean matchesSize(int sourceWidth, int sourceHeight) {
+            return width == sourceWidth && height == sourceHeight;
+        }
+    }
+
+    private static final class PartEntry {
+        private final MudBodyPart part;
+        private DynamicTexture texture;
+        private ResourceLocation location;
+        private ResourceLocation skinTexture;
+        private long signature = Long.MIN_VALUE;
+        private int width;
+        private int height;
+        private boolean slimModel;
+        private int lastSeenTick;
+
+        private PartEntry(int width, int height, MudBodyPart part) {
+            this.width = width;
+            this.height = height;
+            this.part = part;
+        }
+
+        private boolean matchesSize(int sourceWidth, int sourceHeight) {
+            return width == sourceWidth && height == sourceHeight;
+        }
     }
 
     private static final class AnimatedRenderEntry {

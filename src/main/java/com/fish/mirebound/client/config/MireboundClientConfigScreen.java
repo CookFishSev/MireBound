@@ -64,6 +64,11 @@ public final class MireboundClientConfigScreen extends Screen {
             addRenderableWidget(button);
             y += 23;
         }
+        Button skinEditor = MireflowButton.builder(Component.translatable("gui.mirebound.skin.open"),
+                ignored -> Minecraft.getInstance().setScreen(new com.fish.mirebound.client.skin.SkinStainEditorScreen(this)))
+                .bounds(panel.left() + 6, y + 6, SIDEBAR_WIDTH - 12, 20).build();
+        skinEditor.setTooltip(Tooltip.create(Component.translatable("gui.mirebound.skin.help")));
+        addRenderableWidget(skinEditor);
     }
 
     private void addOptionButtons() {
@@ -316,6 +321,7 @@ public final class MireboundClientConfigScreen extends Screen {
         INSECT_SURFACE(ClientOption.INSECT_SURFACE, Section.WORLD, Cost.MEDIUM),
         TENTACLES(ClientOption.TENTACLES, Section.WORLD, Cost.HIGH),
         PLAYER_COVERAGE(ClientOption.PLAYER_COVERAGE, Section.CHARACTER, Cost.MEDIUM),
+        INDEPENDENT_SURFACE_COVERAGE(ClientOption.INDEPENDENT_SURFACE_COVERAGE, Section.CHARACTER, Cost.HIGH),
         ENTITY_COVERAGE(ClientOption.ENTITY_COVERAGE, Section.CHARACTER, Cost.HIGH),
         MUD_SCREEN(ClientOption.MUD_SCREEN, Section.SCREEN, Cost.MEDIUM),
         ASSIMILATION_SCREEN(ClientOption.ASSIMILATION_SCREEN, Section.SCREEN, Cost.LOW),

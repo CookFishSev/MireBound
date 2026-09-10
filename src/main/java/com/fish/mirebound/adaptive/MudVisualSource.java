@@ -4,6 +4,8 @@ import com.fish.mirebound.mud.MudBlock;
 import com.fish.mirebound.mud.MudMediumRuntime;
 import com.fish.mirebound.mud.SinkingMedium;
 import com.fish.mirebound.registry.ModBlocks;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -12,6 +14,7 @@ import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
+import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 import org.jetbrains.annotations.Nullable;
 import org.joml.Vector3f;
 
@@ -52,6 +55,9 @@ public final class MudVisualSource {
     private static final long POSITION_Z_MASK = (1L << POSITION_Z_BITS) - 1L;
     private static final long POSITION_Y_MASK = (1L << POSITION_Y_BITS) - 1L;
     private static final long POSITION_COLOR_MASK = 0xFFFL;
+    private static final int MAX_CAPTURED_STATES = 8192;
+    private static final Map<Long, BlockState> CAPTURED_STATES =
+            new LinkedHashMap<>(256, 0.75F, true);
 
     private MudVisualSource() {
     }
@@ -94,6 +100,7 @@ public final class MudVisualSource {
                         level, pos, medium);
         long positioned = position(pos, face, color);
         if (positioned != NONE) {
+            rememberCapturedState(positioned, source);
             return positioned;
         }
         return pack(source, face == null ? Direction.UP : face, color,
@@ -174,6 +181,24 @@ public final class MudVisualSource {
         }
         int encoded = (int) (source & STATE_MASK);
         return encoded == 0 ? null : Block.stateById(encoded - 1);
+    }
+
+    /** Returns the source captured alongside a position-backed visual key. */
+    public static synchronized BlockState capturedState(long source) {
+        return CAPTURED_STATES.get(source);
+    }
+
+    public static synchronized void onServerStopping(ServerStoppingEvent ignored) {
+        CAPTURED_STATES.clear();
+    }
+
+    private static synchronized void rememberCapturedState(long source, BlockState state) {
+        if (source != NONE && positionBacked(source) && state != null && !state.isAir()) {
+            CAPTURED_STATES.put(source, state);
+            while (CAPTURED_STATES.size() > MAX_CAPTURED_STATES) {
+                CAPTURED_STATES.remove(CAPTURED_STATES.keySet().iterator().next());
+            }
+        }
     }
 
     public static Direction face(long source) {

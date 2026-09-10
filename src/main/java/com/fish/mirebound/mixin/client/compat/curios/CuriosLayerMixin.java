@@ -31,7 +31,7 @@ public abstract class CuriosLayerMixin {
             MultiBufferSource buffers, int packedLight, float limbSwing, float limbSwingAmount,
             float partialTick, float ageInTicks, float netHeadYaw, float headPitch) {
         ArmorAccessoryRenderContext.beginCurio(slotContext.entity(), stack, slotContext.identifier(),
-                slotContext.index(), slotContext.cosmetic());
+                slotContext.index(), slotContext.cosmetic(), buffers);
         try {
             renderer.render(stack, slotContext, poseStack, parent, buffers, packedLight,
                     limbSwing, limbSwingAmount, partialTick, ageInTicks, netHeadYaw, headPitch);

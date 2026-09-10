@@ -1,7 +1,0 @@
-{
-  "type": "minecraft:crafting_shaped",
-  "category": "building",
-  "pattern": ["###"],
-  "key": { "#": { "item": "mirebound:adobe_bricks" } },
-  "result": { "id": "mirebound:adobe_brick_slab", "count": 6 }
-}

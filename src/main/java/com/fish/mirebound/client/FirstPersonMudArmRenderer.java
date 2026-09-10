@@ -48,11 +48,6 @@ final class FirstPersonMudArmRenderer {
         }
 
         boolean slimModel = player.getSkin().model() == PlayerSkin.Model.SLIM;
-        ResourceLocation mudTexture = MudSkinTextureCache.textureFor(player.getId(), player.getSkin().texture(), slimModel);
-        if (mudTexture == null) {
-            return;
-        }
-
         renderingVanillaArm = true;
         try {
             if (event.getArm() == HumanoidArm.RIGHT) {
@@ -64,18 +59,30 @@ final class FirstPersonMudArmRenderer {
             renderingVanillaArm = false;
         }
 
-        renderMudArm(event.getPoseStack(), event.getMultiBufferSource(), event.getPackedLight(), playerRenderer.getModel(), mudTexture, event.getArm());
+        renderMudArm(event.getPoseStack(), event.getMultiBufferSource(), event.getPackedLight(),
+                playerRenderer.getModel(), player, slimModel, event.getArm());
         event.setCanceled(true);
     }
 
     private static void renderMudArm(PoseStack poseStack, MultiBufferSource bufferSource, int packedLight,
-            PlayerModel<AbstractClientPlayer> model, ResourceLocation mudTexture, HumanoidArm arm) {
+            PlayerModel<AbstractClientPlayer> model, AbstractClientPlayer player,
+            boolean slimModel, HumanoidArm arm) {
+        MudBodyPart part = arm == HumanoidArm.RIGHT
+                ? MudBodyPart.RIGHT_ARM : MudBodyPart.LEFT_ARM;
         if (arm == HumanoidArm.RIGHT) {
-            MudRenderStyle.renderPart(model.rightArm, poseStack, bufferSource, packedLight, OverlayTexture.NO_OVERLAY, mudTexture);
-            MudRenderStyle.renderPart(model.rightSleeve, poseStack, bufferSource, packedLight, OverlayTexture.NO_OVERLAY, mudTexture);
+            MudRenderStyle.renderCoveredSkinPart(model.rightArm, poseStack, bufferSource,
+                    packedLight, OverlayTexture.NO_OVERLAY, player.getId(), part,
+                    player.getSkin().texture(), slimModel);
+            MudRenderStyle.renderCoveredSkinPart(model.rightSleeve, poseStack, bufferSource,
+                    packedLight, OverlayTexture.NO_OVERLAY, player.getId(), part,
+                    player.getSkin().texture(), slimModel);
         } else {
-            MudRenderStyle.renderPart(model.leftArm, poseStack, bufferSource, packedLight, OverlayTexture.NO_OVERLAY, mudTexture);
-            MudRenderStyle.renderPart(model.leftSleeve, poseStack, bufferSource, packedLight, OverlayTexture.NO_OVERLAY, mudTexture);
+            MudRenderStyle.renderCoveredSkinPart(model.leftArm, poseStack, bufferSource,
+                    packedLight, OverlayTexture.NO_OVERLAY, player.getId(), part,
+                    player.getSkin().texture(), slimModel);
+            MudRenderStyle.renderCoveredSkinPart(model.leftSleeve, poseStack, bufferSource,
+                    packedLight, OverlayTexture.NO_OVERLAY, player.getId(), part,
+                    player.getSkin().texture(), slimModel);
         }
     }
 }

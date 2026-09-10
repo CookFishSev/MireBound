@@ -79,6 +79,7 @@ public final class MudTuningManager {
     private static final int MAX_MODIFIED_HIGHLIGHT_CANDIDATES =
             MAX_HIGHLIGHT_PER_KIND * 4;
     private static final int MAX_HIGHLIGHT_SCAN_BLOCKS = 65_536;
+    private static final long DEFERRED_SCAN_THRESHOLD = 4_096L;
     private static final int HIGHLIGHT_RADIUS = 48;
     private static final int HIGHLIGHT_CENTER_GRID = 8;
     private static final Map<UUID, Selection> SELECTIONS = new ConcurrentHashMap<>();
@@ -771,6 +772,15 @@ public final class MudTuningManager {
         Bounds bounds = Bounds.of(first.pos(), second.pos());
         MudTuningAnchor minimum = first.withPos(bounds.minimum);
         MudTuningAnchor maximum = second.withPos(bounds.maximum);
+        if (scope != MudTuningScope.WORLD
+                && selectionVolume(bounds) > DEFERRED_SCAN_THRESHOLD) {
+            if (!hasCachedSessionScan(player, scope, minimum, maximum)) {
+                if (!MudTuningScanScheduler.hasJob(player.getUUID())) {
+                    MudTuningScanScheduler.submit(player, scope, minimum, maximum);
+                }
+                return;
+            }
+        }
         MudTuningObjectScanner.ScanResult scan = scope == MudTuningScope.WORLD
                 ? null : sessionScan(player, scope, minimum, maximum, first.isSable());
         List<MudTuningSessionPayload.MediumProfile> profiles = scan == null
@@ -816,6 +826,46 @@ public final class MudTuningManager {
         synchronized (LEVEL_REVISIONS) {
             return LEVEL_REVISIONS.getOrDefault(level, 0L);
         }
+    }
+
+    static void completeDeferredScan(ServerPlayer player, MudTuningScope scope,
+            MudTuningAnchor first, MudTuningAnchor second,
+            MudTuningObjectScanner.ScanResult scan) {
+        if (player == null || scan == null || scope == MudTuningScope.WORLD
+                || !player.isAlive() || !player.hasPermissions(2)
+                || !first.sameDomain(second)
+                || !validAnchorDomain(player.serverLevel(), first)
+                || !validAnchorDomain(player.serverLevel(), second)) {
+            return;
+        }
+        Selection selection = selection(player);
+        if (!selection.complete(player.serverLevel())
+                || !selection.first.sameDomain(first)
+                || !Bounds.of(selection.first.pos(), selection.second.pos())
+                        .equals(Bounds.of(first.pos(), second.pos()))) {
+            return;
+        }
+        cacheSelectionScan(player, scope, first, second, scan);
+        sendSession(player, scope, first, second);
+        syncSelection(player);
+    }
+
+    private static boolean hasCachedSessionScan(ServerPlayer player, MudTuningScope scope,
+            MudTuningAnchor minimum, MudTuningAnchor maximum) {
+        if (scope != MudTuningScope.RANGE) {
+            return false;
+        }
+        Selection selection = selection(player);
+        return selection.scanResult != null
+                && selection.scanRevision == levelRevision(player.serverLevel())
+                && selection.scanForceAllBlocks
+                        == MudTuningConversionSafety.isUnrestrictedEnabled(player)
+                && minimum.equals(selection.scanMinimum)
+                && maximum.equals(selection.scanMaximum);
+    }
+
+    static long revision(ServerLevel level) {
+        return levelRevision(level);
     }
 
     private static List<MudTuningSessionPayload.MediumProfile> worldProfiles(ServerLevel level) {

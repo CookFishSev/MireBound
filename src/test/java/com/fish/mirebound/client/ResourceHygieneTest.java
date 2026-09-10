@@ -15,6 +15,16 @@ class ResourceHygieneTest {
             "src/main/resources/assets/mirebound");
 
     @Test
+    void loadableModMetadataIconAndBorrowedCodeNoticeAreIncluded() throws Exception {
+        Path resources = Path.of("src/main/resources");
+        assertTrue(Files.isRegularFile(resources.resolve("META-INF/neoforge.mods.toml")));
+        assertTrue(Files.isRegularFile(resources.resolve("icon.png")));
+        String notice = Files.readString(resources.resolve("META-INF/licenses/memento-in-abyss-MIT.txt"));
+        assertTrue(notice.contains("Copyright (c) 2025 MIA Development Team"));
+        assertTrue(notice.contains("The above copyright notice and this permission notice"));
+    }
+
+    @Test
     void footprintsUseOnlyTheDynamicContainerRenderer() {
         assertFalse(Files.exists(ASSET_ROOT.resolve("models/block/footprint")));
         assertFalse(Files.exists(ASSET_ROOT.resolve("textures/block/footprint")));

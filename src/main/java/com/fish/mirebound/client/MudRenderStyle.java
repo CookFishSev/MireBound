@@ -3,6 +3,12 @@ package com.fish.mirebound.client;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import java.lang.reflect.Field;
+import com.fish.mirebound.mud.MudBodyPart;
+import com.fish.mirebound.mud.MudCoverageRules;
+import com.fish.mirebound.mud.MudCoveragePatternSeed;
+import com.fish.mirebound.mud.MudSurface;
+import com.fish.mirebound.mud.MudSurfaceLayout;
+import com.fish.mirebound.mud.SinkingMedium;
 import net.minecraft.client.model.geom.ModelPart;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
@@ -31,6 +37,228 @@ final class MudRenderStyle {
     static void renderPart(ModelPart part, PoseStack poseStack, MultiBufferSource bufferSource,
             int packedLight, int overlay, ResourceLocation mudTexture) {
         renderFlatPart(part, poseStack, bufferSource, packedLight, overlay, mudTexture, false);
+    }
+
+    /** Renders coverage from the model face geometry instead of a shared UV texture. */
+    static void renderCoveredSkinPart(ModelPart part, PoseStack poseStack,
+            MultiBufferSource bufferSource, int packedLight, int overlay,
+            int entityId, MudBodyPart targetPart, ResourceLocation skinTexture,
+            boolean slimModel) {
+        if (!com.fish.mirebound.client.config.MireboundClientSettings.independentSurfaceCoverage()) {
+            ResourceLocation texture = MudSkinTextureCache.textureFor(entityId, skinTexture, slimModel);
+            if (texture != null) renderPart(part, poseStack, bufferSource, packedLight, overlay, texture);
+            return;
+        }
+        if (!part.visible || part.skipDraw) {
+            return;
+        }
+        if (!hasModelUvAccess()) {
+            ResourceLocation fallback = MudSkinTextureCache.partTextureFor(
+                    entityId, skinTexture, slimModel, targetPart);
+            if (fallback != null) {
+                renderPart(part, poseStack, bufferSource, packedLight, overlay, fallback);
+            }
+            return;
+        }
+        ResourceLocation stencil = com.fish.mirebound.client.skin.SkinStainMaskTextures.texture(
+                entityId, SkinPixelCache.width(skinTexture), SkinPixelCache.height(skinTexture));
+        VertexConsumer consumer = bufferSource.getBuffer(RenderType.entityTranslucent(stencil));
+        part.visit(poseStack, (pose, path, index, cube) -> renderCoveredCube(
+                pose, cube, consumer, packedLight, overlay, entityId, targetPart,
+                skinTexture, slimModel));
+    }
+
+
+    private static void renderCoveredCube(PoseStack.Pose pose, ModelPart.Cube cube,
+            VertexConsumer consumer, int packedLight, int overlay, int entityId,
+            MudBodyPart targetPart, ResourceLocation skinTexture, boolean slimModel) {
+        try {
+            Object[] polygons = (Object[]) CUBE_POLYGONS.get(cube);
+            for (Object polygon : polygons) {
+                SourceVertex[] vertices = readVertices(polygon);
+                Vector3f normal = new Vector3f((Vector3f) POLYGON_NORMAL.get(polygon));
+                MudSurface surface = surfaceForNormal(normal);
+                if (surface == null) {
+                    continue;
+                }
+                renderCoveredFace(pose, consumer, packedLight, overlay, entityId,
+                        targetPart, surface, skinTexture, vertices, normal, slimModel);
+            }
+        } catch (IllegalAccessException | ClassCastException ignored) {
+            // The ordinary per-part texture path remains available when a renderer changes ModelPart internals.
+        }
+    }
+
+    private static void renderCoveredFace(PoseStack.Pose pose, VertexConsumer consumer,
+            int packedLight, int overlay, int entityId, MudBodyPart part,
+            MudSurface surface, ResourceLocation skinTexture,
+            SourceVertex[] vertices, Vector3f normal, boolean slimModel) {
+        if (vertices.length != 4) {
+            return;
+        }
+        float minU = Float.POSITIVE_INFINITY;
+        float maxU = Float.NEGATIVE_INFINITY;
+        float minV = Float.POSITIVE_INFINITY;
+        float maxV = Float.NEGATIVE_INFINITY;
+        for (SourceVertex vertex : vertices) {
+            float u = surfaceAxisU(surface, vertex);
+            float v = surfaceAxisV(surface, vertex);
+            minU = Math.min(minU, u);
+            maxU = Math.max(maxU, u);
+            minV = Math.min(minV, v);
+            maxV = Math.max(maxV, v);
+        }
+        if (maxU - minU < 0.0001F || maxV - minV < 0.0001F) {
+            return;
+        }
+        Vector3f[] corners = faceCorners(surface, vertices, minU, maxU, minV, maxV);
+        if (corners == null) {
+            return;
+        }
+        SourceVertex[] uvCorners = new SourceVertex[4];
+        for (int i = 0; i < 4; i++) {
+            for (SourceVertex vertex : vertices)
+                if (corners[i].distanceSquared(vertex.x, vertex.y, vertex.z) < 1e-8F) { uvCorners[i] = vertex; break; }
+            if (uvCorners[i] == null) return;
+        }
+        MudSurfaceLayout.Face face = MudSurfaceLayout.face(part, surface);
+        Vector3f transformedNormal = pose.transformNormal(normal.x(), normal.y(), normal.z(), new Vector3f());
+        if (transformedNormal.lengthSquared() > 0.000001F) {
+            transformedNormal.normalize();
+        }
+        for (int row = 0; row < face.height(); row++) {
+            for (int column = 0; column < face.width(); column++) {
+                int cell = MudSurfaceLayout.cellIndex(part, surface, row, column);
+                ClientMudState.CoverageState display = ClientMudState.displaySnapshot(entityId);
+                float coverage = display.surfacePixelCoverage(part, surface, row, column);
+                int original = MudSkinTextureCache.skinSurfacePixel(
+                        skinTexture, part, surface, row, column, slimModel);
+                int color;
+                if (coverage <= 0.004F
+                        || !MudCoverageAppearance.allowsCoveragePixel(
+                                display.surfacePixelMedium(part, surface, row, column),
+                                MudCoverageRules.DOMAIN_SKIN, cell,
+                                MudSurfaceLayout.CELL_COUNT)
+                        || FastColor.ABGR32.alpha(original) <= 0) {
+                    float assimilationCoverage = ClientAssimilationState.coverage(entityId, cell);
+                    if (assimilationCoverage <= 0.004F
+                            || FastColor.ABGR32.alpha(original) <= 0) {
+                        continue;
+                    }
+                    color = MudSkinTextureCache.blendedAssimilationOverlayPixel(
+                            entityId, cell, original, column, row,
+                            assimilationCoverage, cell * 31 + 0x41A55A17, false);
+                } else {
+                    SinkingMedium medium = display.surfacePixelMedium(part, surface, row, column);
+                    long visualSource = display.surfacePixelVisualSource(part, surface, row, column);
+                    int salt = MudCoveragePatternSeed.mix(
+                            cell * 31 + part.ordinal() * 101,
+                            ClientMudState.coveragePatternSeed(entityId));
+                    color = MudSkinTextureCache.skinCoverageTextureAbgr(
+                            medium, visualSource, column, row, salt,
+                            Math.round(255.0F * Mth.clamp(coverage, 0.0F, 1.0F)));
+                }
+                int argb = FastColor.ARGB32.color(
+                        FastColor.ABGR32.alpha(color), FastColor.ABGR32.red(color),
+                        FastColor.ABGR32.green(color), FastColor.ABGR32.blue(color));
+                float u0 = column / (float) face.width();
+                float u1 = (column + 1) / (float) face.width();
+                float v0 = row / (float) face.height();
+                float v1 = (row + 1) / (float) face.height();
+                PixelQuad quad = new PixelQuad(
+                        interpolate(corners, u0, v0), interpolate(corners, u1, v0),
+                        interpolate(corners, u1, v1), interpolate(corners, u0, v1),
+                        0.0F, 0.0F, 1.0F, 1.0F);
+                emitMaskedSkinFace(pose, consumer, packedLight, overlay,
+                        transformedNormal, quad, normal, argb, uvCorners, u0, v0, u1, v1);
+            }
+        }
+    }
+
+    private static void emitMaskedSkinFace(PoseStack.Pose pose, VertexConsumer consumer,
+            int packedLight, int overlay, Vector3f transformedNormal, PixelQuad quad,
+            Vector3f sourceNormal, int color, SourceVertex[] uv,
+            float s0, float t0, float s1, float t1) {
+        Matrix4f matrix = pose.pose();
+        emitColoredVertex(pose, consumer, packedLight, overlay, matrix,
+                transformedNormal, sourceNormal, quad.p00, skinUv(uv,s0,t0,true), skinUv(uv,s0,t0,false), .004F, color);
+        emitColoredVertex(pose, consumer, packedLight, overlay, matrix,
+                transformedNormal, sourceNormal, quad.p10, skinUv(uv,s1,t0,true), skinUv(uv,s1,t0,false), .004F, color);
+        emitColoredVertex(pose, consumer, packedLight, overlay, matrix,
+                transformedNormal, sourceNormal, quad.p11, skinUv(uv,s1,t1,true), skinUv(uv,s1,t1,false), .004F, color);
+        emitColoredVertex(pose, consumer, packedLight, overlay, matrix,
+                transformedNormal, sourceNormal, quad.p01, skinUv(uv,s0,t1,true), skinUv(uv,s0,t1,false), .004F, color);
+    }
+
+    private static float skinUv(SourceVertex[] corners, float s, float t, boolean horizontal) {
+        float value = 0;
+        for (int i = 0; i < 4; i++) {
+            float weight = (i == 0 || i == 3 ? 1 - s : s) * (i < 2 ? 1 - t : t);
+            value += (horizontal ? corners[i].u : corners[i].v) * weight;
+        }
+        return value;
+    }
+
+    private static void emitColoredVertex(PoseStack.Pose pose, VertexConsumer consumer,
+            int packedLight, int overlay, Matrix4f matrix, Vector3f transformedNormal,
+            Vector3f sourceNormal, Vector3f localPosition, float u, float v,
+            float offset, int color) {
+        Vector3f position = matrix.transformPosition(localPosition.x() / 16.0F,
+                localPosition.y() / 16.0F, localPosition.z() / 16.0F, new Vector3f());
+        Vector3f offsetNormal = pose.transformNormal(
+                sourceNormal.x(), sourceNormal.y(), sourceNormal.z(), new Vector3f());
+        if (offsetNormal.lengthSquared() > 0.000001F) {
+            offsetNormal.normalize();
+        }
+        position.add(offsetNormal.x() * offset, offsetNormal.y() * offset,
+                offsetNormal.z() * offset);
+        consumer.addVertex(position.x(), position.y(), position.z(), color,
+                u, v, overlay, packedLight, transformedNormal.x(),
+                transformedNormal.y(), transformedNormal.z());
+    }
+
+    private static MudSurface surfaceForNormal(Vector3f normal) {
+        float x = Math.abs(normal.x());
+        float y = Math.abs(normal.y());
+        float z = Math.abs(normal.z());
+        if (y >= x && y >= z) {
+            return normal.y() >= 0.0F ? MudSurface.TOP : MudSurface.BOTTOM;
+        }
+        if (x >= z) {
+            return normal.x() >= 0.0F ? MudSurface.LEFT : MudSurface.RIGHT;
+        }
+        return normal.z() >= 0.0F ? MudSurface.FRONT : MudSurface.BACK;
+    }
+
+    private static float surfaceAxisU(MudSurface surface, SourceVertex vertex) {
+        return surface == MudSurface.LEFT || surface == MudSurface.RIGHT
+                ? vertex.z : vertex.x;
+    }
+
+    private static float surfaceAxisV(MudSurface surface, SourceVertex vertex) {
+        return surface == MudSurface.TOP || surface == MudSurface.BOTTOM
+                ? vertex.z : vertex.y;
+    }
+
+    private static Vector3f[] faceCorners(MudSurface surface, SourceVertex[] vertices,
+            float minU, float maxU, float minV, float maxV) {
+        Vector3f[] result = new Vector3f[4];
+        float centerU = (minU + maxU) * 0.5F;
+        float centerV = (minV + maxV) * 0.5F;
+        for (SourceVertex vertex : vertices) {
+            int u = surfaceAxisU(surface, vertex) > centerU ? 1 : 0;
+            int v = surfaceAxisV(surface, vertex) > centerV ? 1 : 0;
+            int index = v * 2 + u;
+            result[index] = vertex.position();
+        }
+        return result[0] == null || result[1] == null
+                || result[2] == null || result[3] == null ? null : result;
+    }
+
+    private static Vector3f interpolate(Vector3f[] corners, float u, float v) {
+        Vector3f bottom = new Vector3f(corners[0]).lerp(corners[1], u);
+        Vector3f top = new Vector3f(corners[2]).lerp(corners[3], u);
+        return bottom.lerp(top, v);
     }
 
     static void renderPart(ModelPart part, PoseStack poseStack, MultiBufferSource bufferSource,

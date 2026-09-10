@@ -2,12 +2,14 @@ package com.fish.mirebound;
 
 import com.fish.mirebound.client.ClientEvents;
 import com.fish.mirebound.adaptive.AdaptiveMudSourceSync;
+import com.fish.mirebound.adaptive.MudVisualSource;
 import com.fish.mirebound.adaptive.AdaptiveMudBehaviorSettings;
 import com.fish.mirebound.adaptive.AdaptiveMudConversionScheduler;
 import com.fish.mirebound.assimilation.AssimilationSystem;
 import com.fish.mirebound.mud.MudPhysics;
 import com.fish.mirebound.mud.MudMobPhysics;
 import com.fish.mirebound.mud.tuning.MudTuningManager;
+import com.fish.mirebound.mud.tuning.MudTuningScanScheduler;
 import com.fish.mirebound.mud.tuning.MudTuningConversionSafety;
 import com.fish.mirebound.mud.MudPhysicsSettings;
 import com.fish.mirebound.mud.harvest.MudHarvestSystem;
@@ -126,9 +128,17 @@ public class Mirebound {
         NeoForge.EVENT_BUS.addListener(DroppedItemPhysicsSystem::onStartTracking);
         NeoForge.EVENT_BUS.addListener(MudPhysics::onPlayerLoggedOut);
         NeoForge.EVENT_BUS.addListener(ServerInputBudget::onPlayerLoggedOut);
+        NeoForge.EVENT_BUS.addListener(com.fish.mirebound.coverage.armor.EquipmentSurfaceService::onLogout);
+        NeoForge.EVENT_BUS.addListener(com.fish.mirebound.coverage.skin.SkinStainSharing::onStartTracking);
+        NeoForge.EVENT_BUS.addListener(com.fish.mirebound.coverage.skin.SkinStainSharing::onStopTracking);
+        NeoForge.EVENT_BUS.addListener(com.fish.mirebound.coverage.skin.SkinStainSharing::onLogout);
+        NeoForge.EVENT_BUS.addListener(com.fish.mirebound.coverage.skin.SkinStainSharing::onStop);
         NeoForge.EVENT_BUS.addListener(AssimilationSystem::onLoggedOut);
         NeoForge.EVENT_BUS.addListener(MudTuningManager::onPlayerLoggedOut);
         NeoForge.EVENT_BUS.addListener(MudTuningManager::onServerStopping);
+        NeoForge.EVENT_BUS.addListener(MudTuningScanScheduler::onServerTick);
+        NeoForge.EVENT_BUS.addListener(MudTuningScanScheduler::onPlayerLoggedOut);
+        NeoForge.EVENT_BUS.addListener(MudTuningScanScheduler::onServerStopping);
         NeoForge.EVENT_BUS.addListener(AdaptiveMudConversionScheduler::onPlayerLoggedOut);
         NeoForge.EVENT_BUS.addListener(MudTerrainGenerationScheduler::onPlayerLoggedOut);
         NeoForge.EVENT_BUS.addListener(MudPhysics::onPlayerClone);
@@ -136,6 +146,7 @@ public class Mirebound {
         NeoForge.EVENT_BUS.addListener(AssimilationSystem::onClone);
         NeoForge.EVENT_BUS.addListener(MudPhysics::onServerStopping);
         NeoForge.EVENT_BUS.addListener(ServerInputBudget::onServerStopping);
+        NeoForge.EVENT_BUS.addListener(com.fish.mirebound.coverage.armor.EquipmentSurfaceService::onStop);
         NeoForge.EVENT_BUS.addListener(AssimilationSystem::onServerStopping);
         NeoForge.EVENT_BUS.addListener(MudMobPhysics::onServerStopping);
         NeoForge.EVENT_BUS.addListener(EntityMudCoverageService::onServerStopping);
@@ -180,6 +191,7 @@ public class Mirebound {
         NeoForge.EVENT_BUS.addListener(RopeRuntime::onServerStopping);
         NeoForge.EVENT_BUS.addListener(PhysicsTraceLog::onServerStopping);
         NeoForge.EVENT_BUS.addListener(CoverageDebugLog::onServerStopping);
+        NeoForge.EVENT_BUS.addListener(MudVisualSource::onServerStopping);
         NeoForge.EVENT_BUS.addListener(MudCommands::register);
 
         if (FMLEnvironment.dist == Dist.CLIENT) {

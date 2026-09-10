@@ -172,8 +172,13 @@ public final class ArmorTextureMudManager {
         return index >= 0 && index < slots.length ? slots[index] : null;
     }
 
-    private static MediumContact sinkingMediumAt(ServerPlayer player, Vec3 point,
+    static MediumContact sinkingMediumAt(ServerPlayer player, Vec3 point,
             Map<BlockPos, Long> visualSourceCache) {
+        return sinkingMediumAt(player, point, visualSourceCache, null);
+    }
+
+    static MediumContact sinkingMediumAt(ServerPlayer player, Vec3 point,
+            Map<BlockPos, Long> visualSourceCache, SableCompat.SinkingVolumeProbe sableProbe) {
         Level level = player.level();
         BlockPos pos = BlockPos.containing(point);
         BlockState state = level.getBlockState(pos);
@@ -190,14 +195,14 @@ public final class ArmorTextureMudManager {
             return new MediumContact(medium, visualSource);
         }
 
-        SinkingSample sample = SableCompat.sampleSinking(level, point, player);
+        SinkingSample sample = sableProbe == null ? SableCompat.sampleSinking(level, point, player) : sableProbe.sample(point);
         if (sample == null) {
             return null;
         }
         return new MediumContact(sample.medium(), sample.visualSource());
     }
 
-    private record MediumContact(SinkingMedium medium, long visualSource) {
+    record MediumContact(SinkingMedium medium, long visualSource) {
     }
 
     private static boolean finite(Vec3 value) {

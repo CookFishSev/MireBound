@@ -5,6 +5,7 @@ import com.fish.mirebound.client.gui.MireflowButton;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.worldselection.CreateWorldScreen;
 import net.minecraft.network.chat.Component;
+import java.util.List;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -28,7 +29,32 @@ abstract class CreateWorldScreenWorldTabMixin {
                 NaturalMudWorldCreationClient.supports(outer)
                         && !outer.getUiState().isDebug());
         ((GridLayoutTabAccessMixin) (Object) this)
-                .mirebound$getLayout().addChild(button, 4, 0, 1, 2);
+                .mirebound$getLayout().addChild(button, mirebound$findFreeRow(
+                        ((GridLayoutTabAccessMixin) (Object) this).mirebound$getLayout()), 0, 1, 2);
+    }
+
+    private static int mirebound$findFreeRow(net.minecraft.client.gui.layouts.GridLayout layout) {
+        List<?> cells = ((GridLayoutCellsAccessMixin) (Object) layout)
+                .mirebound$getCellInhabitants();
+        for (int row = 0; row < 128; row++) {
+            boolean occupied = false;
+            for (Object cell : cells) {
+                GridLayoutCellInhabitantAccessMixin access =
+                        (GridLayoutCellInhabitantAccessMixin) cell;
+                int cellRow = access.mirebound$getRow();
+                int cellColumn = access.mirebound$getColumn();
+                if (cellRow <= row && row < cellRow + access.mirebound$getOccupiedRows()
+                        && cellColumn < 2
+                        && cellColumn + access.mirebound$getOccupiedColumns() > 0) {
+                    occupied = true;
+                    break;
+                }
+            }
+            if (!occupied) {
+                return row;
+            }
+        }
+        return 128;
     }
 
 }

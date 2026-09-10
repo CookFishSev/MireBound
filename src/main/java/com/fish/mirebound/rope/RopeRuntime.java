@@ -304,7 +304,7 @@ public final class RopeRuntime {
         CLIMB_CONTACT_CACHE.remove(playerId);
         RESCUE_CASTS.remove(playerId);
         for (LevelRopes ropes : LEVELS.values()) {
-            ropes.clearPlayerRescueState(playerId);
+            ropes.clearPlayerInteractions(playerId);
         }
     }
 
@@ -442,6 +442,7 @@ public final class RopeRuntime {
             return;
         }
         if (rope.chain.anchorSegment(payload.segmentIndex())) {
+            rope.dragInputs.finish(rope.dragPlayerId);
             rope.dragging = false;
             rope.dragPlayerId = null;
             rope.lastDragInputTick = Long.MIN_VALUE;
@@ -740,8 +741,18 @@ public final class RopeRuntime {
             return false;
         }
 
-        private void clearPlayerRescueState(UUID playerId) {
+        private void clearPlayerInteractions(UUID playerId) {
             for (ActiveRope rope : chains) {
+                if (playerId.equals(rope.dragPlayerId)) {
+                    rope.stopDragAndNotify(null);
+                }
+                if (rope.pendingDrag != null && playerId.equals(rope.pendingDrag.playerId())) {
+                    rope.pendingDrag = null;
+                }
+                if (playerId.equals(rope.breakPlayerId)) {
+                    rope.clearBreak();
+                }
+                rope.dragInputs.forget(playerId);
                 rope.stopRescueHaul(playerId);
                 if (playerId.equals(rope.ownerId)) {
                     rope.lastRescueSessionId = 0L;
@@ -840,8 +851,7 @@ public final class RopeRuntime {
         private int nextCollisionCapture;
         private boolean dragging;
         private UUID dragPlayerId;
-        private long dragInputSession;
-        private long lastDragInputSequence;
+        private final RopeDragInputOrder dragInputs = new RopeDragInputOrder();
         private long lastDragInputTick = Long.MIN_VALUE;
         private PendingDrag pendingDrag;
         private UUID breakPlayerId;
@@ -1036,6 +1046,7 @@ public final class RopeRuntime {
             }
             notifyInteractionRelease(player, false, chain.draggedSegment());
             chain.clearDrag();
+            dragInputs.finish(dragPlayerId);
             dragging = false;
             dragPlayerId = null;
             lastDragInputTick = Long.MIN_VALUE;
@@ -1043,9 +1054,6 @@ public final class RopeRuntime {
 
         private boolean acceptsActive(ServerPlayer player, RopeDragPayload payload) {
             UUID playerId = player.getUUID();
-            if (payload.inputSession() < dragInputSession) {
-                return false;
-            }
             if (dragPlayerId != null && !dragPlayerId.equals(playerId)) {
                 return false;
             }
@@ -1062,8 +1070,7 @@ public final class RopeRuntime {
                     return false;
                 }
             }
-            return payload.inputSession() > dragInputSession
-                    || payload.inputSequence() > lastDragInputSequence;
+            return dragInputs.accepts(playerId, payload.inputSession(), payload.inputSequence(), true);
         }
 
         private boolean acceptsRelease(ServerPlayer player, RopeDragPayload payload) {
@@ -1073,8 +1080,7 @@ public final class RopeRuntime {
                             && pendingDrag.playerId().equals(player.getUUID()))) {
                 return false;
             }
-            return payload.inputSession() == dragInputSession
-                    && payload.inputSequence() > lastDragInputSequence
+            return dragInputs.accepts(player.getUUID(), payload.inputSession(), payload.inputSequence(), false)
                     && (pendingDrag == null
                             || payload.inputSession() != pendingDrag.inputSession()
                             || payload.inputSequence() > pendingDrag.inputSequence());
@@ -1086,12 +1092,33 @@ public final class RopeRuntime {
                 return;
             }
             pendingDrag = pending;
-            dragInputSession = pending.inputSession();
-            lastDragInputSequence = pending.inputSequence();
+            dragInputs.record(pending.playerId(), pending.inputSession(),
+                    pending.inputSequence(), pending.dragging());
         }
 
         private boolean tick(ServerLevel level) {
             RopeProperties properties = chain.properties();
+            if (!RopeChunkAvailability.loaded(chain.positions(),
+                    properties.collisionCapturePadding(), level.getChunkSource()::hasChunk)) {
+                // Keep the persisted pose and velocity until collision data is available again.
+                // Transient interaction leases cannot survive an unloaded part of the chain.
+                if (dragPlayerId != null) {
+                    stopDragAndNotify(level.getServer().getPlayerList().getPlayer(dragPlayerId));
+                }
+                if (isRescueHauling()) {
+                    stopRescueHaul(level, true);
+                }
+                if (rescueState == RescueStateMachine.State.FLYING) {
+                    cancelLassoFlight();
+                }
+                pendingDrag = null;
+                clearBreak();
+                collision = null;
+                if (level.getGameTime() % 20L == 0L) {
+                    send(level, false, 20);
+                }
+                return true;
+            }
             if (breakPlayerId != null && level.getGameTime() - lastBreakInputTick
                     > BREAK_INPUT_TIMEOUT_TICKS) {
                 clearBreak();
@@ -1406,7 +1433,8 @@ public final class RopeRuntime {
             }
             if (!pending.dragging()) {
                 if ((dragPlayerId != null && dragPlayerId.equals(pending.playerId()))
-                        || (dragPlayerId == null && pending.inputSession() == dragInputSession)) {
+                        || (dragPlayerId == null && dragInputs.matchesSession(
+                                pending.playerId(), pending.inputSession()))) {
                     chain.clearDrag();
                     dragging = false;
                     dragPlayerId = null;

@@ -42,7 +42,7 @@ class MudworkContentResourcesTest {
             "stone_clay_ball",
             "pale_clay_ball");
 
-    private static final List<String> RECIPES = List.of(
+    private static final List<String> REMOVED_RECIPES = List.of(
             "wet_adobe_brick",
             "wet_adobe",
             "dried_adobe_brick_smelting",
@@ -57,7 +57,12 @@ class MudworkContentResourcesTest {
             "adobe_tiles_stonecutting",
             "adobe_tile_stairs",
             "adobe_tile_slab",
-            "adobe_tile_wall",
+            "adobe_tile_wall");
+
+    private static final List<String> RECIPES = List.of(
+            "rope",
+            "mud_probe",
+            "jungle_quicksand",
             "tar_from_tar_blobs",
             "gel_clay_from_balls",
             "stone_clay_from_balls",
@@ -79,14 +84,14 @@ class MudworkContentResourcesTest {
             "peat_bog_mud_ball", "peat_bog");
 
     @Test
-    void everyBuildingBlockHasStateItemAndLootResources()
+    void retainedBuildingArtDoesNotShipUnregisteredLoot()
             throws IOException {
         String english = Files.readString(ASSETS.resolve("lang/en_us.json"));
         String chinese = Files.readString(ASSETS.resolve("lang/zh_cn.json"));
         for (String block : BLOCKS) {
             assertJson(ASSETS.resolve("blockstates/" + block + ".json"));
             assertJson(ASSETS.resolve("models/item/" + block + ".json"));
-            assertJson(DATA.resolve("loot_table/blocks/" + block + ".json"));
+            assertFalse(Files.exists(DATA.resolve("loot_table/blocks/" + block + ".json")));
             String key = "block.mirebound." + block;
             assertTrue(english.contains(key), key + " missing from en_us");
             assertTrue(chinese.contains(key), key + " missing from zh_cn");
@@ -95,6 +100,9 @@ class MudworkContentResourcesTest {
 
     @Test
     void recipesAndFunctionalTagsArePresent() throws IOException {
+        for (String recipe : REMOVED_RECIPES) {
+            assertFalse(Files.exists(DATA.resolve("recipe/" + recipe + ".json")), recipe);
+        }
         for (String recipe : RECIPES) {
             assertJson(DATA.resolve("recipe/" + recipe + ".json"));
         }

@@ -39,7 +39,7 @@ public abstract class RenderTypeArmorAccessoryMixin {
             method = "entityCutoutNoCullZOffset(Lnet/minecraft/resources/ResourceLocation;Z)Lnet/minecraft/client/renderer/RenderType;",
             at = @At("HEAD"), argsOnly = true, ordinal = 0)
     private static ResourceLocation mirebound$useCapturedOffsetEquipmentTexture(ResourceLocation texture) {
-        return ArmorAccessoryRenderContext.genericEquipmentTexture(texture);
+        return ArmorAccessoryRenderContext.genericEquipmentTexture(texture, true);
     }
 
     @ModifyVariable(

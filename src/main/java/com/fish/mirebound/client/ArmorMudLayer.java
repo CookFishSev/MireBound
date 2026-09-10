@@ -41,7 +41,8 @@ public final class ArmorMudLayer extends RenderLayer<AbstractClientPlayer, Playe
     public void render(PoseStack poseStack, MultiBufferSource buffers, int packedLight, AbstractClientPlayer player,
             float limbSwing, float limbSwingAmount, float partialTick, float ageInTicks, float netHeadYaw,
             float headPitch) {
-        if (player.isInvisible()
+        if (MireboundClientSettings.independentSurfaceCoverage()
+                || player.isInvisible()
                 || !MireboundClientSettings.clientOptionEnabled(
                         ClientOption.PLAYER_COVERAGE)
                 || ClientPollutionVisibility.isSuppressed(player)) {
@@ -57,7 +58,7 @@ public final class ArmorMudLayer extends RenderLayer<AbstractClientPlayer, Playe
             if (data.isEmpty()) {
                 continue;
             }
-            if (ArmorMudRenderBridge.wasComposited(player.getId(), slot, player.level().getGameTime())) {
+            if (ClassicArmorMudRenderer.wasComposited(player.getId(), slot, player.level().getGameTime())) {
                 continue;
             }
 

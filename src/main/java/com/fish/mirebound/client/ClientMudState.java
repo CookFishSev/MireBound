@@ -556,12 +556,14 @@ public final class ClientMudState {
 
     public static void clearEntity(int entityId) {
         COVERAGE_BY_ENTITY.remove(entityId);
+        ClientMudVisualSourceCatalog.clearEntity(entityId);
         MudSkinTextureCache.invalidateOrdinaryEntity(entityId);
         MudCapeTextureCache.clearEntity(entityId);
     }
 
     private static void removeTrackedEntity(int entityId, CoverageState state) {
         if (COVERAGE_BY_ENTITY.remove(entityId, state)) {
+            ClientMudVisualSourceCatalog.clearEntity(entityId);
             MudSkinTextureCache.invalidateOrdinaryEntity(entityId);
             MudCapeTextureCache.clearEntity(entityId);
         }

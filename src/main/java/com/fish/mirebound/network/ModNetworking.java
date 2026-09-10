@@ -5,6 +5,7 @@ import com.fish.mirebound.mud.MudPhysics;
 import com.fish.mirebound.mud.PhysicsTraceLog;
 import com.fish.mirebound.network.payload.MudCoverageDeltaPayload;
 import com.fish.mirebound.network.payload.MudCoverageSyncPayload;
+import com.fish.mirebound.network.payload.MudVisualSourceCatalogPayload;
 import com.fish.mirebound.network.payload.MudDebugSyncPayload;
 import com.fish.mirebound.network.payload.MudDeveloperOptionsPayload;
 import com.fish.mirebound.network.payload.MudStrugglePayload;
@@ -79,13 +80,31 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
 import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 
 public final class ModNetworking {
-    private static final String PROTOCOL_VERSION = "172";
+    private static final String PROTOCOL_VERSION = "174";
 
     private ModNetworking() {
     }
 
     public static void register(RegisterPayloadHandlersEvent event) {
         PayloadRegistrar registrar = event.registrar(PROTOCOL_VERSION);
+        registrar.playToServer(com.fish.mirebound.network.payload.SelfSkinStainPayload.TYPE,
+                com.fish.mirebound.network.payload.SelfSkinStainPayload.STREAM_CODEC,
+                (payload, context) -> context.enqueueWork(() -> {
+                    if (context.player() instanceof ServerPlayer player)
+                        com.fish.mirebound.coverage.skin.SkinStainSharing.accept(player, payload);
+                }));
+        registrar.playToClient(com.fish.mirebound.network.payload.SkinStainSyncPayload.TYPE,
+                com.fish.mirebound.network.payload.SkinStainSyncPayload.STREAM_CODEC,
+                (payload, context) -> context.enqueueWork(() -> {
+                    if (FMLEnvironment.dist == Dist.CLIENT) ClientNetworkHandlers.handleSkinStainSync(payload);
+                }));
+        registrar.playToServer(com.fish.mirebound.network.payload.EquipmentSurfaceContactPayload.TYPE,
+                com.fish.mirebound.network.payload.EquipmentSurfaceContactPayload.STREAM_CODEC,
+                (payload, context) -> context.enqueueWork(() -> {
+                    if (context.player() instanceof ServerPlayer player
+                            && ServerInputBudget.allow(player, ServerInputBudget.Channel.EQUIPMENT_SURFACE_CONTACT))
+                        com.fish.mirebound.coverage.armor.EquipmentSurfaceService.handle(player, payload);
+                }));
         registrar.playToServer(MudStrugglePayload.TYPE, MudStrugglePayload.STREAM_CODEC, ModNetworking::handleStruggle);
         registrar.playToServer(MudDeveloperOptionsPayload.TYPE, MudDeveloperOptionsPayload.STREAM_CODEC, ModNetworking::handleDeveloperOptions);
         registrar.playToServer(MudViewModePayload.TYPE, MudViewModePayload.STREAM_CODEC,
@@ -157,6 +176,9 @@ public final class ModNetworking {
                 AssimilationPurgeInputPayload.STREAM_CODEC,
                 ModNetworking::handleAssimilationPurgeInput);
         registrar.playToClient(MudCoverageSyncPayload.TYPE, MudCoverageSyncPayload.STREAM_CODEC, ModNetworking::handleCoverageSync);
+        registrar.playToClient(MudVisualSourceCatalogPayload.TYPE,
+                MudVisualSourceCatalogPayload.STREAM_CODEC,
+                ModNetworking::handleVisualSourceCatalog);
         registrar.playToClient(MudCoverageDeltaPayload.TYPE, MudCoverageDeltaPayload.STREAM_CODEC,
                 ModNetworking::handleCoverageDelta);
         registrar.playToClient(MudDebugSyncPayload.TYPE, MudDebugSyncPayload.STREAM_CODEC, ModNetworking::handleDebugSync);
@@ -453,6 +475,11 @@ public final class ModNetworking {
         enqueueClient(context, () -> ClientNetworkHandlers.handleCoverageSync(payload));
     }
 
+    private static void handleVisualSourceCatalog(
+            MudVisualSourceCatalogPayload payload, IPayloadContext context) {
+        enqueueClient(context, () -> ClientNetworkHandlers.handleVisualSourceCatalog(payload));
+    }
+
     private static void handleCoverageDelta(MudCoverageDeltaPayload payload, IPayloadContext context) {
         enqueueClient(context, () -> ClientNetworkHandlers.handleCoverageDelta(payload));
     }
@@ -535,7 +562,8 @@ public final class ModNetworking {
     private static void handleRopeRescueCast(
             RopeRescueCastPayload payload, IPayloadContext context) {
         context.enqueueWork(() -> {
-            if (context.player() instanceof ServerPlayer player) {
+            if (context.player() instanceof ServerPlayer player
+                    && ServerInputBudget.allow(player, ServerInputBudget.Channel.ROPE_RESCUE_CAST)) {
                 com.fish.mirebound.rope.RopeRuntime.setRescueCastArmed(
                         player, payload.armed());
             }

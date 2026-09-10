@@ -1,17 +1,26 @@
 package com.fish.mirebound.mud;
 
 import com.fish.mirebound.adaptive.MudVisualPalette;
+import com.fish.mirebound.adaptive.MudVisualSource;
 import com.fish.mirebound.coverage.MudCoveragePaintPredicate;
 import java.util.Arrays;
 import java.util.BitSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.function.IntPredicate;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.util.Mth;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
 public final class MudPlayerData {
-    private static final int PERSISTENCE_VERSION = 9;
+    private static final int PERSISTENCE_VERSION = 10;
+    private static final int MAX_VISUAL_SOURCE_STATES = 2048;
     private static final float COVERAGE_CLEAR_THRESHOLD = 0.00025F;
     private static final float OLD_PERSISTENCE_COVERAGE_SCALE = 100.0F;
     private static final float PERSISTENCE_COVERAGE_SCALE = 255.0F;
@@ -27,6 +36,7 @@ public final class MudPlayerData {
     private static final String TAG_CAPE_APPEARANCE = "CapeAppearance";
     private static final String TAG_CAPE_VISUAL_SOURCE = "CapeVisualSource";
     private static final String TAG_COVERAGE_PATTERN_SEED = "CoveragePatternSeed";
+    private static final String TAG_VISUAL_SOURCE_STATES = "VisualSourceStates";
 
     public int lastMudTick = Integer.MIN_VALUE;
     public int lastPhysicsTick = Integer.MIN_VALUE;
@@ -56,6 +66,8 @@ public final class MudPlayerData {
     public int lastSyncedMediumId = -1;
     public int coveragePatternSeed;
     public int lastSyncedCoveragePatternSeed = -1;
+    public int visualSourceCatalogRevision;
+    public int lastSyncedVisualSourceCatalogRevision = -1;
     public int lastSyncedTenderFleshBrokenMask = -1;
     public int lastSyncedTenderFleshPillarDamagePacked = -1;
     public int lastSyncedTenderFleshPillarRequiredHitsPacked = -1;
@@ -84,6 +96,8 @@ public final class MudPlayerData {
     public final byte[] capeMedium = new byte[MudCapeLayout.CELL_COUNT];
     public final int[] capeAppearance = new int[MudCapeLayout.CELL_COUNT];
     public final long[] capeVisualSource = new long[MudCapeLayout.CELL_COUNT];
+    private final LinkedHashMap<Long, Integer> visualSourceStates =
+            new LinkedHashMap<>(128, 0.75F, true);
     private final byte[] armorContactCoverage =
             new byte[ArmorMudManager.ARMOR_SLOT_COUNT * MudSurfaceLayout.CELL_COUNT];
     private final byte[] armorContactMedium =
@@ -413,6 +427,7 @@ public final class MudPlayerData {
             float strength, SinkingMedium medium, int appearance,
             long visualSource) {
         int index = MudCapeLayout.index(side, row, column);
+        rememberVisualSource(visualSource);
         if (strength > COVERAGE_CLEAR_THRESHOLD) {
             ensureCoveragePatternSeed();
         }
@@ -654,6 +669,7 @@ public final class MudPlayerData {
             SinkingMedium medium, long visualSource) {
         int index = visionIndex(band, lane);
         float clamped = Mth.clamp(value, 0.0F, 1.0F);
+        rememberVisualSource(visualSource);
         visionCoverage[index] = clamped;
         visionMedium[index] = (byte) (clamped <= COVERAGE_CLEAR_THRESHOLD ? SinkingMedium.MUD.id() : medium.id());
         visionVisualSource[index] = clamped <= COVERAGE_CLEAR_THRESHOLD ? 0L : visualSource;
@@ -784,6 +800,11 @@ public final class MudPlayerData {
         Arrays.fill(capeMedium, (byte) SinkingMedium.MUD.id());
         Arrays.fill(capeAppearance, MudCoverageAppearanceSnapshot.GLOBAL_FALLBACK);
         Arrays.fill(capeVisualSource, 0L);
+        visualSourceStates.clear();
+        visualSourceCatalogRevision++;
+        if (visualSourceCatalogRevision < 0) {
+            visualSourceCatalogRevision = 0;
+        }
         clearSableSurfaceCandidates();
         clearSurfaceContacts();
         clearVisionCoverage();
@@ -833,6 +854,7 @@ public final class MudPlayerData {
     }
 
     public CompoundTag savePersistent() {
+        pruneVisualSourceStates();
         CompoundTag tag = new CompoundTag();
         tag.putInt(TAG_VERSION, PERSISTENCE_VERSION);
         tag.putFloat(TAG_COVERAGE, coverage);
@@ -846,6 +868,14 @@ public final class MudPlayerData {
         tag.putIntArray(TAG_CAPE_APPEARANCE, capeAppearance.clone());
         tag.putLongArray(TAG_CAPE_VISUAL_SOURCE, capeVisualSource.clone());
         tag.putInt(TAG_COVERAGE_PATTERN_SEED, coveragePatternSeed);
+        ListTag sourceStates = new ListTag();
+        for (Map.Entry<Long, Integer> entry : visualSourceStates.entrySet()) {
+            CompoundTag source = new CompoundTag();
+            source.putLong("Source", entry.getKey());
+            source.putInt("State", entry.getValue());
+            sourceStates.add(source);
+        }
+        tag.put(TAG_VISUAL_SOURCE_STATES, sourceStates);
         return tag;
     }
 
@@ -877,6 +907,21 @@ public final class MudPlayerData {
         if (version >= 9) {
             coveragePatternSeed = tag.getInt(TAG_COVERAGE_PATTERN_SEED);
         }
+        visualSourceStates.clear();
+        if (version >= 10) {
+            ListTag sourceStates = tag.getList(TAG_VISUAL_SOURCE_STATES, Tag.TAG_COMPOUND);
+            for (int index = 0;
+                    index < Math.min(MAX_VISUAL_SOURCE_STATES, sourceStates.size()); index++) {
+                CompoundTag source = sourceStates.getCompound(index);
+                long key = source.getLong("Source");
+                int stateId = source.getInt("State");
+                if (MudVisualSource.positionBacked(key) && stateId > 0
+                        && Block.stateById(stateId) != null) {
+                    visualSourceStates.put(key, stateId);
+                }
+            }
+        }
+        visualSourceCatalogRevision = visualSourceStates.isEmpty() ? 0 : 1;
 
         refreshAllCoverage();
         if (coverageBatchActive && coveragePatternSeed == 0) {
@@ -912,6 +957,7 @@ public final class MudPlayerData {
         lastSyncedVisionObstruction = -1.0F;
         lastSyncedMediumId = -1;
         lastSyncedCoveragePatternSeed = -1;
+        lastSyncedVisualSourceCatalogRevision = -1;
         lastTenderFleshEnclosureSyncTick = Integer.MIN_VALUE;
         lastSyncedTenderFleshBrokenMask = -1;
         lastSyncedTenderFleshPillarDamagePacked = -1;
@@ -938,6 +984,65 @@ public final class MudPlayerData {
         lastSyncedVisionVisualSource = new long[0];
     }
 
+    /** Returns the compact adaptive source table included in complete coverage syncs. */
+    public List<VisualSourceState> visualSourceStates() {
+        List<VisualSourceState> result = new java.util.ArrayList<>(visualSourceStates.size());
+        for (Map.Entry<Long, Integer> entry : visualSourceStates.entrySet()) {
+            result.add(new VisualSourceState(entry.getKey(), entry.getValue()));
+        }
+        return List.copyOf(result);
+    }
+
+    private void rememberVisualSource(long visualSource) {
+        if (visualSource == 0L || !MudVisualSource.positionBacked(visualSource)) {
+            return;
+        }
+        BlockState state = MudVisualSource.capturedState(visualSource);
+        if (state == null) {
+            state = MudVisualSource.state(visualSource);
+        }
+        if (state == null || state.isAir()) {
+            return;
+        }
+        int stateId = Block.getId(state);
+        if (stateId <= 0) {
+            return;
+        }
+        Integer previous = visualSourceStates.put(visualSource, stateId);
+        if (previous == null || previous != stateId) {
+            visualSourceCatalogRevision++;
+            if (visualSourceCatalogRevision < 0) {
+                visualSourceCatalogRevision = 1;
+            }
+        }
+        while (visualSourceStates.size() > MAX_VISUAL_SOURCE_STATES) {
+            visualSourceStates.remove(visualSourceStates.keySet().iterator().next());
+        }
+    }
+
+    private void pruneVisualSourceStates() {
+        java.util.HashSet<Long> used = new java.util.HashSet<>();
+        for (long source : surfaceVisualSource) {
+            if (source != 0L) {
+                used.add(source);
+            }
+        }
+        for (long source : capeVisualSource) {
+            if (source != 0L) {
+                used.add(source);
+            }
+        }
+        for (long source : visionVisualSource) {
+            if (source != 0L) {
+                used.add(source);
+            }
+        }
+        visualSourceStates.keySet().removeIf(source -> !used.contains(source));
+    }
+
+    public record VisualSourceState(long source, int stateId) {
+    }
+
     private void setSurfacePixelCoverageValue(MudBodyPart part, MudSurface surface, int row, int column, float value,
             SinkingMedium medium) {
         setSurfacePixelCoverageValue(part, surface, row, column, value, medium,
@@ -955,6 +1060,7 @@ public final class MudPlayerData {
             int appearance, long visualSource) {
         int index = MudSurfaceLayout.cellIndex(part, surface, row, column);
         float clamped = Mth.clamp(value, 0.0F, 1.0F);
+        rememberVisualSource(visualSource);
         if (clamped > COVERAGE_CLEAR_THRESHOLD) {
             ensureCoveragePatternSeed();
         }

@@ -2,6 +2,7 @@ package com.fish.mirebound.mixin.client.armor;
 
 import com.fish.mirebound.client.ArmorAccessoryRenderContext;
 import com.fish.mirebound.client.ArmorVertexContactCapture;
+import com.fish.mirebound.client.config.MireboundClientSettings;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.renderer.MultiBufferSource;
@@ -29,14 +30,23 @@ public abstract class LivingEntityRendererArmorAccessoryMixin {
                     partialTick, ageInTicks, netHeadYaw, headPitch);
             return;
         }
-        ArmorAccessoryRenderContext.begin(entity, layer);
-        MultiBufferSource captureBuffers = ArmorVertexContactCapture.wrapBuffers(buffers, entity);
+        ArmorAccessoryRenderContext.begin(entity, layer, buffers);
+        MultiBufferSource renderBuffers = MireboundClientSettings.independentSurfaceCoverage()
+                ? ArmorAccessoryRenderContext.surfaceBaseBuffers(buffers)
+                : ArmorVertexContactCapture.wrapBuffers(buffers, entity);
         try {
-            layer.render(poseStack, captureBuffers, packedLight, entity, limbSwing, limbSwingAmount,
+            layer.render(poseStack, renderBuffers, packedLight, entity, limbSwing, limbSwingAmount,
                     partialTick, ageInTicks, netHeadYaw, headPitch);
         } finally {
-            ArmorVertexContactCapture.finishLayer(captureBuffers);
-            ArmorAccessoryRenderContext.end();
+            try {
+                ArmorVertexContactCapture.finishLayer(renderBuffers);
+            } finally {
+                try {
+                    ArmorAccessoryRenderContext.end();
+                } finally {
+                    com.fish.mirebound.client.compat.BackpackSurfaceContext.discard();
+                }
+            }
         }
     }
 }

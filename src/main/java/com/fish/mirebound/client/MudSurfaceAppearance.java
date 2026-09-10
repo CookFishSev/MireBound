@@ -115,6 +115,19 @@ final class MudSurfaceAppearance {
                 return cached.appearance;
             }
             if (origin != null) {
+                BlockState catalogSource = ClientMudVisualSourceCatalog.state(visualSource);
+                if (catalogSource != null) {
+                    Appearance catalogAppearance = resolveSource(
+                            level, origin, MudVisualSource.face(visualSource), catalogSource, -1,
+                            MudVisualSource.smoothingRadius(visualSource),
+                            MudVisualSource.textureDetail(visualSource));
+                    if (catalogAppearance != null) {
+                        SOURCE_CACHE.put(visualSource, new CachedSource(
+                                catalogAppearance, gameTime, appearanceRevision));
+                        trimCache();
+                        return catalogAppearance;
+                    }
+                }
                 BlockState removedSource = AdaptiveMudClientCache.removedSourceState(
                         level, origin);
                 if (removedSource != null) {

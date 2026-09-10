@@ -454,6 +454,20 @@ public final class TentacleSystem {
             }
             updateMorphology(baseProfile);
             Vec3 root = rootPosition();
+            List<List<Vec3>> availabilityPaths = new ArrayList<>(3);
+            availabilityPaths.add(List.of(root));
+            if (chain != null) {
+                availabilityPaths.add(chain.snapshot());
+            }
+            if (!guidePath.isEmpty()) {
+                availabilityPaths.add(guidePath);
+            }
+            double availabilityPadding = morphology.rootRadius()
+                    + morphology.pathClearance() + morphology.collisionSlop() * 2.0D;
+            if (!TentacleChunkAvailability.loaded(availabilityPaths,
+                    availabilityPadding, level.getChunkSource()::hasChunk)) {
+                return true;
+            }
             if (chain == null || chain.pointCount() != morphology.segmentCount()) {
                 chain = new TentacleChainSolver(morphology.segmentCount(), root);
                 guidePath = List.of();

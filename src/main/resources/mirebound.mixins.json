@@ -23,6 +23,8 @@
     "client.tuning.LevelTuningHighlightMixin",
     "client.worldgen.CreateWorldScreenNaturalMudMixin",
     "client.worldgen.GridLayoutTabAccessMixin",
+    "client.worldgen.GridLayoutCellsAccessMixin",
+    "client.worldgen.GridLayoutCellInhabitantAccessMixin",
     "client.worldgen.CreateWorldScreenWorldTabMixin",
     "client.creative.CreativeModeTabSectionsMixin",
     "client.creative.CreativeModeInventoryScreenSectionsMixin",
@@ -68,6 +70,9 @@
     "client.tentacle.LivingEntityRendererRagdollMixin",
     "client.tentacle.LivingEntityRendererRagdollRotationMixin",
     "client.armor.ModelPartArmorAccessoryMixin",
+    "client.armor.ItemModelEquipmentSurfaceMixin",
+    "client.armor.SpriteSurfaceFrameMixin",
+    "client.compat.sophisticated.BackpackSurfaceMixin",
     "client.armor.RenderTypeArmorAccessoryMixin",
     "client.tentacle.WalkAnimationStateAccessor"
   ],

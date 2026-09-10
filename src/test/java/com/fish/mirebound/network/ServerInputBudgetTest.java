@@ -7,6 +7,18 @@ import org.junit.jupiter.api.Test;
 
 class ServerInputBudgetTest {
     @Test
+    void rescueCastSpamDoesNotConsumeDragOrHaulInputs() {
+        ServerInputBudget.TickBudget budget = new ServerInputBudget.TickBudget();
+        for (int index = 0; index < 4; index++) {
+            assertTrue(budget.allow(ServerInputBudget.Channel.ROPE_RESCUE_CAST, 100L));
+        }
+        assertFalse(budget.allow(ServerInputBudget.Channel.ROPE_RESCUE_CAST, 100L));
+        assertTrue(budget.allow(ServerInputBudget.Channel.ROPE_DRAG, 100L));
+        assertTrue(budget.allow(ServerInputBudget.Channel.ROPE_RESCUE_HAUL, 100L));
+        assertTrue(budget.allow(ServerInputBudget.Channel.ROPE_RESCUE_CAST, 101L));
+    }
+
+    @Test
     void eachInputClassHasAnIndependentPerTickBudget() {
         ServerInputBudget.TickBudget budget = new ServerInputBudget.TickBudget();
         for (int index = 0; index < 4; index++) {

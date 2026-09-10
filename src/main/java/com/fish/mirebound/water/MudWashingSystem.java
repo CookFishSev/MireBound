@@ -46,7 +46,7 @@ public final class MudWashingSystem {
         MudEntityGeometry.SurfacePixelSampler[] geometry =
                 MudEntityGeometry.surfacePixelSamplers(player);
         boolean[] armorProtected = new boolean[MudSurfaceLayout.CELL_COUNT];
-        boolean armorChanged = false;
+        boolean armorChanged = com.fish.mirebound.coverage.armor.EquipmentSurfaceService.washFromWaterGun(player, impact, radius, amount);
         for (EquipmentSlot slot : ArmorMudManager.armorSlots()) {
             var stack = player.getItemBySlot(slot);
             if (!ArmorMudManager.validArmor(stack, slot)) {

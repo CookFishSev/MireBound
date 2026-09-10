@@ -3,6 +3,7 @@ package com.fish.mirebound.registry;
 import com.fish.mirebound.Mirebound;
 import com.fish.mirebound.mud.ArmorMudData;
 import com.fish.mirebound.mud.ArmorTextureMudData;
+import com.fish.mirebound.coverage.armor.EquipmentSurfaceData;
 import com.fish.mirebound.mud.container.MudVolumeData;
 import com.mojang.serialization.Codec;
 import net.minecraft.network.codec.ByteBufCodecs;
@@ -15,6 +16,10 @@ import net.neoforged.neoforge.registries.DeferredRegister;
 public final class ModDataComponents {
     private static final DeferredRegister.DataComponents COMPONENTS =
             DeferredRegister.createDataComponents(Registries.DATA_COMPONENT_TYPE, Mirebound.MOD_ID);
+
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<EquipmentSurfaceData>> EQUIPMENT_SURFACE_MUD =
+            COMPONENTS.registerComponentType("equipment_surface_mud", builder -> builder
+                    .persistent(EquipmentSurfaceData.CODEC).networkSynchronized(EquipmentSurfaceData.STREAM_CODEC).cacheEncoding());
 
     public static final DeferredHolder<DataComponentType<?>, DataComponentType<ArmorMudData>> ARMOR_MUD =
             COMPONENTS.registerComponentType("armor_mud", builder -> builder

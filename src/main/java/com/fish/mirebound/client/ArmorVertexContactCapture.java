@@ -94,7 +94,14 @@ public final class ArmorVertexContactCapture {
         }
         ArmorAccessoryRenderContext.suppressEquipmentCapture(true);
         try {
-            return nearRelevantMaterial(player);
+            if (nearRelevantMaterial(player)) return true;
+            if (!com.fish.mirebound.client.config.MireboundClientSettings.independentSurfaceCoverage()) return false;
+            for (EquipmentSlot slot : ArmorMudManager.armorSlots()) {
+                if (!com.fish.mirebound.coverage.armor.EquipmentSurfaceService.data(player.getItemBySlot(slot)).isEmpty()) return true;
+            }
+            return CuriosCompat.hasSurfaceMud(player)
+                    || !com.fish.mirebound.coverage.armor.EquipmentSurfaceService.data(
+                            com.fish.mirebound.compat.sophisticated.SophisticatedBackpackCompat.renderedStack(player)).isEmpty();
         } finally {
             ArmorAccessoryRenderContext.suppressEquipmentCapture(false);
         }

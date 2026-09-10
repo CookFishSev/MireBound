@@ -44,6 +44,13 @@ public final class CuriosCompat {
         return found[0];
     }
 
+    public static boolean hasSurfaceMud(LivingEntity entity) {
+        if (!isLoaded() || entity == null) return false;
+        final boolean[] found = {false};
+        Access.forEachStack(entity, stack -> found[0] |= !com.fish.mirebound.coverage.armor.EquipmentSurfaceService.data(stack).isEmpty());
+        return found[0];
+    }
+
     public static boolean validAddress(String identifier, int index) {
         return identifier != null && !identifier.isBlank() && identifier.length() <= 64
                 && index >= 0 && index < 128;

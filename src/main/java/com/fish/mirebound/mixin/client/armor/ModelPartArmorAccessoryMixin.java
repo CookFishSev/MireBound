@@ -16,6 +16,12 @@ public abstract class ModelPartArmorAccessoryMixin {
             at = @At("HEAD"))
     private void mirebound$captureArmorAccessoryModel(PoseStack poseStack, VertexConsumer consumer,
             int packedLight, int packedOverlay, int color, CallbackInfo callback) {
-        ArmorAccessoryRenderContext.captureModelPart((ModelPart) (Object) this);
+        ArmorAccessoryRenderContext.enterSurfacePart((ModelPart) (Object) this);
+    }
+
+    @Inject(method = "render(Lcom/mojang/blaze3d/vertex/PoseStack;Lcom/mojang/blaze3d/vertex/VertexConsumer;III)V", at = @At("RETURN"))
+    private void mirebound$drawSurface(PoseStack poseStack, VertexConsumer consumer,
+            int light, int overlay, int color, CallbackInfo callback) {
+        ArmorAccessoryRenderContext.exitSurfacePart((ModelPart)(Object)this, poseStack, light, overlay, color);
     }
 }

@@ -232,10 +232,7 @@ public final class ClientEvents {
             PlayerRenderer renderer = event.getSkin(skin);
             if (renderer != null) {
                 renderer.addLayer(new MudSkinLayer(renderer));
-                renderer.addLayer(new ArmorMudLayer(
-                        renderer,
-                        event.getEntityModels(),
-                        skin == PlayerSkin.Model.SLIM));
+                renderer.addLayer(new ArmorMudLayer(renderer, event.getEntityModels(), skin == PlayerSkin.Model.SLIM));
             }
         }
         for (var entityType : event.getEntityTypes()) {
@@ -268,6 +265,7 @@ public final class ClientEvents {
             ArmorMudProxyRenderer.reset();
             ArmorTextureFootprintCache.reset();
             SkinPixelCache.reset();
+            com.fish.mirebound.client.coverage.EquipmentSurfaceRenderer.reset();
             MudFootprintTextureCache.reset();
             MudWallTextureCache.reset();
             EntityMudTextureCache.reset();
@@ -280,6 +278,7 @@ public final class ClientEvents {
     }
 
     private static void onClientTick(ClientTickEvent.Post event) {
+        com.fish.mirebound.client.skin.ClientSkinStainRules.tick();
         updatePlayerCoverageRendering();
         ClientMudState.tick();
         ClientEntityMudCoverage.tick(Minecraft.getInstance());
@@ -544,6 +543,7 @@ public final class ClientEvents {
     }
 
     private static void resetClientSessionState() {
+        com.fish.mirebound.client.skin.ClientSkinStainRules.resetSession();
         wasStruggleDown = false;
         wasLocalPlayerDead = false;
         struggleCharge = 0;
@@ -558,6 +558,8 @@ public final class ClientEvents {
         tuningRefreshCooldown = 0;
         MudTuningInputController.resetSession();
         ClientMudState.reset();
+        com.fish.mirebound.client.coverage.EquipmentSurfaceRenderer.reset();
+        ClientMudVisualSourceCatalog.reset();
         ClientAssimilationState.reset();
         AssimilationFrozenBodyProxy.reset();
         MudTuningClientState.resetSession();
@@ -799,19 +801,12 @@ public final class ClientEvents {
         if (MudSkinTextureCache.isGeneratedSkin(skinTexture)) {
             return;
         }
-        ResourceLocation mudTexture = MudSkinTextureCache.textureFor(player.getId(), skinTexture, slimModel);
-        if (mudTexture == null) {
-            return;
-        }
-
         int overlay = LivingEntityRenderer.getOverlayCoords(player, 0.0F);
         MudSkinLayer.renderOverlay(
                 event.getRenderer().getModel(),
                 event.getPoseStack(),
                 event.getMultiBufferSource(),
-                event.getPackedLight(),
-                overlay,
-                mudTexture);
+                event.getPackedLight(), overlay, player.getId(), skinTexture, slimModel);
     }
 
     private static boolean shouldRenderMudLayer(Minecraft minecraft, AbstractClientPlayer player) {

@@ -4,6 +4,7 @@ import com.fish.mirebound.client.swarm.ClientSwarmState;
 import com.fish.mirebound.client.tentacle.ClientTentacleManager;
 import com.fish.mirebound.network.payload.MudCoverageDeltaPayload;
 import com.fish.mirebound.network.payload.MudCoverageSyncPayload;
+import com.fish.mirebound.network.payload.MudVisualSourceCatalogPayload;
 import com.fish.mirebound.network.payload.MudDebugSyncPayload;
 import com.fish.mirebound.mud.MudPhysicsProfiles;
 import com.fish.mirebound.network.payload.MudPhysicsProfileSyncPayload;
@@ -53,11 +54,18 @@ import java.util.HashSet;
 import java.util.Set;
 
 public final class ClientNetworkHandlers {
+    public static void handleSkinStainSync(com.fish.mirebound.network.payload.SkinStainSyncPayload payload) {
+        com.fish.mirebound.client.skin.ClientSkinStainRules.accept(payload);
+    }
     private ClientNetworkHandlers() {
     }
 
     public static void handleCoverageSync(MudCoverageSyncPayload payload) {
         ClientMudState.setCoverageFromServer(payload);
+    }
+
+    public static void handleVisualSourceCatalog(MudVisualSourceCatalogPayload payload) {
+        ClientMudVisualSourceCatalog.accept(payload);
     }
 
     public static void handleAssimilationState(AssimilationStatePayload payload) {

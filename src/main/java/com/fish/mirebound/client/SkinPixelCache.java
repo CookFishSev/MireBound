@@ -21,6 +21,24 @@ import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
 
 final class SkinPixelCache {
+    static com.fish.mirebound.client.coverage.SurfaceMaterial material(ResourceLocation texture) {
+        AbstractTexture source = Minecraft.getInstance().getTextureManager().getTexture(texture);
+        if (source instanceof DynamicTexture dynamic && dynamic.getPixels() != null) {
+            NativeImage image = dynamic.getPixels();
+            return new com.fish.mirebound.client.coverage.SurfaceMaterial() {
+                public int width() { return image.getWidth(); }
+                public int height() { return image.getHeight(); }
+                public int pixel(int x, int y) { return image.getPixelRGBA(x,y); }
+            };
+        }
+        SkinPixels pixels = pixels(texture);
+        if (pixels == null) return null;
+        return new com.fish.mirebound.client.coverage.SurfaceMaterial() {
+            public int width() { return pixels.width(); }
+            public int height() { return pixels.height(); }
+            public int pixel(int x, int y) { return pixels.pixel(x,y); }
+        };
+    }
     private static final long RETRY_DELAY_MILLIS = 3000L;
     private static final int MAX_CACHE_ENTRIES = 512;
     private static final long MAX_CACHED_PIXELS = 16L * 1024L * 1024L;
@@ -61,6 +79,19 @@ final class SkinPixelCache {
         }
 
         return pixels.pixel(Mth.clamp(x, 0, pixels.width() - 1), Mth.clamp(y, 0, pixels.height() - 1));
+    }
+
+    /** DynamicTexture pixels are mutable and must not use the permanent CPU snapshot. */
+    static int currentPixel(ResourceLocation texture, float u, float v) {
+        AbstractTexture source = Minecraft.getInstance().getTextureManager().getTexture(texture);
+        if (source instanceof DynamicTexture dynamic && dynamic.getPixels() != null) {
+            NativeImage image = dynamic.getPixels();
+            return image.getPixelRGBA(Mth.clamp((int)(u * image.getWidth()), 0, image.getWidth()-1),
+                    Mth.clamp((int)(v * image.getHeight()), 0, image.getHeight()-1));
+        }
+        SkinPixels pixels = pixels(texture);
+        return pixels == null ? 0 : pixels.pixel(Mth.clamp((int)(u * pixels.width()), 0, pixels.width()-1),
+                Mth.clamp((int)(v * pixels.height()), 0, pixels.height()-1));
     }
 
     static int width(ResourceLocation texture) {

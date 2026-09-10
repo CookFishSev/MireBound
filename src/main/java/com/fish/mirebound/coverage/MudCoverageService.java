@@ -8,6 +8,7 @@ import com.fish.mirebound.mud.MudSurfaceLayout;
 import com.fish.mirebound.mud.SinkingMedium;
 import com.fish.mirebound.network.payload.MudCoverageDeltaPayload;
 import com.fish.mirebound.network.payload.MudCoverageSyncPayload;
+import com.fish.mirebound.network.payload.MudVisualSourceCatalogPayload;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Mth;
@@ -69,6 +70,14 @@ public final class MudCoverageService {
                         >= PERSISTENCE_SAVE_INTERVAL_TICKS) {
             save(player, data);
         }
+        boolean visualSourcesChanged = data.visualSourceCatalogRevision
+                != data.lastSyncedVisualSourceCatalogRevision;
+        if (visualSourcesChanged) {
+            PacketDistributor.sendToPlayersTrackingEntityAndSelf(player,
+                    visualSourcesPayload(player, data));
+            data.lastSyncedVisualSourceCatalogRevision =
+                    data.visualSourceCatalogRevision;
+        }
         if (!coverageChanged && !visionChanged && !mediumChanged && !patternSeedChanged
                 && surfaceChanges == 0 && capeChanges == 0 && visionChanges == 0) {
             return;
@@ -92,6 +101,8 @@ public final class MudCoverageService {
         data.lastSyncedVisionObstruction = data.visionObstruction;
         data.lastSyncedMediumId = data.medium.id();
         data.lastSyncedCoveragePatternSeed = data.coveragePatternSeed;
+        data.lastSyncedVisualSourceCatalogRevision =
+                data.visualSourceCatalogRevision;
         PacketDistributor.sendToPlayersTrackingEntityAndSelf(
                 player,
                 new MudCoverageDeltaPayload(
@@ -114,6 +125,7 @@ public final class MudCoverageService {
     }
 
     public static void sendFullTo(ServerPlayer recipient, ServerPlayer subject, MudPlayerData data) {
+        PacketDistributor.sendToPlayer(recipient, visualSourcesPayload(subject, data));
         PacketDistributor.sendToPlayer(recipient, fullPayload(subject, data));
     }
 
@@ -158,7 +170,21 @@ public final class MudCoverageService {
         data.lastSyncedCapeVisualSource = payload.packedCapeVisualSource();
         data.lastSyncedVisionVisualSource = payload.packedVisionVisualSource();
         save(player, data);
+        PacketDistributor.sendToPlayersTrackingEntityAndSelf(player,
+                visualSourcesPayload(player, data));
         PacketDistributor.sendToPlayersTrackingEntityAndSelf(player, payload);
+    }
+
+    private static MudVisualSourceCatalogPayload visualSourcesPayload(
+            ServerPlayer player, MudPlayerData data) {
+        var states = data.visualSourceStates();
+        long[] sources = new long[states.size()];
+        int[] stateIds = new int[states.size()];
+        for (int index = 0; index < states.size(); index++) {
+            sources[index] = states.get(index).source();
+            stateIds[index] = states.get(index).stateId();
+        }
+        return new MudVisualSourceCatalogPayload(player.getId(), sources, stateIds);
     }
 
     private static MudCoverageSyncPayload fullPayload(ServerPlayer player, MudPlayerData data) {

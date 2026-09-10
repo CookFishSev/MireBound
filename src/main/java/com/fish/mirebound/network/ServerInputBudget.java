@@ -38,6 +38,8 @@ public final class ServerInputBudget {
         ASSIMILATION_PURGE(4),
         PLAYER_GEOMETRY(4),
         ARMOR_TEXTURE_CONTACT(12),
+        EQUIPMENT_SURFACE_CONTACT(12),
+        SELF_SKIN_STAIN(1),
         ASSIMILATION_QTE(24),
         ASSIMILATION_TRACE(12),
         ASSIMILATION_SOUL_POSITION(4),
@@ -46,6 +48,7 @@ public final class ServerInputBudget {
         ROPE_BREAK(4),
         ROPE_EXTEND(2),
         ROPE_CLIMB(4),
+        ROPE_RESCUE_CAST(4),
         ROPE_RESCUE_HAUL(4),
         MUD_TUNING_REQUEST(4),
         MUD_TUNING_APPLY(4);
