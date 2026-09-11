@@ -4,6 +4,8 @@
 
 A development release with a new skin editor and improvements from the recent code review.
 
+- Fixed rescue lasso binding on upright posts; horizontal beams and obstruction checks are retained.
+
 - Added a skin coverage editor with linked 3D and UV painting, HD pixel selection, part visibility, undo/redo, and pose presets, including Fresh Moves 3.1 eyes. You edit only your own skin; applying shares your coverage rules with other players on the server.
 - Added an experimental equipment surface coverage mode for shared-UV models, transparent cutouts, and Sophisticated Backpacks. The classic coverage system remains available and is the default.
 - Made large wand selections scan in bounded steps and reuse profile summaries to reduce repeated allocation and comparisons.
@@ -16,6 +18,8 @@ Minecraft 1.21.1 / NeoForge. The loader version is `1.1.0-beta`; the release fil
 ## 中文
 
 这次主要加了皮肤沾染编辑器，也把前面代码审查发现的问题整理了一轮，作为开发版本发布。
+
+- 修复救援套索无法绑定竖直柱子的问题，保留横梁绑定和障碍物检查。
 
 - 新增皮肤沾染编辑器：3D 与 UV 联动涂画、高清像素选择、部位隐藏、撤销重做和动作预设，包含 Fresh Moves 3.1 眼部预设。只能编辑自己，应用后同服玩家也能看到本人设置的效果。
 - 新增实验性的装备独立表面污染，处理共享 UV、透明孔洞，并接入精妙背包。原来的污染系统继续保留，默认使用经典方案。

@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.WeakHashMap;
+import java.util.function.BiPredicate;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.InteractionHand;
@@ -626,7 +627,7 @@ public final class RopeRuntime {
                 ? new Vec3(1.0D, 0.0D, 0.0D) : right.normalize();
     }
 
-    private static Vec3[] lassoPoints(
+    static Vec3[] lassoPoints(
             Vec3 center, Vec3 axisX, Vec3 axisY, double phase) {
         Vec3 x = axisX.normalize();
         Vec3 y = axisY.subtract(x.scale(axisY.dot(x))).normalize();
@@ -652,7 +653,7 @@ public final class RopeRuntime {
         AABB bounds = state.getCollisionShape(level, pos).bounds().move(pos);
         double y = Mth.clamp(hit.getLocation().y,
                 bounds.minY + 0.15D, bounds.maxY - 0.15D);
-        Vec3[] axes = lassoAxes(level, pos, bounds, hit.getDirection());
+        Vec3[] axes = lassoAxes(level, pos, bounds);
         if (Math.abs(axes[1].y) > 0.5D) {
             y = Mth.clamp(y + 0.10D,
                     bounds.minY + 0.15D, bounds.maxY - 0.05D);
@@ -669,17 +670,21 @@ public final class RopeRuntime {
 
     /** Selects a ring plane that surrounds vertical posts and horizontal beams naturally. */
     private static Vec3[] lassoAxes(
-            ServerLevel level, BlockPos pos, AABB bounds, Direction hitDirection) {
+            ServerLevel level, BlockPos pos, AABB bounds) {
+        boolean hasXNeighbor = hasSolidNeighbor(level, pos, Direction.EAST)
+                || hasSolidNeighbor(level, pos, Direction.WEST);
+        boolean hasZNeighbor = hasSolidNeighbor(level, pos, Direction.NORTH)
+                || hasSolidNeighbor(level, pos, Direction.SOUTH);
+        return lassoAxes(bounds, hasXNeighbor, hasZNeighbor);
+    }
+
+    static Vec3[] lassoAxes(AABB bounds, boolean hasXNeighbor, boolean hasZNeighbor) {
         double horizontalWidth = bounds.getXsize();
         double horizontalDepth = bounds.getZsize();
         double verticalHeight = bounds.getYsize();
         boolean horizontalShape = Math.max(horizontalWidth, horizontalDepth)
                 > verticalHeight + 0.10D;
         if (!horizontalShape) {
-            boolean hasXNeighbor = hasSolidNeighbor(level, pos, Direction.EAST)
-                    || hasSolidNeighbor(level, pos, Direction.WEST);
-            boolean hasZNeighbor = hasSolidNeighbor(level, pos, Direction.NORTH)
-                    || hasSolidNeighbor(level, pos, Direction.SOUTH);
             horizontalShape = hasXNeighbor || hasZNeighbor;
             if (horizontalShape) {
                 if (hasXNeighbor && !hasZNeighbor) {
@@ -704,16 +709,8 @@ public final class RopeRuntime {
                     new Vec3(1.0D, 0.0D, 0.0D),
                     new Vec3(0.0D, 1.0D, 0.0D)};
         }
-        if (hitDirection != null && hitDirection.getAxis() == Direction.Axis.X) {
-            return new Vec3[] {
-                    new Vec3(0.0D, 0.0D, 1.0D),
-                    new Vec3(0.0D, 1.0D, 0.0D)};
-        }
-        if (hitDirection != null && hitDirection.getAxis() == Direction.Axis.Z) {
-            return new Vec3[] {
-                    new Vec3(1.0D, 0.0D, 0.0D),
-                    new Vec3(0.0D, 1.0D, 0.0D)};
-        }
+        // A side hit describes the throw direction, not the post's axis.
+        // Upright posts need a horizontal loop so it clears the blocks above and below.
         return new Vec3[] {
                 new Vec3(1.0D, 0.0D, 0.0D),
                 new Vec3(0.0D, 0.0D, 1.0D)};
@@ -730,16 +727,20 @@ public final class RopeRuntime {
     /** Rejects loops that would leave the target and enter another collision shape. */
     private static boolean lassoIsClear(
             ServerLevel level, BlockPos target, Vec3[] points) {
+        return lassoIsClear(target, points,
+                (pos, point) -> pointInsideCollision(level, pos, point));
+    }
+
+    static boolean lassoIsClear(BlockPos target, Vec3[] points,
+            BiPredicate<BlockPos, Vec3> insideCollision) {
         for (int segment = 0; segment < LASSO_SEGMENTS; segment++) {
             Vec3 start = points[segment];
             Vec3 end = points[segment + 1];
             for (int sample = 0; sample <= 4; sample++) {
                 Vec3 point = start.lerp(end, sample / 4.0D);
                 BlockPos pos = BlockPos.containing(point);
-                if (pos.equals(target) || pointInsideCollision(level, pos, point)) {
-                    if (!pos.equals(target)) {
-                        return false;
-                    }
+                if (!pos.equals(target) && insideCollision.test(pos, point)) {
+                    return false;
                 }
             }
         }
