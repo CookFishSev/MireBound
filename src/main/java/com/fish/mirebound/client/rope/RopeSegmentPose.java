@@ -71,6 +71,34 @@ final class RopeSegmentPose {
         return List.copyOf(adjusted);
     }
 
+    /**
+     * Restores the fixed link length on the free side of a rescue anchor.
+     * Network interpolation moves each node independently, which can make
+     * the final links visibly stretch while the server is hauling them.
+     */
+    static List<Vec3> withFixedLengthsBeforeNode(
+            List<Vec3> nodes, int fixedNode, double length) {
+        if (nodes == null || fixedNode <= 0 || fixedNode >= nodes.size()
+                || !Double.isFinite(length) || length <= 0.0D) {
+            return nodes;
+        }
+        ArrayList<Vec3> adjusted = new ArrayList<>(nodes);
+        for (int point = fixedNode - 1; point >= 0; point--) {
+            Vec3 next = adjusted.get(point + 1);
+            Vec3 direction = adjusted.get(point).subtract(next);
+            if (direction.lengthSqr() <= EPSILON) {
+                direction = point + 2 < adjusted.size()
+                        ? next.subtract(adjusted.get(point + 2))
+                        : new Vec3(0.0D, 0.0D, -1.0D);
+            }
+            if (direction.lengthSqr() <= EPSILON) {
+                direction = new Vec3(0.0D, 0.0D, -1.0D);
+            }
+            adjusted.set(point, next.add(direction.normalize().scale(length)));
+        }
+        return List.copyOf(adjusted);
+    }
+
     record Frame(Vec3 x, Vec3 y, Vec3 z) {
     }
 }

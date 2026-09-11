@@ -29,6 +29,7 @@ final class SkinPixelCache {
                 public int width() { return image.getWidth(); }
                 public int height() { return image.getHeight(); }
                 public int pixel(int x, int y) { return image.getPixelRGBA(x,y); }
+                public Object pixelSource() { return image; }
             };
         }
         SkinPixels pixels = pixels(texture);
@@ -37,6 +38,7 @@ final class SkinPixelCache {
             public int width() { return pixels.width(); }
             public int height() { return pixels.height(); }
             public int pixel(int x, int y) { return pixels.pixel(x,y); }
+            public Object pixelSource() { return pixels; }
         };
     }
     private static final long RETRY_DELAY_MILLIS = 3000L;

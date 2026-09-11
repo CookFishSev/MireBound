@@ -17,21 +17,24 @@ class SkinEditorProjectionTest {
                     for(var p:quad.points()) {u+=p.u()/4;v+=p.v()/4;}
                     var point=SkinEditorProjection.uvPoint(quad,u,v);
                     assertNotNull(point);
-                    var hit=SkinEditorProjection.pick(List.of(quad),point.x(),point.y(),(a,b)->true);
+                    var hit=SkinEditorProjection.pick(List.of(quad),point.x(),point.y());
                     assertNotNull(hit);assertEquals(u,hit.u(),1e-5);assertEquals(v,hit.v(),1e-5);
                 }
             }
         }
     }
 
-    @Test void transparentHatFallsThroughToTheHeadAndHiddenPartsAreNotPicked() {
+    @Test void headCanOnlyBePickedAfterHidingItsOuterLayer() {
         var mesh=SkinEditorMesh.create(false,false);
         var quads=SkinEditorProjection.project(mesh,f->f.part().equals("head"),0,0,8,120,100);
-        var outer=SkinEditorProjection.pick(quads,120,4,(u,v)->true);
+        var outer=SkinEditorProjection.pick(quads,120,4);
         assertNotNull(outer);assertTrue(outer.quad().face().outer());
-        var base=SkinEditorProjection.pick(quads,120,4,(u,v)->u<.5F);
+        var visibility=new SkinEditorVisibility();
+        visibility.toggle("head",true);
+        var base=SkinEditorProjection.pick(SkinEditorProjection.project(mesh,
+                f->f.part().equals("head")&&visibility.visible(f),0,0,8,120,100),120,4);
         assertNotNull(base);assertFalse(base.quad().face().outer());
-        assertNull(SkinEditorProjection.pick(SkinEditorProjection.project(mesh,f->false,0,0,8,120,100),120,4,(u,v)->true));
+        assertNull(SkinEditorProjection.pick(SkinEditorProjection.project(mesh,f->false,0,0,8,120,100),120,4));
     }
 
     @Test void legacySkinsUseOnlyTheirOwnTextureHalf() {

@@ -1993,9 +1993,15 @@ final class MudSurfaceEffectManager {
         }
         double deltaX = (second.pixelX - first.pixelX) * PIXEL;
         double deltaZ = (second.pixelZ - first.pixelZ) * PIXEL;
+        double normalY = firstHit.normal().y;
+        if (Math.abs(normalY) <= 1.0E-5D) {
+            return false;
+        }
+        // Cells are indexed in the world X/Z projection. Solve the actual
+        // rotated surface plane instead of treating X and Z as tangent axes.
         double expectedY = first.surfaceY
-                + firstHit.axisX().y * deltaX
-                + firstHit.axisZ().y * deltaZ;
+                - (firstHit.normal().x * deltaX
+                        + firstHit.normal().z * deltaZ) / normalY;
         return Math.abs(second.surfaceY - expectedY) <= PIXEL * 0.24D;
     }
 

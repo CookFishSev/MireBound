@@ -7,7 +7,7 @@ modId="${mod_id}"
 version="${mod_version}"
 displayName="${mod_name}"
 logoFile="icon.png"
-authors="Fish"
+authors="CookFishSev"
 description='''
 Mud, quicksand, sinking physics, pollution, and procedural hazards for NeoForge 1.21.1.
 '''

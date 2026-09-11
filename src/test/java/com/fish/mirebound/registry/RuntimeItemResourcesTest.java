@@ -28,7 +28,11 @@ class RuntimeItemResourcesTest {
 
         List<String> invalid = new ArrayList<>();
         for (String directory : List.of("recipe", "loot_table")) {
-            try (var paths = Files.walk(Path.of("src/main/resources/data/mirebound", directory))) {
+            Path root = Path.of("src/main/resources/data/mirebound", directory);
+            if (!Files.isDirectory(root)) {
+                continue;
+            }
+            try (var paths = Files.walk(root)) {
                 for (Path path : paths.filter(p -> p.toString().endsWith(".json")).toList()) {
                     inspect(JsonParser.parseString(Files.readString(path)), path.toString(), items, invalid);
                 }

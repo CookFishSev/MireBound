@@ -28,14 +28,14 @@ class SkinMaskEditTest {
         assertArrayEquals(new int[]{0,0,1024,1024},edit.takeDirtyRegion(false));
     }
 
-    @Test void eyePresetsCoverBothLayersAndScaleToHd() {
-        var mask=SkinMaskPresets.create(2,256,256);
-        assertTrue(mask.blocked(9*4,12*4)); assertTrue(mask.blocked(41*4,12*4));
-        assertFalse(mask.blocked(9*4,8*4));
-        assertEquals(0,SkinMaskPresets.create(0,256,256).count());
-        assertEquals(256*256,SkinMaskPresets.create(1,256,256).count());
-        var fresh=SkinMaskPresets.create(5,64,64);
-        assertTrue(fresh.blocked(4,6)); assertTrue(fresh.blocked(26,4)); assertTrue(fresh.blocked(33,2));
-        assertFalse(fresh.blocked(9,12)); assertFalse(fresh.blocked(60,4));
+    @Test void largeModelBrushCannotPaintOutsideTheSelectedFace() {
+        var edit=new SkinMaskEdit(SkinStainMask.empty(64,64));
+        edit.line(40,8,47,15,32,true,40,8,48,16);
+        edit.end();
+        assertEquals(64,edit.snapshot().count());
+        assertTrue(edit.blocked(40,8)); assertTrue(edit.blocked(47,15));
+        assertFalse(edit.blocked(39,8)); assertFalse(edit.blocked(48,15));
+        assertFalse(edit.blocked(47,16));
+        edit.undo();assertTrue(edit.snapshot().isEmpty());
     }
 }

@@ -54,4 +54,17 @@ class ScreenMudOverlayTest {
                 ScreenMudOverlay.interpolateNativeColor(
                         0x10203040, 0x90A0B0C0, 0.5F));
     }
+
+    @Test
+    void fixedCanvasSamplingAccountsForAspectPreservingCrop() {
+        ScreenOverlayLayout.CoverRect wide = ScreenOverlayLayout.cover(
+                2560, 1380, 256, 144);
+
+        assertEquals(0.0F, ScreenOverlayLayout.textureXToNdc(
+                wide, 2560, 0.5F), 1.0E-6F);
+        assertEquals(1.0F, ScreenOverlayLayout.textureYToNdc(
+                wide, 1380, 30.0F / wide.height()), 1.0E-6F);
+        assertEquals(-1.0F, ScreenOverlayLayout.textureYToNdc(
+                wide, 1380, (wide.height() - 30.0F) / wide.height()), 1.0E-6F);
+    }
 }

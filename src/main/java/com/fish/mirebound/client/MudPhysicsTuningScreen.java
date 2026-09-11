@@ -484,7 +484,8 @@ public final class MudPhysicsTuningScreen extends Screen {
                         rebuildWidgets();
                     }
                 }).bounds(resetX, y, resetWidth, 20).build();
-        reset.active = object.depthControlModeDiffersFromBaseline();
+        reset.active = object.changed()[MudPhysicsParameter.SINKING_DEPTH_CONTROL_MODE.ordinal()]
+                && object.depthControlModeDiffersFromBaseline();
         reset.setTooltip(tooltip);
         addRenderableWidget(reset);
     }
@@ -585,9 +586,14 @@ public final class MudPhysicsTuningScreen extends Screen {
                     }
                     rebuildWidgets();
                 }).bounds(resetX, y, resetWidth, 20).build();
-        reset.active = editable && (natural
-                ? object.naturalSinkingDepthDiffersFromBaseline()
-                : object.maximumSinkingDepthDiffersFromBaseline());
+        MudPhysicsParameter depthParameter = natural
+                ? MudPhysicsParameter.SIMPLE_NATURAL_SINKING_DEPTH
+                : MudPhysicsParameter.SIMPLE_MAXIMUM_SINKING_DEPTH;
+        reset.active = editable
+                && object.changed()[depthParameter.ordinal()]
+                && (natural
+                        ? object.naturalSinkingDepthDiffersFromBaseline()
+                        : object.maximumSinkingDepthDiffersFromBaseline());
         reset.setTooltip(tooltip);
         addRenderableWidget(reset);
     }
@@ -721,7 +727,7 @@ public final class MudPhysicsTuningScreen extends Screen {
                     object.resetBlockHeight();
                     rebuildWidgets();
                 }).bounds(resetX, y, resetWidth, 20).build();
-        reset.active = object.blockHeightDiffersFromBaseline();
+        reset.active = object.shapeChanged();
         MudTuningSlider slider = new MudTuningSlider(x, y, sliderWidth, 20,
                 1.0D, 16.0D, 1.0D, 0, object.blockHeight(), next -> {
                     object.setBlockHeight((int) Math.round(next));
@@ -729,13 +735,13 @@ public final class MudPhysicsTuningScreen extends Screen {
                     if (!height.getValue().equals(text)) {
                         height.setValue(text);
                     }
-                    reset.active = object.blockHeightDiffersFromBaseline();
+                    reset.active = object.shapeChanged();
                 });
         height.setResponder(value -> {
             if (!value.isBlank()) {
                 object.setBlockHeight(Integer.parseInt(value));
                 slider.setParameterValue(object.blockHeight());
-                reset.active = object.blockHeightDiffersFromBaseline();
+                reset.active = object.shapeChanged();
             }
         });
         addRenderableWidget(slider);
@@ -827,7 +833,9 @@ public final class MudPhysicsTuningScreen extends Screen {
                     object.reset(parameter);
                     rebuildWidgets();
                 }).bounds(resetX, y, resetWidth, 20).build();
-        reset.active = editable && object.differsFromBaseline(parameter);
+        reset.active = editable
+                && object.changed()[parameter.ordinal()]
+                && object.differsFromBaseline(parameter);
         addRenderableWidget(reset);
     }
 

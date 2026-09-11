@@ -3,7 +3,6 @@ package com.fish.mirebound.client.skin;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 
 /** Shared orthographic projection for the displayed quads and their pixel picking. */
@@ -18,19 +17,26 @@ public final class SkinEditorProjection {
 
     public static List<Quad> project(List<SkinEditorMesh.Face> faces, Predicate<SkinEditorMesh.Face> visible,
             double yaw, double pitch, double scale, double centerX, double centerY) {
+        return project(faces,visible,yaw,pitch,scale,centerX,centerY,null);
+    }
+
+    public static List<Quad> project(List<SkinEditorMesh.Face> faces, Predicate<SkinEditorMesh.Face> visible,
+            double yaw, double pitch, double scale, double centerX, double centerY, SkinEditorPose pose) {
         double cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
         List<Quad> result = new ArrayList<>();
         for (var face : faces) {
             if (!visible.test(face)) continue;
-            double nz = -sy * face.nx() + cy * face.nz();
-            double normalZ = sp * face.ny() + cp * nz;
+            double[] normal=pose==null?new double[]{face.nx(),face.ny(),face.nz()}:pose.transformNormal(face.part(),face.nx(),face.ny(),face.nz());
+            double nz = -sy * normal[0] + cy * normal[2];
+            double normalZ = sp * normal[1] + cp * nz;
             if (normalZ >= -1e-6) continue;
             List<Point> points = new ArrayList<>(4);
             double depth = 0;
             for (var vertex : face.vertices()) {
-                double x = cy * vertex.x() + sy * vertex.z();
-                double z = -sy * vertex.x() + cy * vertex.z();
-                double y = vertex.y() - 8;
+                double[] posed=pose==null?new double[]{vertex.x(),vertex.y(),vertex.z()}:pose.transform(face.part(),vertex.x(),vertex.y(),vertex.z());
+                double x = cy * posed[0] + sy * posed[2];
+                double z = -sy * posed[0] + cy * posed[2];
+                double y = posed[1] - 8;
                 double rotatedY = cp * y - sp * z, rotatedZ = sp * y + cp * z;
                 points.add(new Point(centerX + x * scale, centerY + rotatedY * scale, rotatedZ, vertex.u(), vertex.v()));
                 depth += rotatedZ;
@@ -42,14 +48,37 @@ public final class SkinEditorProjection {
         return result;
     }
 
-    public static Hit pick(List<Quad> quads, double x, double y, BiPredicate<Float, Float> opaque) {
+    public static Hit pick(List<Quad> quads, double x, double y) {
         Hit closest = null;
         for (Quad quad : quads) {
             Hit hit = triangle(quad, 0, 1, 2, x, y);
             if (hit == null) hit = triangle(quad, 0, 2, 3, x, y);
-            if (hit != null && (closest == null || hit.depth < closest.depth) && opaque.test(hit.u, hit.v)) closest = hit;
+            // Visible outer geometry owns editing even where its skin texel is transparent.
+            if (hit != null && (closest == null || hit.depth < closest.depth)) closest = hit;
         }
         return closest;
+    }
+
+    static Point screenPoint(Quad quad, double x, double y) {
+        Point a=quad.points.get(0), b=quad.points.get(1), d=quad.points.get(3);
+        double bx=b.x-a.x, by=b.y-a.y, dx=d.x-a.x, dy=d.y-a.y, det=bx*dy-dx*by;
+        if(Math.abs(det)<1e-10)return null;
+        double s=((x-a.x)*dy-(y-a.y)*dx)/det, t=(bx*(y-a.y)-by*(x-a.x))/det;
+        return new Point(x,y,a.depth+s*(b.depth-a.depth)+t*(d.depth-a.depth),
+                (float)(a.u+s*(b.u-a.u)+t*(d.u-a.u)),(float)(a.v+s*(b.v-a.v)+t*(d.v-a.v)));
+    }
+
+    static boolean exposed(List<Quad> quads, Quad target, Point point) {
+        for(Quad quad:quads) {
+            if(quad==target)continue;
+            Point a=quad.points.get(0), b=quad.points.get(1), d=quad.points.get(3);
+            double bx=b.x-a.x, by=b.y-a.y, dx=d.x-a.x, dy=d.y-a.y, det=bx*dy-dx*by;
+            if(Math.abs(det)<1e-10)continue;
+            double s=((point.x-a.x)*dy-(point.y-a.y)*dx)/det;
+            double t=(bx*(point.y-a.y)-by*(point.x-a.x))/det;
+            if(s>=0&&s<=1&&t>=0&&t<=1&&a.depth+s*(b.depth-a.depth)+t*(d.depth-a.depth)<point.depth-1e-6)return false;
+        }
+        return true;
     }
 
     private static Hit triangle(Quad quad, int ai, int bi, int ci, double x, double y) {

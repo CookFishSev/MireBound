@@ -10,6 +10,7 @@ import org.jetbrains.annotations.Nullable;
 /** Emits one impact when authoritative contact crosses from outside to inside. */
 public final class MudSplashImpactDetector {
     static final double REQUIRED_CONTACT_DEPTH = 0.012D;
+    private static final double REQUIRED_APPROACH_DISTANCE = 0.004D;
     private static final double MAXIMUM_PLAUSIBLE_TICK_DISPLACEMENT = 4.75D;
     private static final double ABSOLUTE_CORRECTION_DISTANCE = 32.0D;
     private static final double CORRECTION_MINIMUM_SPEED_RATIO = 0.65D;
@@ -40,7 +41,10 @@ public final class MudSplashImpactDetector {
         if (contact == null
                 || isCorrectionLike(displacement, previousVelocity, currentVelocity)
                 || !isContactEntry(previouslyInside, currentlyInside)
-                || pollutionSuppressed) {
+                || pollutionSuppressed
+                || !hasObservedApproach(
+                        displacement, previousVelocity, currentVelocity,
+                        contact.surfaceNormal())) {
             return;
         }
 
@@ -95,6 +99,20 @@ public final class MudSplashImpactDetector {
             double minimumImpactSpeed) {
         return isContactEntry(previouslyInside, currentlyInside)
                 && inwardSpeed >= Math.max(0.0D, minimumImpactSpeed);
+    }
+
+    /** A contact transition alone is not an impact; the player must move into the surface. */
+    static boolean hasObservedApproach(
+            Vec3 displacement, Vec3 previousVelocity, Vec3 currentVelocity,
+            Vec3 surfaceNormal) {
+        Vec3 normal = safeNormal(surfaceNormal);
+        double threshold = REQUIRED_APPROACH_DISTANCE;
+        return displacement != null
+                && -displacement.dot(normal) >= threshold
+                || previousVelocity != null
+                        && inwardSpeed(previousVelocity, normal) >= threshold
+                || currentVelocity != null
+                        && inwardSpeed(currentVelocity, normal) >= threshold;
     }
 
     static boolean isCorrectionLike(

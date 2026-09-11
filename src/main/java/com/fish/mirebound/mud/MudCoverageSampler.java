@@ -191,6 +191,14 @@ final class MudCoverageSampler {
                     MudCoverageDiagnostics.serverState(player, level, data, medium, surfaceY, currentDepth));
         }
         try {
+            // The authoritative column remains the first choice for exact
+            // layer depth. The frozen volume snapshot also covers body pixels
+            // that cross into a neighboring Sable column or medium.
+            if (threadState.sableCoverageContext != null) {
+                MudVolumeSnapshot snapshot = MudVolumeContactResolver.nearbySnapshot(player, true);
+                threadState.worldVolumeCoverageProbe = snapshot.worldProbe();
+                threadState.sableVolumeCoverageProbe = snapshot.sableProbe();
+            }
             SableLayerPoint eyeLayer = threadState.sableCoverageContext == null
                     ? null
                     : threadState.sableCoverageContext.layerPoint(playerEyePosition(player));
@@ -487,21 +495,36 @@ final class MudCoverageSampler {
         SableCoverageContext context = threadState.sableCoverageContext;
         if (context != null) {
             SableLayerPoint layerPoint = context.layerPoint(point);
-            if (layerPoint == null || layerPoint.depth() < 0.0D
-                    || layerPoint.depth() > context.availableDepth() + 0.001D
-                    || !producesMudPollution(
+            if (layerPoint != null
+                    && layerPoint.depth() >= 0.0D
+                    && layerPoint.depth() <= context.availableDepth() + 0.001D
+                    && producesMudPollution(
                             level, layerPoint.layer().pos(), layerPoint.layer().medium())) {
-                return MudSample.NONE;
+                return MudSample.sableConfirmed(
+                        MudCoverageRules.contactTarget(level, layerPoint.layer().medium(), 1.0F),
+                        layerPoint.layer().medium(),
+                        layerPoint.layer().pos(),
+                        MudCoverageAppearanceSnapshot.at(
+                                level, layerPoint.layer().pos(), layerPoint.layer().medium()),
+                        layerPoint.layer().visualSource(),
+                        layerPoint.depth(),
+                        debugSableContextTrace("sable-surface-pixel", point, context, layerPoint));
             }
-            return MudSample.sableConfirmed(
-                    MudCoverageRules.contactTarget(level, layerPoint.layer().medium(), 1.0F),
-                    layerPoint.layer().medium(),
-                    layerPoint.layer().pos(),
-                    MudCoverageAppearanceSnapshot.at(
-                            level, layerPoint.layer().pos(), layerPoint.layer().medium()),
-                    layerPoint.layer().visualSource(),
-                    layerPoint.depth(),
-                    debugSableContextTrace("sable-surface-pixel", point, context, layerPoint));
+            // A player can span more than one local column on a rotated
+            // structure. Use the already frozen probe for that neighboring
+            // portion instead of rejecting the pixel outright.
+            SableCompat.MudVolumeProbe probe = threadState.sableVolumeCoverageProbe;
+            SableCompat.MudVolumeSample sample = probe == null
+                    ? null : probe.sample(point, 0.004D);
+            return sample == null
+                    || !producesMudPollution(level, sample.pos(), sample.medium())
+                    ? MudSample.NONE
+                    : MudSample.sableConfirmed(
+                            MudCoverageRules.contactTarget(level, sample.medium(), 1.0F),
+                            sample.medium(), sample.pos(),
+                            MudCoverageAppearanceSnapshot.at(
+                                    level, sample.pos(), sample.medium()),
+                            sample.visualSource(), 0.0D, null);
         }
 
         BlockPos pos = BlockPos.containing(point);
@@ -658,7 +681,7 @@ final class MudCoverageSampler {
             return;
         }
 
-        float response = part == MudBodyPart.LEFT_ARM || part == MudBodyPart.RIGHT_ARM ? 0.56F : 0.58F;
+        float response = part == MudBodyPart.LEFT_ARM || part == MudBodyPart.RIGHT_ARM ? 0.84F : 0.88F;
         float nextCoverage = strength > current ? current + (strength - current) * response : current;
         data.setSurfacePixelCoverage(part, surface, row, column, nextCoverage,
                 sample.medium(), sample.appearance(), sample.visualSource());

@@ -14,9 +14,6 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Base64;
 import java.util.BitSet;
-import java.util.Comparator;
-import java.util.List;
-import java.util.UUID;
 
 /** Instance-local, bounded JSON files; display names are never filesystem paths. */
 public final class SkinStainStorage {
@@ -40,49 +37,6 @@ public final class SkinStainStorage {
         JsonObject root = root();
         root.add("mask", encodeMask(mask));
         write(directory.resolve("self.json"), root);
-    }
-
-    public List<Preset> presets() throws IOException {
-        Path path = directory.resolve("presets");
-        if (!Files.isDirectory(path)) return List.of();
-        try (var files = Files.list(path)) {
-            return files.filter(p -> p.getFileName().toString().endsWith(".json"))
-                    .sorted().limit(128).map(this::readPreset).filter(java.util.Objects::nonNull)
-                    .sorted(Comparator.comparing(Preset::name)).toList();
-        }
-    }
-
-    private Preset readPreset(Path file) {
-        try {
-            String filename = file.getFileName().toString();
-            UUID id = UUID.fromString(filename.substring(0, filename.length() - 5));
-            JsonObject root = read(file);
-            requireVersion(root);
-            return new Preset(id, checkedName(root.get("name").getAsString()), decodeMask(root.getAsJsonObject("mask")));
-        } catch (RuntimeException | IOException ignored) { return null; }
-    }
-
-    public Preset savePreset(UUID id, String name, SkinStainMask mask) throws IOException {
-        if (id == null) {
-            if (presets().size() >= 128) throw new IOException("Too many skin presets");
-            id = UUID.randomUUID();
-        }
-        Preset preset = new Preset(id, checkedName(name), mask);
-        JsonObject root = root();
-        root.addProperty("name", preset.name());
-        root.add("mask", encodeMask(mask));
-        write(directory.resolve("presets").resolve(id + ".json"), root);
-        return preset;
-    }
-
-    public void deletePreset(UUID id) throws IOException {
-        Files.deleteIfExists(directory.resolve("presets").resolve(id + ".json"));
-    }
-
-    private static String checkedName(String name) {
-        if (name == null || name.isBlank() || name.length() > 64 || name.chars().anyMatch(Character::isISOControl))
-            throw new IllegalArgumentException("Invalid preset name");
-        return name.trim();
     }
 
     private static JsonObject root() {
@@ -131,5 +85,4 @@ public final class SkinStainStorage {
         } finally { Files.deleteIfExists(temporary); }
     }
 
-    public record Preset(UUID id, String name, SkinStainMask mask) {}
 }

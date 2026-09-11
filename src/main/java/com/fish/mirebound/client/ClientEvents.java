@@ -196,6 +196,7 @@ public final class ClientEvents {
     private static void registerKeys(RegisterKeyMappingsEvent event) {
         event.register(STRUGGLE_KEY);
         event.register(ASSIMILATION_PURGE_KEY);
+        ClientSettingsKey.register(event);
         MudTuningInputController.registerKey(event);
     }
 

@@ -41,6 +41,10 @@ base {
     archivesName = mod_id
 }
 
+tasks.named('jar').configure {
+    archiveFileName = "${mod_version}.jar"
+}
+
 java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 
 runs {

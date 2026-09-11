@@ -18,7 +18,8 @@
     "compat.sable.SableAssimilationVehicleTrackingMixin",
     "compat.sable.SableAssimilationPlayerTrackingMixin"
   ],
-    "client": [
+  "client": [
+    "client.ClientSettingsKeyboardMixin",
     "client.adaptive.AdaptiveMudFaceCullingMixin",
     "client.tuning.LevelTuningHighlightMixin",
     "client.worldgen.CreateWorldScreenNaturalMudMixin",

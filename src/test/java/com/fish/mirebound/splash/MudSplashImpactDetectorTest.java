@@ -46,6 +46,18 @@ class MudSplashImpactDetectorTest {
     }
 
     @Test
+    void contactTransitionWithoutMotionIsNotAnImpact() {
+        assertFalse(MudSplashImpactDetector.hasObservedApproach(
+                Vec3.ZERO, Vec3.ZERO, Vec3.ZERO, UP));
+        assertTrue(MudSplashImpactDetector.hasObservedApproach(
+                new Vec3(0.0D, -0.01D, 0.0D),
+                Vec3.ZERO, Vec3.ZERO, UP));
+        assertTrue(MudSplashImpactDetector.hasObservedApproach(
+                Vec3.ZERO, new Vec3(0.0D, -0.01D, 0.0D),
+                Vec3.ZERO, UP));
+    }
+
+    @Test
     void observedDisplacementSurvivesContactVelocitySlowdown() {
         Vec3 selected = MudSplashImpactDetector.selectImpactVelocity(
                 new Vec3(0.0D, -0.58D, 0.0D),

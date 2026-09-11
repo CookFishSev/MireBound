@@ -208,6 +208,16 @@ public final class ClientRopes {
             if (nodes.size() < 2) {
                 continue;
             }
+            List<RopeSegmentOrientation> rescueOrientations =
+                    rope.rescueAnchoredOrientations;
+            int rescueFirst = rescueLassoFirstSegmentFromOrientations(
+                    rescueOrientations);
+            if (rescueHauling && rope.id == rescueHaulRopeId
+                    && rescueFirst > 0) {
+                nodes = RopeSegmentPose.withFixedLengthsBeforeNode(
+                        nodes, rescueFirst,
+                        RopeSegmentSpec.INNER.halfLength() * 2.0D);
+            }
             boolean localDrag = dragging && rope.id == dragRopeId
                     && dragFrame != null && dragSegmentIndex >= 0
                     && dragSegmentIndex < nodes.size() - 1;
@@ -220,7 +230,7 @@ public final class ClientRopes {
             ArrayList<Integer> anchors = new ArrayList<>(
                     anchoredSegments(rope.anchoredOrientations));
             ArrayList<Integer> rescueAnchors = new ArrayList<>(
-                    anchoredSegments(rope.rescueAnchoredOrientations));
+                    anchoredSegments(rescueOrientations));
             for (RopeSegmentOrientation orientation : rope.anchoredOrientations) {
                 applyOrientation(frames, orientation);
             }
@@ -1233,10 +1243,23 @@ public final class ClientRopes {
     }
 
     private static int rescueLassoFirstSegment(View view) {
-        if (view.rescueAnchoredSegments().isEmpty()) {
+        return rescueLassoFirstSegment(view.rescueAnchoredSegments());
+    }
+
+    private static int rescueLassoFirstSegmentFromOrientations(
+            List<RopeSegmentOrientation> orientations) {
+        if (orientations == null || orientations.isEmpty()) {
             return -1;
         }
-        return view.rescueAnchoredSegments().stream().min(Integer::compareTo).orElse(-1);
+        return orientations.stream().map(RopeSegmentOrientation::segment)
+                .min(Integer::compareTo).orElse(-1);
+    }
+
+    private static int rescueLassoFirstSegment(List<Integer> segments) {
+        if (segments == null || segments.isEmpty()) {
+            return -1;
+        }
+        return segments.stream().min(Integer::compareTo).orElse(-1);
     }
 
     private static boolean ensureLevel(Minecraft minecraft) {

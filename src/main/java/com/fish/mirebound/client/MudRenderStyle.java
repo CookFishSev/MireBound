@@ -133,16 +133,18 @@ final class MudRenderStyle {
                 float coverage = display.surfacePixelCoverage(part, surface, row, column);
                 int original = MudSkinTextureCache.skinSurfacePixel(
                         skinTexture, part, surface, row, column, slimModel);
+                boolean skinPixelUsable = MudSkinTextureCache.skinSurfacePixelUsable(
+                        skinTexture, part, surface, row, column, slimModel);
                 int color;
                 if (coverage <= 0.004F
                         || !MudCoverageAppearance.allowsCoveragePixel(
                                 display.surfacePixelMedium(part, surface, row, column),
                                 MudCoverageRules.DOMAIN_SKIN, cell,
                                 MudSurfaceLayout.CELL_COUNT)
-                        || FastColor.ABGR32.alpha(original) <= 0) {
+                        || !skinPixelUsable) {
                     float assimilationCoverage = ClientAssimilationState.coverage(entityId, cell);
                     if (assimilationCoverage <= 0.004F
-                            || FastColor.ABGR32.alpha(original) <= 0) {
+                            || !skinPixelUsable) {
                         continue;
                     }
                     color = MudSkinTextureCache.blendedAssimilationOverlayPixel(

@@ -1,6 +1,8 @@
 package com.fish.mirebound.client.tuning;
 
 import com.fish.mirebound.client.config.MireboundClientSettings;
+import com.fish.mirebound.client.MudTuningWandCoreTexture;
+import net.minecraft.client.Minecraft;
 import com.fish.mirebound.generation.MudTerrainGenerationRequest;
 import com.fish.mirebound.generation.MudTerrainGenerationSettings;
 import com.fish.mirebound.generation.MudTerrainGenerationType;
@@ -67,6 +69,13 @@ public final class MudTuningClientSettings {
         if (color == null) {
             return 0xFFFFFF;
         }
+        if (color == HudColor.TARGET) {
+            Minecraft minecraft = Minecraft.getInstance();
+            double time = minecraft.level == null ? 0.0D
+                    : minecraft.level.getGameTime()
+                            + minecraft.getTimer().getGameTimeDeltaPartialTick(false);
+            return MudTuningWandCoreTexture.hudColor(time);
+        }
         refreshColorCache();
         return cachedColors[color.ordinal()];
     }
@@ -76,8 +85,6 @@ public final class MudTuningClientSettings {
         if (cachedColorRevision == revision) {
             return;
         }
-        cachedColors[HudColor.TARGET.ordinal()] = parseHexColor(
-                MireboundClientSettings.tuningTargetColor(), 0xF5C542);
         cachedColors[HudColor.POINT_ONE.ordinal()] = parseHexColor(
                 MireboundClientSettings.tuningPointOneColor(), 0xFF291F);
         cachedColors[HudColor.POINT_TWO.ordinal()] = parseHexColor(
@@ -349,8 +356,7 @@ public final class MudTuningClientSettings {
                 return;
             }
             switch (this) {
-                case TARGET -> MireboundClientSettings.setTuningTargetColor(
-                        formatHexColor(parsed));
+                case TARGET -> { }
                 case POINT_ONE -> MireboundClientSettings.setTuningPointOneColor(
                         formatHexColor(parsed));
                 case POINT_TWO -> MireboundClientSettings.setTuningPointTwoColor(

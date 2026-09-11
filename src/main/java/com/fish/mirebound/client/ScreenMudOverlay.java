@@ -562,11 +562,18 @@ public final class ScreenMudOverlay {
         long displayTicks = localVisionDisplayTicks(gameTime);
         setLocalVisionRenderAlpha(gameTime, displayTicks, 1.0F);
         float displayFallBlend = tickBlend(VISION_COVERAGE_EXIT_FADE_BLEND, displayTicks);
+        ScreenOverlayLayout.CoverRect cover = ScreenOverlayLayout.cover(
+                width, height, TEXTURE_WIDTH, TEXTURE_HEIGHT);
         for (int screenRow = 0; screenRow < LOCAL_VISION_ROWS; screenRow++) {
-            float yNorm = (1.0F - (screenRow + 0.5F) / LOCAL_VISION_ROWS * 2.0F) * VISION_FACE_VERTICAL_SAMPLE_SCALE + VISION_FACE_VERTICAL_SAMPLE_SHIFT;
+            float textureY = (screenRow + 0.5F) / LOCAL_VISION_ROWS;
+            float yNorm = ScreenOverlayLayout.textureYToNdc(
+                    cover, height, textureY) * VISION_FACE_VERTICAL_SAMPLE_SCALE
+                    + VISION_FACE_VERTICAL_SAMPLE_SHIFT;
             int band = LOCAL_VISION_ROWS - 1 - screenRow;
             for (int lane = 0; lane < LOCAL_VISION_COLUMNS; lane++) {
-                float xNorm = (lane + 0.5F) / LOCAL_VISION_COLUMNS * 2.0F - 1.0F;
+                float textureX = (lane + 0.5F) / LOCAL_VISION_COLUMNS;
+                float xNorm = ScreenOverlayLayout.textureXToNdc(
+                        cover, width, textureX);
                 ScreenMudWorldSampler.Sample sample = sampleWorldMud
                         ? ScreenMudWorldSampler.facePoint(
                                 level, origin, forward, upVec, rightVec,

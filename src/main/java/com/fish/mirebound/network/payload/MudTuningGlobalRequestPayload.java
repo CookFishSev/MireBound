@@ -12,6 +12,8 @@ public record MudTuningGlobalRequestPayload(
         int eruptionMaximumActivePerLevel,
         boolean entityCoverageEnabled,
         int entityCoverageAutomaticFadeSeconds,
+        int wallStainLifetimeSeconds,
+        int footprintLifetimeSeconds,
         double interactionRange) implements CustomPacketPayload {
     public static final Type<MudTuningGlobalRequestPayload> TYPE = new Type<>(
             ResourceLocation.fromNamespaceAndPath(Mirebound.MOD_ID, "mud_tuning_global_request"));
@@ -21,7 +23,8 @@ public record MudTuningGlobalRequestPayload(
                 public MudTuningGlobalRequestPayload decode(RegistryFriendlyByteBuf buffer) {
                     return new MudTuningGlobalRequestPayload(
                             buffer.readBoolean(), buffer.readVarInt(), buffer.readBoolean(),
-                            buffer.readVarInt(), buffer.readDouble());
+                            buffer.readVarInt(), buffer.readVarInt(), buffer.readVarInt(),
+                            buffer.readDouble());
                 }
 
                 @Override
@@ -31,12 +34,15 @@ public record MudTuningGlobalRequestPayload(
                     buffer.writeVarInt(payload.eruptionMaximumActivePerLevel);
                     buffer.writeBoolean(payload.entityCoverageEnabled);
                     buffer.writeVarInt(payload.entityCoverageAutomaticFadeSeconds);
+                    buffer.writeVarInt(payload.wallStainLifetimeSeconds);
+                    buffer.writeVarInt(payload.footprintLifetimeSeconds);
                     buffer.writeDouble(payload.interactionRange);
                 }
             };
 
     public static MudTuningGlobalRequestPayload open() {
-        return new MudTuningGlobalRequestPayload(false, 0, false, 0, 0.0D);
+        return new MudTuningGlobalRequestPayload(false, 0, false, 0,
+                0, 0, 0.0D);
     }
 
     public boolean hasFiniteInteractionRange() {

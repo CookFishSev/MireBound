@@ -22,7 +22,7 @@ class MudSurfaceCellBudgetTest {
 
     @Test
     void settledPixelsDisappearBeforeBecomingEffectivelyCoplanar() {
-        assertEquals(0.16D / 16.0D,
+        assertEquals(0.06D / 16.0D,
                 MudSurfaceCellBudget.NEAR_VISUAL_HEIGHT_EPSILON,
                 1.0E-12D);
     }

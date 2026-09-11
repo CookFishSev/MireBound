@@ -36,7 +36,7 @@ class MudCapeTextureCacheTest {
 
     @Test
     void renderedCapeColumnsReverseTheGeometryGridAxis() {
-        assertEquals(9, MudCapeTextureCache.textureColumnForLogicalU(0.05F));
-        assertEquals(0, MudCapeTextureCache.textureColumnForLogicalU(0.95F));
+        assertEquals(0, MudCapeTextureCache.textureColumnForLogicalU(0.05F));
+        assertEquals(9, MudCapeTextureCache.textureColumnForLogicalU(0.95F));
     }
 }

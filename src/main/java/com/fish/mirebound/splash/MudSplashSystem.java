@@ -782,8 +782,9 @@ public final class MudSplashSystem {
         if (inwardSpeed < minimum) {
             return 0.0D;
         }
-        return 0.12D + normalizedImpact(
-                inwardSpeed, minimum, maximum) * 0.88D;
+        double normalized = normalizedImpact(inwardSpeed, minimum, maximum);
+        double smooth = normalized * normalized * (3.0D - 2.0D * normalized);
+        return 0.12D + smooth * 0.88D;
     }
 
     public static boolean impactCooldownElapsed(

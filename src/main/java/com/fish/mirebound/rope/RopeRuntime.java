@@ -652,15 +652,115 @@ public final class RopeRuntime {
         AABB bounds = state.getCollisionShape(level, pos).bounds().move(pos);
         double y = Mth.clamp(hit.getLocation().y,
                 bounds.minY + 0.15D, bounds.maxY - 0.15D);
+        Vec3[] axes = lassoAxes(level, pos, bounds, hit.getDirection());
+        if (Math.abs(axes[1].y) > 0.5D) {
+            y = Mth.clamp(y + 0.10D,
+                    bounds.minY + 0.15D, bounds.maxY - 0.05D);
+        }
         Vec3 center = new Vec3(
                 (bounds.minX + bounds.maxX) * 0.5D,
                 y,
                 (bounds.minZ + bounds.maxZ) * 0.5D);
         double phase = Math.atan2(
                 throwOrigin.z - center.z, throwOrigin.x - center.x);
-        return lassoPoints(center,
+        Vec3[] points = lassoPoints(center, axes[0], axes[1], phase);
+        return lassoIsClear(level, pos, points) ? points : null;
+    }
+
+    /** Selects a ring plane that surrounds vertical posts and horizontal beams naturally. */
+    private static Vec3[] lassoAxes(
+            ServerLevel level, BlockPos pos, AABB bounds, Direction hitDirection) {
+        double horizontalWidth = bounds.getXsize();
+        double horizontalDepth = bounds.getZsize();
+        double verticalHeight = bounds.getYsize();
+        boolean horizontalShape = Math.max(horizontalWidth, horizontalDepth)
+                > verticalHeight + 0.10D;
+        if (!horizontalShape) {
+            boolean hasXNeighbor = hasSolidNeighbor(level, pos, Direction.EAST)
+                    || hasSolidNeighbor(level, pos, Direction.WEST);
+            boolean hasZNeighbor = hasSolidNeighbor(level, pos, Direction.NORTH)
+                    || hasSolidNeighbor(level, pos, Direction.SOUTH);
+            horizontalShape = hasXNeighbor || hasZNeighbor;
+            if (horizontalShape) {
+                if (hasXNeighbor && !hasZNeighbor) {
+                    return new Vec3[] {
+                            new Vec3(0.0D, 0.0D, 1.0D),
+                            new Vec3(0.0D, 1.0D, 0.0D)};
+                }
+                if (hasZNeighbor && !hasXNeighbor) {
+                    return new Vec3[] {
+                            new Vec3(1.0D, 0.0D, 0.0D),
+                            new Vec3(0.0D, 1.0D, 0.0D)};
+                }
+            }
+        }
+        if (horizontalShape) {
+            if (horizontalWidth >= horizontalDepth) {
+                return new Vec3[] {
+                        new Vec3(0.0D, 0.0D, 1.0D),
+                        new Vec3(0.0D, 1.0D, 0.0D)};
+            }
+            return new Vec3[] {
+                    new Vec3(1.0D, 0.0D, 0.0D),
+                    new Vec3(0.0D, 1.0D, 0.0D)};
+        }
+        if (hitDirection != null && hitDirection.getAxis() == Direction.Axis.X) {
+            return new Vec3[] {
+                    new Vec3(0.0D, 0.0D, 1.0D),
+                    new Vec3(0.0D, 1.0D, 0.0D)};
+        }
+        if (hitDirection != null && hitDirection.getAxis() == Direction.Axis.Z) {
+            return new Vec3[] {
+                    new Vec3(1.0D, 0.0D, 0.0D),
+                    new Vec3(0.0D, 1.0D, 0.0D)};
+        }
+        return new Vec3[] {
                 new Vec3(1.0D, 0.0D, 0.0D),
-                new Vec3(0.0D, 0.0D, 1.0D), phase);
+                new Vec3(0.0D, 0.0D, 1.0D)};
+    }
+
+    private static boolean hasSolidNeighbor(
+            ServerLevel level, BlockPos pos, Direction direction) {
+        BlockPos neighbor = pos.relative(direction);
+        BlockState state = level.getBlockState(neighbor);
+        return !state.isAir() && !state.canBeReplaced()
+                && !state.getCollisionShape(level, neighbor).isEmpty();
+    }
+
+    /** Rejects loops that would leave the target and enter another collision shape. */
+    private static boolean lassoIsClear(
+            ServerLevel level, BlockPos target, Vec3[] points) {
+        for (int segment = 0; segment < LASSO_SEGMENTS; segment++) {
+            Vec3 start = points[segment];
+            Vec3 end = points[segment + 1];
+            for (int sample = 0; sample <= 4; sample++) {
+                Vec3 point = start.lerp(end, sample / 4.0D);
+                BlockPos pos = BlockPos.containing(point);
+                if (pos.equals(target) || pointInsideCollision(level, pos, point)) {
+                    if (!pos.equals(target)) {
+                        return false;
+                    }
+                }
+            }
+        }
+        return true;
+    }
+
+    private static boolean pointInsideCollision(
+            ServerLevel level, BlockPos pos, Vec3 point) {
+        Vec3 local = point.subtract(pos.getX(), pos.getY(), pos.getZ());
+        for (AABB box : level.getBlockState(pos)
+                .getCollisionShape(level, pos).toAabbs()) {
+            if (local.x >= box.minX - 1.0E-4D
+                    && local.x <= box.maxX + 1.0E-4D
+                    && local.y >= box.minY - 1.0E-4D
+                    && local.y <= box.maxY + 1.0E-4D
+                    && local.z >= box.minZ - 1.0E-4D
+                    && local.z <= box.maxZ + 1.0E-4D) {
+                return true;
+            }
+        }
+        return false;
     }
 
     static boolean isLassoTarget(ServerLevel level, BlockPos pos, BlockState state) {
@@ -680,13 +780,8 @@ public final class RopeRuntime {
                 || width > 1.05D || depth > 1.05D) {
             return false;
         }
-        for (Direction direction : Direction.Plane.HORIZONTAL) {
-            BlockPos neighbor = pos.relative(direction);
-            if (!level.getBlockState(neighbor)
-                    .getCollisionShape(level, neighbor).isEmpty()) {
-                return false;
-            }
-        }
+        // A horizontal beam is normally part of a larger structure. Its
+        // neighboring blocks do not make the contacted block itself invalid.
         return true;
     }
 

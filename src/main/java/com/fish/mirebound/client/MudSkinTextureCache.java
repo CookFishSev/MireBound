@@ -38,6 +38,8 @@ public final class MudSkinTextureCache {
     }
     private static final FaceSection[] WIDE_FACE_SECTIONS = createFaceSections(false);
     private static final FaceSection[] SLIM_FACE_SECTIONS = createFaceSections(true);
+    private static final boolean[] STANDARD_FACE_UV_MASK = createStandardFaceUvMask();
+    private static final FaceSection[] BASE_UV_EXTENSION_SECTIONS = createBaseUvExtensionSections();
     private static final Map<Integer, Entry> CACHE_BY_ENTITY = new HashMap<>();
     private static final Map<Integer, Entry> BAKED_CACHE_BY_ENTITY = new HashMap<>();
     private static final Map<ResourceLocation, Entry> CACHE_BY_TEXTURE = new HashMap<>();
@@ -357,7 +359,7 @@ public final class MudSkinTextureCache {
         applyAssimilationLayer(pixels, entityId, skinTexture, slimModel, bakedSkin);
         PaintPlan plan = buildPaintPlan(entityId, skinTexture, slimModel, entry.width, entry.height);
         applyPaintPlan(pixels, skinTexture, bakedSkin, plan);
-        applyLocalSkinMask(pixels, entityId, skinTexture, bakedSkin);
+        applyLocalSkinMask(pixels, entityId, skinTexture, slimModel, bakedSkin);
 
         entry.texture.upload();
         entry.texture.setFilter(false, false);
@@ -379,7 +381,7 @@ public final class MudSkinTextureCache {
         applyPaintPlan(pixels, skinTexture, false,
                 buildPaintPlan(entityId, skinTexture, slimModel,
                         entry.width, entry.height, part));
-        applyLocalSkinMask(pixels, entityId, skinTexture, false);
+        applyLocalSkinMask(pixels, entityId, skinTexture, slimModel, false);
         entry.texture.upload();
         entry.texture.setFilter(false, false);
         entry.skinTexture = skinTexture;
@@ -396,12 +398,56 @@ public final class MudSkinTextureCache {
     }
 
     private static void applyLocalSkinMask(NativeImage image, int entityId,
-            ResourceLocation skinTexture, boolean bakedSkin) {
+            ResourceLocation skinTexture, boolean slimModel, boolean bakedSkin) {
         var mask = com.fish.mirebound.client.skin.ClientSkinStainRules.forEntity(entityId);
         if (mask == null) return;
+        boolean[] assimilationPixels = assimilationPixels(
+                entityId, skinTexture, slimModel, image.getWidth(), image.getHeight());
         int width = image.getWidth();
         mask.forEachBlocked(width, image.getHeight(), index -> image.setPixelRGBA(index % width, index / width,
-                bakedSkin ? SkinPixelCache.pixel(skinTexture, index % width, index / width) : 0));
+                assimilationPixels[index]
+                        ? image.getPixelRGBA(index % width, index / width)
+                        : bakedSkin
+                                ? SkinPixelCache.pixel(skinTexture, index % width, index / width)
+                                : 0));
+    }
+
+    private static boolean[] assimilationPixels(int entityId,
+            ResourceLocation skinTexture, boolean slimModel,
+            int width, int height) {
+        boolean[] pixels = new boolean[width * height];
+        if (ClientAssimilationState.signature(entityId) == 0L) {
+            return pixels;
+        }
+        FaceSection[] sections = slimModel ? SLIM_FACE_SECTIONS : WIDE_FACE_SECTIONS;
+        for (FaceSection section : sections) {
+            SectionBounds bounds = sectionBounds(section, width, height);
+            MudSurfaceLayout.Face face = MudSurfaceLayout.face(section.part, section.surface);
+            for (int py = bounds.y; py < bounds.y + bounds.height; py++) {
+                for (int px = bounds.x; px < bounds.x + bounds.width; px++) {
+                    if (!writableSkinPixel(skinTexture, bounds, px, py)) {
+                        continue;
+                    }
+                    int localX = px - bounds.x;
+                    int localY = py - bounds.y;
+                    if (section.reverseLane) {
+                        localX = bounds.width - 1 - localX;
+                    }
+                    int column = Math.min(face.width() - 1,
+                            localX * face.width() / Math.max(1, bounds.width));
+                    int uvRow = Math.min(face.height() - 1,
+                            localY * face.height() / Math.max(1, bounds.height));
+                    int row = face.vertical() ? face.height() - 1 - uvRow : uvRow;
+                    int cell = MudSurfaceLayout.cellIndex(
+                            section.part, section.surface, row, column);
+                    if (ClientAssimilationState.coverage(entityId, cell)
+                            > EDGE_BAND_THRESHOLD) {
+                        pixels[py * width + px] = true;
+                    }
+                }
+            }
+        }
+        return pixels;
     }
 
     private static void applyAssimilationLayer(NativeImage target, int entityId,
@@ -521,6 +567,19 @@ public final class MudSkinTextureCache {
             }
             planSection(plan, display, skinTexture, section, patternSeed);
         }
+        // Some model implementations reuse the unused part of a base cube's atlas footprint.
+        // It is still a base-skin UV region, while the corresponding outer-layer region remains strict.
+        if (onlyPart == null) {
+            for (FaceSection section : BASE_UV_EXTENSION_SECTIONS) {
+                planSection(plan, display, skinTexture, section, patternSeed, true);
+            }
+        } else {
+            for (FaceSection section : BASE_UV_EXTENSION_SECTIONS) {
+                if (section.part == onlyPart) {
+                    planSection(plan, display, skinTexture, section, patternSeed, true);
+                }
+            }
+        }
         if (onlyPart == null) {
             diffusePlan(plan, skinTexture, sections);
         } else {
@@ -534,10 +593,19 @@ public final class MudSkinTextureCache {
 
     private static void planSection(PaintPlan plan, ClientMudState.CoverageState display,
             ResourceLocation skinTexture, FaceSection section, int patternSeed) {
+        planSection(plan, display, skinTexture, section, patternSeed, false);
+    }
+
+    private static void planSection(PaintPlan plan, ClientMudState.CoverageState display,
+            ResourceLocation skinTexture, FaceSection section, int patternSeed, boolean extensionsOnly) {
         SectionBounds bounds = sectionBounds(section, plan.width, plan.height);
 
         for (int py = bounds.y; py < bounds.y + bounds.height; py++) {
             for (int px = bounds.x; px < bounds.x + bounds.width; px++) {
+                if (extensionsOnly && STANDARD_FACE_UV_MASK[
+                        Math.min(63, py * 64 / plan.height) * 64 + Math.min(63, px * 64 / plan.width)]) {
+                    continue;
+                }
                 if (!writableSkinPixel(skinTexture, bounds, px, py)) {
                     continue;
                 }
@@ -553,6 +621,26 @@ public final class MudSkinTextureCache {
                         best.strength, best.salt, best.texturePhase, best.score);
             }
         }
+    }
+
+    private static FaceSection[] createBaseUvExtensionSections() {
+        List<FaceSection> sections = new ArrayList<>();
+        int sectionsPerPart = 18;
+        for (int partStart = 0; partStart < WIDE_FACE_SECTIONS.length; partStart += sectionsPerPart) {
+            FaceSection first = WIDE_FACE_SECTIONS[partStart];
+            int minX = 64, minY = 64, maxX = 0, maxY = 0;
+            for (int offset = 0; offset < 6; offset++) {
+                FaceSection section = WIDE_FACE_SECTIONS[partStart + offset];
+                minX = Math.min(minX, section.x);
+                minY = Math.min(minY, section.y);
+                maxX = Math.max(maxX, section.x + section.width);
+                maxY = Math.max(maxY, section.y + section.height);
+            }
+            sections.add(new FaceSection(first.part, MudSurface.FRONT,
+                    minX, minY, minX, minY, maxX - minX, maxY - minY,
+                    true, false, first.salt + 9000));
+        }
+        return sections.toArray(FaceSection[]::new);
     }
 
     private static PaintCandidate bestCandidateForPixel(ClientMudState.CoverageState display,
@@ -596,14 +684,17 @@ public final class MudSkinTextureCache {
         return (value + divisor - 1) / divisor;
     }
 
-    private static boolean writableSkinPixel(ResourceLocation skinTexture, SectionBounds bounds, int px, int py) {
+    private static boolean writableSkinPixel(ResourceLocation skinTexture, SectionBounds bounds,
+            int px, int py) {
         int maskPixel = SkinPixelCache.pixel(skinTexture, bounds.maskX + px - bounds.x, bounds.maskY + py - bounds.y);
-        if (FastColor.ABGR32.alpha(maskPixel) <= 0) {
-            return false;
-        }
-
         int original = SkinPixelCache.pixel(skinTexture, px, py);
-        return FastColor.ABGR32.alpha(original) > 0;
+        return writableSkinPixel(original, maskPixel);
+    }
+
+    static boolean writableSkinPixel(int original, int maskPixel) {
+        // Alpha selects visible geometry, including unused animation variants.
+        // UV ownership must never make a hidden source texel visible.
+        return FastColor.ABGR32.alpha(original) > 0 && FastColor.ABGR32.alpha(maskPixel) > 0;
     }
 
     private static void applyPaintPlan(NativeImage target, ResourceLocation skinTexture, boolean bakedSkin, PaintPlan plan) {
@@ -680,19 +771,19 @@ public final class MudSkinTextureCache {
                         }
 
                         SinkingMedium medium = SinkingMedium.byId(sourceMedium[index] & 0xFF);
-                        diffuseToNeighbor(plan, skinTexture, bounds, sourceStrength, sourceMedium,
+                        diffuseToNeighbor(plan, skinTexture, section, bounds, sourceStrength, sourceMedium,
                                 sourceAppearance, sourceVisualSource,
                                 sourceSalt, sourceTexturePhase, sourceScore,
                                 x, y, index, x - 1, y, 0, medium);
-                        diffuseToNeighbor(plan, skinTexture, bounds, sourceStrength, sourceMedium,
+                        diffuseToNeighbor(plan, skinTexture, section, bounds, sourceStrength, sourceMedium,
                                 sourceAppearance, sourceVisualSource,
                                 sourceSalt, sourceTexturePhase, sourceScore,
                                 x, y, index, x + 1, y, 1, medium);
-                        diffuseToNeighbor(plan, skinTexture, bounds, sourceStrength, sourceMedium,
+                        diffuseToNeighbor(plan, skinTexture, section, bounds, sourceStrength, sourceMedium,
                                 sourceAppearance, sourceVisualSource,
                                 sourceSalt, sourceTexturePhase, sourceScore,
                                 x, y, index, x, y - 1, 2, medium);
-                        diffuseToNeighbor(plan, skinTexture, bounds, sourceStrength, sourceMedium,
+                        diffuseToNeighbor(plan, skinTexture, section, bounds, sourceStrength, sourceMedium,
                                 sourceAppearance, sourceVisualSource,
                                 sourceSalt, sourceTexturePhase, sourceScore,
                                 x, y, index, x, y + 1, 3, medium);
@@ -706,7 +797,8 @@ public final class MudSkinTextureCache {
         }
     }
 
-    private static void diffuseToNeighbor(PaintPlan plan, ResourceLocation skinTexture, SectionBounds bounds,
+    private static void diffuseToNeighbor(PaintPlan plan, ResourceLocation skinTexture,
+            FaceSection section, SectionBounds bounds,
             float[] sourceStrength, byte[] sourceMedium, int[] sourceAppearance,
             long[] sourceVisualSource,
             int[] sourceSalt, byte[] sourceTexturePhase, float[] sourceScore,
@@ -848,6 +940,25 @@ public final class MudSkinTextureCache {
             TexturePixel pixel = texturePixel(section, bounds, row, column);
             if (FastColor.ABGR32.alpha(SkinPixelCache.pixel(
                     skinTexture, pixel.x, pixel.y)) > 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    static boolean skinSurfacePixelUsable(ResourceLocation skinTexture,
+            MudBodyPart part, MudSurface surface, int row, int column,
+            boolean slimModel) {
+        FaceSection[] sections = slimModel ? SLIM_FACE_SECTIONS : WIDE_FACE_SECTIONS;
+        int textureWidth = SkinPixelCache.width(skinTexture);
+        int textureHeight = SkinPixelCache.height(skinTexture);
+        for (FaceSection section : sections) {
+            if (section.part != part || section.surface != surface) {
+                continue;
+            }
+            SectionBounds bounds = sectionBounds(section, textureWidth, textureHeight);
+            TexturePixel pixel = texturePixel(section, bounds, row, column);
+            if (FastColor.ABGR32.alpha(SkinPixelCache.pixel(skinTexture, pixel.x, pixel.y)) > 0) {
                 return true;
             }
         }
@@ -1573,6 +1684,18 @@ public final class MudSkinTextureCache {
         addCube(sections, MudBodyPart.LEFT_ARM, 48, 48, armWidth, 12, 4, 1100);
         addMaskedCube(sections, MudBodyPart.LEFT_ARM, 32, 48, 48, 48, armWidth, 12, 4, 1700);
         return sections.toArray(FaceSection[]::new);
+    }
+
+    private static boolean[] createStandardFaceUvMask() {
+        boolean[] mask = new boolean[64 * 64];
+        for (FaceSection section : WIDE_FACE_SECTIONS) {
+            for (int y = section.y; y < section.y + section.height; y++) {
+                for (int x = section.x; x < section.x + section.width; x++) {
+                    mask[y * 64 + x] = true;
+                }
+            }
+        }
+        return mask;
     }
 
     private static void addCube(List<FaceSection> sections, MudBodyPart part, int x, int y, int width, int height, int depth, int salt) {

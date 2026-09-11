@@ -41,14 +41,20 @@ public final class SkinStainMask {
                 (int) ((long) y * width / skinWidth));
     }
 
+    public boolean allows(int x, int y, int targetWidth, int targetHeight) {
+        return targetWidth <= 0 || targetHeight <= 0
+                || !blocked((int) ((long) x * width / targetWidth),
+                        (int) ((long) y * height / targetHeight));
+    }
+
     public void forEachBlocked(int targetWidth, int targetHeight, IntConsumer consumer) {
         for (int start = blocked.nextSetBit(0); start >= 0;) {
             int row = start / width;
             int end = Math.min((row + 1) * width, blocked.nextClearBit(start));
             int x0 = ceilScale(start % width, targetWidth, width);
             int x1 = ceilScale(end - row * width, targetWidth, width);
-            int y0 = Math.min(targetHeight, ceilScale(row, targetWidth, width));
-            int y1 = Math.min(targetHeight, ceilScale(row + 1, targetWidth, width));
+            int y0 = Math.min(targetHeight, ceilScale(row, targetHeight, height));
+            int y1 = Math.min(targetHeight, ceilScale(row + 1, targetHeight, height));
             for (int y = y0; y < y1; y++) for (int x = x0; x < x1; x++) consumer.accept(y * targetWidth + x);
             start = blocked.nextSetBit(end);
         }

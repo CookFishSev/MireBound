@@ -11,6 +11,8 @@ public record MudTuningGlobalSettingsPayload(
         int eruptionMaximumActivePerLevel,
         boolean entityCoverageEnabled,
         int entityCoverageAutomaticFadeSeconds,
+        int wallStainLifetimeSeconds,
+        int footprintLifetimeSeconds,
         double interactionRange,
         boolean editable) implements CustomPacketPayload {
     public static final Type<MudTuningGlobalSettingsPayload> TYPE = new Type<>(
@@ -21,6 +23,7 @@ public record MudTuningGlobalSettingsPayload(
                 public MudTuningGlobalSettingsPayload decode(RegistryFriendlyByteBuf buffer) {
                     return new MudTuningGlobalSettingsPayload(
                             buffer.readVarInt(), buffer.readBoolean(), buffer.readVarInt(),
+                            buffer.readVarInt(), buffer.readVarInt(),
                             buffer.readDouble(), buffer.readBoolean());
                 }
 
@@ -30,6 +33,8 @@ public record MudTuningGlobalSettingsPayload(
                     buffer.writeVarInt(payload.eruptionMaximumActivePerLevel);
                     buffer.writeBoolean(payload.entityCoverageEnabled);
                     buffer.writeVarInt(payload.entityCoverageAutomaticFadeSeconds);
+                    buffer.writeVarInt(payload.wallStainLifetimeSeconds);
+                    buffer.writeVarInt(payload.footprintLifetimeSeconds);
                     buffer.writeDouble(payload.interactionRange);
                     buffer.writeBoolean(payload.editable);
                 }

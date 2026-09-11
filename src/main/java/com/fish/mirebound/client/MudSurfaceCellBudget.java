@@ -5,8 +5,8 @@ import net.minecraft.util.Mth;
 /** Distance-aware retention and rendering thresholds for 1/16 mud-surface cells. */
 final class MudSurfaceCellBudget {
     private static final double PIXEL = 1.0D / 16.0D;
-    static final double NEAR_VISUAL_HEIGHT_EPSILON = PIXEL * 0.16D;
-    private static final double FAR_VISUAL_HEIGHT_EPSILON = PIXEL * 0.55D;
+    static final double NEAR_VISUAL_HEIGHT_EPSILON = PIXEL * 0.06D;
+    private static final double FAR_VISUAL_HEIGHT_EPSILON = PIXEL * 0.24D;
     private static final double NEAR_PROTECTION_DISTANCE = 8.0D;
     private static final double NEAR_PROTECTION_DISTANCE_SQUARED =
             NEAR_PROTECTION_DISTANCE * NEAR_PROTECTION_DISTANCE;

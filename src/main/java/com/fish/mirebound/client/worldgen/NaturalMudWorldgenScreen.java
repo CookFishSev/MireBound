@@ -267,20 +267,12 @@ public final class NaturalMudWorldgenScreen extends Screen {
         addRenderableWidget(presetNameField);
         presetCancelButton = MireflowButton.builder(Component.translatable(
                         "gui.mirebound.worldgen.preset.cancel"),
-                        ignored -> {
-                            MudTuningWandUiSounds.playPresetCancel(
-                                    Minecraft.getInstance());
-                            closePresetSaveDialog();
-                        })
+                        ignored -> closePresetSaveDialog())
                 .bounds(left + 12, top + 74, 88, 20).build();
         addRenderableWidget(presetCancelButton);
         presetConfirmButton = MireflowButton.builder(Component.translatable(
                         "gui.mirebound.worldgen.preset.confirm"),
-                        ignored -> {
-                            MudTuningWandUiSounds.playPresetConfirm(
-                                    Minecraft.getInstance());
-                            savePreset();
-                        })
+                        ignored -> savePreset())
                 .tone(MireflowButton.Tone.POSITIVE)
                 .bounds(left + dialogWidth - 100, top + 74, 88, 20).build();
         addRenderableWidget(presetConfirmButton);
@@ -1012,15 +1004,18 @@ public final class NaturalMudWorldgenScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        Minecraft minecraft = Minecraft.getInstance();
         if (presetSaveDialog) {
             if (!insidePresetDialog(mouseX, mouseY)) {
                 return true;
             }
             if (button == 0 && insideDialogButton(presetCancelButton, mouseX, mouseY)) {
+                MudTuningWandUiSounds.playPresetCancel(minecraft);
                 presetCancelButton.onPress();
                 return true;
             }
             if (button == 0 && insideDialogButton(presetConfirmButton, mouseX, mouseY)) {
+                MudTuningWandUiSounds.playPresetConfirm(minecraft);
                 presetConfirmButton.onPress();
                 return true;
             }
@@ -1028,6 +1023,7 @@ public final class NaturalMudWorldgenScreen extends Screen {
         }
         if (presetMenuOpen && !insidePresetMenu(mouseX, mouseY)
                 && !insidePresetHeader(mouseX, mouseY)) {
+            MudTuningWandUiSounds.playClick(minecraft);
             presetMenuOpen = false;
             rebuildWidgets();
             return true;
@@ -1059,6 +1055,7 @@ public final class NaturalMudWorldgenScreen extends Screen {
                 return true;
             }
             if (button == 0) {
+                MudTuningWandUiSounds.playClick(minecraft);
                 previewForm = bounds.form;
                 invalidatePreview();
                 return true;
@@ -1078,12 +1075,15 @@ public final class NaturalMudWorldgenScreen extends Screen {
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        Minecraft minecraft = Minecraft.getInstance();
         if (keyCode == 256) {
             if (presetSaveDialog) {
+                MudTuningWandUiSounds.playPresetCancel(minecraft);
                 closePresetSaveDialog();
                 return true;
             }
             if (presetMenuOpen) {
+                MudTuningWandUiSounds.playClick(minecraft);
                 presetMenuOpen = false;
                 rebuildWidgets();
                 return true;
@@ -1121,6 +1121,7 @@ public final class NaturalMudWorldgenScreen extends Screen {
     }
 
     private void toggleForm(NaturalMudDepositForm form) {
+        Minecraft minecraft = Minecraft.getInstance();
         Rule rule = profile.rule(selected);
         if (rule == null || !rule.enabled()) {
             return;
@@ -1132,6 +1133,7 @@ public final class NaturalMudWorldgenScreen extends Screen {
             forms.remove(form);
         }
         profile = profile.withRule(rule.withForms(List.copyOf(forms)));
+        MudTuningWandUiSounds.playClick(minecraft);
         invalidatePreview();
         rebuildWidgets();
     }
@@ -1245,6 +1247,7 @@ public final class NaturalMudWorldgenScreen extends Screen {
     }
 
     private boolean clickPresetMenuEntry(double mouseX, double mouseY) {
+        Minecraft minecraft = Minecraft.getInstance();
         int top = presetPopupTop();
         int row = (int) ((mouseY - top - 4) / 21);
         int visible = Math.min(PRESET_VISIBLE_ROWS, presets.size() + 1);
@@ -1261,6 +1264,7 @@ public final class NaturalMudWorldgenScreen extends Screen {
         if (choice < 0 || choice > presets.size()) {
             return false;
         }
+        MudTuningWandUiSounds.playClick(minecraft);
         applyPreset(choice == 0 ? null : presets.get(choice - 1));
         return true;
     }
@@ -1955,6 +1959,7 @@ public final class NaturalMudWorldgenScreen extends Screen {
     }
 
     private void toggleMedium(SinkingMedium medium) {
+        Minecraft minecraft = Minecraft.getInstance();
         if (!commitRuleEditors()) {
             return;
         }
@@ -1963,6 +1968,7 @@ public final class NaturalMudWorldgenScreen extends Screen {
             return;
         }
         profile = profile.withRule(rule.withEnabled(!rule.enabled()));
+        MudTuningWandUiSounds.playClick(minecraft);
         rebuildWidgets();
     }
 

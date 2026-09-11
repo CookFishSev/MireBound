@@ -175,6 +175,10 @@ public final class MudTuningManager {
                     payload.entityCoverageEnabled());
             MudPhysicsSettings.updateEntityCoverageAutomaticFadeSeconds(
                     payload.entityCoverageAutomaticFadeSeconds());
+            MudPhysicsSettings.updateWallStainLifetimeSeconds(
+                    payload.wallStainLifetimeSeconds());
+            MudPhysicsSettings.updateFootprintLifetimeSeconds(
+                    payload.footprintLifetimeSeconds());
             MudPhysicsSettings.updateMudTuningWandInteractionRange(
                     payload.interactionRange());
         }
@@ -182,6 +186,8 @@ public final class MudTuningManager {
                 MudPhysicsSettings.eruptionMaximumActivePerLevel(),
                 MudPhysicsSettings.entityCoverageEnabled(),
                 MudPhysicsSettings.entityCoverageAutomaticFadeSeconds(),
+                MudPhysicsSettings.wallStainLifetimeSeconds(),
+                MudPhysicsSettings.footprintLifetimeSeconds(),
                 MudPhysicsSettings.mudTuningWandInteractionRange(),
                 player.hasPermissions(2)));
     }

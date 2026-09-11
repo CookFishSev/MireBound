@@ -1,6 +1,7 @@
 package com.fish.mirebound.client.tuning;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.core.Direction;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
@@ -93,11 +94,22 @@ public final class MudTuningWandUiSounds {
     }
 
     public static void playPresetConfirm(Minecraft minecraft) {
-        play(minecraft, SoundEvents.AMETHYST_BLOCK_RESONATE, 0.24F, 1.34F);
+        playUi(minecraft, SoundEvents.AMETHYST_BLOCK_RESONATE, 0.24F, 1.34F);
     }
 
     public static void playPresetCancel(Minecraft minecraft) {
-        play(minecraft, SoundEvents.COPPER_BULB_TURN_OFF, 0.22F, 0.84F);
+        playUi(minecraft, SoundEvents.COPPER_BULB_TURN_OFF, 0.22F, 0.84F);
+    }
+
+    public static void playClick(Minecraft minecraft) {
+        playUi(minecraft, SoundEvents.UI_BUTTON_CLICK.value(), 0.25F, 1.0F);
+    }
+
+    private static void playUi(Minecraft minecraft,
+            net.minecraft.sounds.SoundEvent sound, float volume, float pitch) {
+        if (minecraft != null) {
+            minecraft.getSoundManager().play(SimpleSoundInstance.forUI(sound, pitch, volume));
+        }
     }
 
     static float volumePitch(int volume) {

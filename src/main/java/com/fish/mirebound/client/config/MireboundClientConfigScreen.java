@@ -39,7 +39,12 @@ public final class MireboundClientConfigScreen extends Screen {
 
     @Override
     protected void init() {
-        panel = MireflowGuiTheme.centeredPanel(width, height, 560, 380);
+        // Rebuild against the live GUI size so the settings remain usable in
+        // both a small window and a wide fullscreen viewport.
+        panel = MireflowGuiTheme.centeredPanel(
+                width, height,
+                Mth.clamp(width - 40, 420, 1100),
+                Mth.clamp(height - 40, 260, 760));
         rebuildWidgets();
     }
 
@@ -67,7 +72,6 @@ public final class MireboundClientConfigScreen extends Screen {
         Button skinEditor = MireflowButton.builder(Component.translatable("gui.mirebound.skin.open"),
                 ignored -> Minecraft.getInstance().setScreen(new com.fish.mirebound.client.skin.SkinStainEditorScreen(this)))
                 .bounds(panel.left() + 6, y + 6, SIDEBAR_WIDTH - 12, 20).build();
-        skinEditor.setTooltip(Tooltip.create(Component.translatable("gui.mirebound.skin.help")));
         addRenderableWidget(skinEditor);
     }
 

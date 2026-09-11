@@ -354,7 +354,7 @@ class MudTuningPayloadTest {
     @Test
     void globalSettingsCodecsPreserveRequestAndAuthoritativeValues() {
         MudTuningGlobalRequestPayload request = new MudTuningGlobalRequestPayload(
-                true, 37, true, 45, 48.5D);
+                true, 37, true, 45, 1800, 90, 48.5D);
         RegistryFriendlyByteBuf requestBuffer = buffer();
         MudTuningGlobalRequestPayload.STREAM_CODEC.encode(requestBuffer, request);
         assertEquals(request,
@@ -363,7 +363,7 @@ class MudTuningPayloadTest {
         requestBuffer.release();
 
         MudTuningGlobalSettingsPayload settings =
-                new MudTuningGlobalSettingsPayload(37, true, 45, 48.5D, true);
+                new MudTuningGlobalSettingsPayload(37, true, 45, 1800, 90, 48.5D, true);
         RegistryFriendlyByteBuf settingsBuffer = buffer();
         MudTuningGlobalSettingsPayload.STREAM_CODEC.encode(settingsBuffer, settings);
         assertEquals(settings,

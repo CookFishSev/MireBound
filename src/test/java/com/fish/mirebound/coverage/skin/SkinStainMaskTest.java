@@ -14,7 +14,7 @@ class SkinStainMaskTest {
         assertTrue(hd.blocked(36,48)); assertTrue(hd.blocked(39,51));
         assertFalse(hd.blocked(40,48));
         SkinStainMask legacy=original.resized(64,32);
-        assertTrue(legacy.blocked(9,12)); assertFalse(legacy.blocked(9,6));
+        assertFalse(legacy.blocked(9,12)); assertTrue(legacy.blocked(9,6));
         BitSet one=hd.copyBits(); one.clear(48*256+36);
         assertFalse(new SkinStainMask(256,256,one).blocked(36,48));
         assertTrue(hd.blocked(36,48));
@@ -27,7 +27,7 @@ class SkinStainMaskTest {
         for(int width:new int[]{32,96,128,257}) {
             BitSet raster=new BitSet(); source.forEachBlocked(width,width/2,raster::set);
             for(int y=0;y<width/2;y++)for(int x=0;x<width;x++)
-                assertEquals(!source.allows(x,y,width),raster.get(y*width+x));
+                assertEquals(!source.allows(x,y,width,width/2),raster.get(y*width+x));
         }
     }
 

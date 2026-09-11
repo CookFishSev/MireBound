@@ -10,6 +10,7 @@ public final class MireflowButton extends Button {
     private final Tone tone;
     private final boolean selected;
     private final boolean flat;
+    private boolean hoverSuppressed;
 
     private MireflowButton(
             Button.Builder builder, Tone tone, boolean selected, boolean flat) {
@@ -26,8 +27,11 @@ public final class MireflowButton extends Button {
     @Override
         protected void renderWidget(
             GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        boolean hovering = isHoveredOrFocused();
+        if (!hovering) hoverSuppressed = false;
+        boolean hot = hovering && !hoverSuppressed;
         if (flat) {
-            int border = selected || isHoveredOrFocused()
+            int border = selected || hot
                     ? MireflowGuiTheme.ACCENT : MireflowGuiTheme.DIVIDER;
             graphics.fill(getX(), getY(), getX() + getWidth(), getY() + 1, border);
             graphics.fill(getX(), getY() + getHeight() - 1,
@@ -40,16 +44,20 @@ public final class MireflowButton extends Button {
                     active || selected ? MireflowGuiTheme.TEXT : MireflowGuiTheme.DISABLED);
             return;
         }
-        int border = selected || isHoveredOrFocused()
+        int border = selected || hot
                 ? MireflowGuiTheme.ACCENT : MireflowGuiTheme.DIVIDER;
         int fill = active
-                ? isHoveredOrFocused() ? tone.hovered : tone.fill
+                ? hot ? tone.hovered : tone.fill
                 : selected ? tone.fill : 0xFF202622;
         graphics.fill(getX(), getY(), getX() + getWidth(), getY() + getHeight(), border);
         graphics.fill(getX() + 1, getY() + 1,
                 getX() + getWidth() - 1, getY() + getHeight() - 1, fill);
         renderString(graphics, net.minecraft.client.Minecraft.getInstance().font,
                 active || selected ? MireflowGuiTheme.TEXT : MireflowGuiTheme.DISABLED);
+    }
+
+    public void suppressHoverUntilLeave() {
+        hoverSuppressed = true;
     }
 
     public enum Tone {

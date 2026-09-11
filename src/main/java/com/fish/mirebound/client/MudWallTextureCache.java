@@ -144,7 +144,7 @@ final class MudWallTextureCache {
         }
         long mediumMask = 0L;
         boolean hasPixels = false;
-        int lifetimeTicks = MudPhysicsSettings.footprintLifetimeTicks();
+        int lifetimeTicks = MudPhysicsSettings.wallStainLifetimeTicks();
         for (MudFootprintBlockEntity.Entry stain : stains) {
             if (!isPreciseLayer(stain, face)) {
                 continue;
@@ -427,7 +427,7 @@ final class MudWallTextureCache {
         if (MudPhysicsSettings.footprintPermanent() || !MudFootprintBlockEntity.wallPixelHasCreationTime(pixel)) {
             return 1.0F;
         }
-        int lifetime = Math.max(1, MudPhysicsSettings.footprintLifetimeTicks());
+        int lifetime = Math.max(1, MudPhysicsSettings.wallStainLifetimeTicks());
         int age = pixelAge(pixel, gameTime);
         float fadeStart = lifetime * 0.55F;
         if (age <= fadeStart) {

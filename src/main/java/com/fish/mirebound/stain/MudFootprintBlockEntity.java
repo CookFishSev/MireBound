@@ -188,7 +188,7 @@ public final class MudFootprintBlockEntity extends BlockEntity {
                     pixelsChanged, precise.expiresAt(), now);
             int index = entries.indexOf(precise);
             if (pixelsChanged || refreshLifetime) {
-                long expiresAt = Math.max(precise.expiresAt(), now + MudPhysicsSettings.footprintLifetimeTicks());
+                long expiresAt = Math.max(precise.expiresAt(), now + MudPhysicsSettings.wallStainLifetimeTicks());
                 entries.set(index, precise.withPreciseWallPixels(
                         merged,
                         Math.max(precise.strength(), strength),
@@ -225,7 +225,9 @@ public final class MudFootprintBlockEntity extends BlockEntity {
         }
 
         long created = level.getGameTime();
-        long expiresAt = created + MudPhysicsSettings.footprintLifetimeTicks();
+        long expiresAt = created + (wallStain
+                ? MudPhysicsSettings.wallStainLifetimeTicks()
+                : MudPhysicsSettings.footprintLifetimeTicks());
         long id = ledger.allocate(level, worldPosition, expiresAt);
         entries.add(new Entry(
                 id,
@@ -924,7 +926,7 @@ public final class MudFootprintBlockEntity extends BlockEntity {
     }
 
     private static long[] removeExpiredWallPixels(long[] pixels, long gameTime) {
-        int lifetime = MudPhysicsSettings.footprintLifetimeTicks();
+        int lifetime = MudPhysicsSettings.wallStainLifetimeTicks();
         long[] active = new long[pixels.length];
         int count = 0;
         for (long pixel : pixels) {

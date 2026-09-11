@@ -30,7 +30,7 @@ import net.neoforged.neoforge.server.ServerLifecycleHooks;
 public final class MudPhysicsSettings {
     private static final String FILE_NAME = "mirebound-physics.toml";
     public static final double MUD_TUNING_WAND_MINIMUM_INTERACTION_RANGE = 4.5D;
-    public static final double MUD_TUNING_WAND_DEFAULT_INTERACTION_RANGE = 64.0D;
+    public static final double MUD_TUNING_WAND_DEFAULT_INTERACTION_RANGE = 128.0D;
     public static final double MUD_TUNING_WAND_MAXIMUM_INTERACTION_RANGE = 128.0D;
     public static final int ENTITY_COVERAGE_MAXIMUM_FADE_SECONDS = 3600;
     private static final Map<SinkingMedium, Map<MudPhysicsParameter, ModConfigSpec.DoubleValue>> CONFIG_VALUES =
@@ -62,6 +62,7 @@ public final class MudPhysicsSettings {
     private static final ModConfigSpec.IntValue FOOTPRINT_MAXIMUM;
     private static final ModConfigSpec.BooleanValue FOOTPRINT_RAIN_WASH;
     private static final ModConfigSpec.IntValue FOOTPRINT_LIFETIME_SECONDS;
+    private static final ModConfigSpec.IntValue WALL_STAIN_LIFETIME_SECONDS;
     private static final ModConfigSpec.IntValue SURFACE_STAIN_LIFETIME_SECONDS;
     private static final ModConfigSpec.IntValue FOOTPRINT_RAIN_WASH_SECONDS;
     private static final ModConfigSpec.DoubleValue FOOTPRINT_TRAIL_DISTANCE_BLOCKS;
@@ -156,7 +157,8 @@ public final class MudPhysicsSettings {
     private static boolean footprintPermanent;
     private static int maximumFootprints = 768;
     private static boolean footprintRainWash = true;
-    private static int footprintLifetimeTicks = 1800 * 20;
+    private static int footprintLifetimeTicks = 90 * 20;
+    private static int wallStainLifetimeTicks = 1800 * 20;
     private static float footprintRainWashStep = 1.0F / 7.0F;
     private static float footprintTrailDistanceBlocks = 0.62F;
     private static double mudTuningWandInteractionRange =
@@ -235,10 +237,10 @@ public final class MudPhysicsSettings {
                 .defineInRange("dropped_item_profile_version", 0, 0, 2);
         WALL_STAIN_PROFILE_VERSION = builder
                 .comment("Internal migration marker for body-to-wall transfer defaults.")
-                .defineInRange("wall_stain_profile_version", 0, 0, 2);
+                .defineInRange("wall_stain_profile_version", 0, 0, 3);
         MUD_TUNING_WAND_PROFILE_VERSION = builder
                 .comment("Internal migration marker for mud tuning wand defaults.")
-                .defineInRange("mud_tuning_wand_profile_version", 0, 0, 1);
+                .defineInRange("mud_tuning_wand_profile_version", 0, 0, 2);
         SINKING_DEPTH_PROFILE_VERSION = builder
                 .comment("Internal migration marker for independent simple and advanced depth controls.")
                 .defineInRange("sinking_depth_profile_version", 0, 0, 3);
@@ -254,11 +256,14 @@ public final class MudPhysicsSettings {
                 .comment("Allow exposed rain to fade and remove footprints.")
                 .define("rain_wash", true);
         FOOTPRINT_LIFETIME_SECONDS = builder
-                .comment("Legacy footprint lifetime. Kept for existing configurations.")
+                .comment("Natural lifetime of footprints when permanent is false.")
                 .defineInRange("lifetime_seconds", 90, 5, 86400);
         SURFACE_STAIN_LIFETIME_SECONDS = builder
-                .comment("Lifetime shared by footprints and wall stains when permanent is false.")
+                .comment("Legacy shared surface lifetime used to migrate old configurations.")
                 .defineInRange("surface_stain_lifetime_seconds", 1800, 30, 86400);
+        WALL_STAIN_LIFETIME_SECONDS = builder
+                .comment("Natural lifetime of wall pollution when permanent is false.")
+                .defineInRange("wall_stain_lifetime_seconds", 1800, 30, 86400);
         FOOTPRINT_RAIN_WASH_SECONDS = builder
                 .comment("Approximate continuous-rain time needed to wash a footprint away.")
                 .defineInRange("rain_wash_seconds", 7, 2, 120);
@@ -573,6 +578,18 @@ public final class MudPhysicsSettings {
         return footprintLifetimeTicks;
     }
 
+    public static int wallStainLifetimeTicks() {
+        return wallStainLifetimeTicks;
+    }
+
+    public static int wallStainLifetimeSeconds() {
+        return wallStainLifetimeTicks / 20;
+    }
+
+    public static int footprintLifetimeSeconds() {
+        return footprintLifetimeTicks / 20;
+    }
+
     public static float footprintRainWashStep() {
         return footprintRainWashStep;
     }
@@ -863,6 +880,20 @@ public final class MudPhysicsSettings {
         entityCoverageAutomaticFadeTicks = sanitized * 20;
     }
 
+    public static void updateWallStainLifetimeSeconds(int seconds) {
+        int sanitized = Math.max(30, Math.min(86400, seconds));
+        WALL_STAIN_LIFETIME_SECONDS.set(sanitized);
+        SPEC.save();
+        wallStainLifetimeTicks = sanitized * 20;
+    }
+
+    public static void updateFootprintLifetimeSeconds(int seconds) {
+        int sanitized = Math.max(5, Math.min(86400, seconds));
+        FOOTPRINT_LIFETIME_SECONDS.set(sanitized);
+        SPEC.save();
+        footprintLifetimeTicks = sanitized * 20;
+    }
+
     public static void register(ModContainer container, IEventBus modBus) {
         container.registerConfig(ModConfig.Type.SERVER, SPEC, FILE_NAME);
         modBus.addListener(MudPhysicsSettings::onConfigLoading);
@@ -1103,11 +1134,17 @@ public final class MudPhysicsSettings {
     }
 
     private static void migrateMudTuningWandDefaults() {
-        if (!SPEC.isLoaded() || MUD_TUNING_WAND_PROFILE_VERSION.get() >= 1) {
+        if (!SPEC.isLoaded() || MUD_TUNING_WAND_PROFILE_VERSION.get() >= 2) {
             return;
         }
-        migrateValue(MUD_TUNING_WAND_INTERACTION_RANGE, 16.0D, 64.0D);
-        MUD_TUNING_WAND_PROFILE_VERSION.set(1);
+        int version = MUD_TUNING_WAND_PROFILE_VERSION.get();
+        if (version < 1) {
+            migrateValue(MUD_TUNING_WAND_INTERACTION_RANGE, 16.0D, 64.0D);
+        }
+        if (version < 2) {
+            migrateValue(MUD_TUNING_WAND_INTERACTION_RANGE, 64.0D, 128.0D);
+        }
+        MUD_TUNING_WAND_PROFILE_VERSION.set(2);
         SPEC.save();
     }
 
@@ -1408,7 +1445,7 @@ public final class MudPhysicsSettings {
     }
 
     private static void migrateWallStainDefaults() {
-        if (!SPEC.isLoaded() || WALL_STAIN_PROFILE_VERSION.get() >= 2) {
+        if (!SPEC.isLoaded() || WALL_STAIN_PROFILE_VERSION.get() >= 3) {
             return;
         }
         int version = WALL_STAIN_PROFILE_VERSION.get();
@@ -1418,7 +1455,12 @@ public final class MudPhysicsSettings {
         if (version < 2) {
             migrateValue(WALL_STAIN_MINIMUM_SOURCE_COVERAGE, 0.25D, 0.35D);
         }
-        WALL_STAIN_PROFILE_VERSION.set(2);
+        if (version < 3
+                && WALL_STAIN_LIFETIME_SECONDS.get() == 1800
+                && SURFACE_STAIN_LIFETIME_SECONDS.get() != 1800) {
+            WALL_STAIN_LIFETIME_SECONDS.set(SURFACE_STAIN_LIFETIME_SECONDS.get());
+        }
+        WALL_STAIN_PROFILE_VERSION.set(3);
         SPEC.save();
     }
 
@@ -1446,7 +1488,9 @@ public final class MudPhysicsSettings {
         maximumFootprints = loaded ? FOOTPRINT_MAXIMUM.get() : 768;
         footprintRainWash = !loaded || FOOTPRINT_RAIN_WASH.get();
         footprintLifetimeTicks = (loaded
-                ? SURFACE_STAIN_LIFETIME_SECONDS.get() : 1800) * 20;
+                ? FOOTPRINT_LIFETIME_SECONDS.get() : 90) * 20;
+        wallStainLifetimeTicks = (loaded
+                ? WALL_STAIN_LIFETIME_SECONDS.get() : 1800) * 20;
         footprintRainWashStep = 1.0F / (loaded
                 ? FOOTPRINT_RAIN_WASH_SECONDS.get() : 7);
         footprintTrailDistanceBlocks = loaded

@@ -5,35 +5,35 @@ import net.minecraft.client.gui.GuiGraphics;
 /** Shared flat pixel palette and surfaces for Mireflow configuration screens. */
 public final class MireflowGuiTheme {
     public static final int DIM = 0xB0080B09;
-    public static final int TILE_A = 0xFF141C17;
-    public static final int TILE_B = 0xFF172019;
-    public static final int HEADER = 0xFF252D28;
-    public static final int SIDEBAR = 0xFF181F1B;
-    public static final int FOOTER = 0xFF202722;
-    public static final int ROW_A = 0xFF202822;
-    public static final int ROW_B = 0xFF1B221D;
-    public static final int CONTROL = 0xFF29332C;
-    public static final int CONTROL_HOVER = 0xFF354238;
-    public static final int INPUT = 0xFF131A16;
-    public static final int DIVIDER = 0xFF59645D;
-    public static final int ACCENT = 0xFFE0B96C;
-    public static final int TEXT = 0xFFEFE8D8;
-    public static final int MUTED = 0xFFA6B0A8;
-    public static final int DISABLED = 0xFF717A74;
-    public static final int ERROR = 0xFFFF8974;
-    public static final int SUCCESS = 0xFF8ED39A;
-    public static final int ENABLED_CONTROL = 0xFF31543B;
-    public static final int ENABLED_HOVER = 0xFF3D6849;
-    public static final int DISABLED_CONTROL = 0xFF58302F;
-    public static final int DISABLED_HOVER = 0xFF6C3A38;
-    public static final int FULLSCREEN_HEADER = 0xD8252D28;
-    public static final int FULLSCREEN_SIDEBAR = 0xD8181F1B;
-    public static final int FULLSCREEN_FOOTER = 0xD8202722;
-    public static final int FULLSCREEN_ROW_A = 0xC8202822;
-    public static final int FULLSCREEN_ROW_B = 0xC81B221D;
+    public static final int TILE_A = 0xFF111317;
+    public static final int TILE_B = 0xFF171A20;
+    public static final int HEADER = 0xFF1D2027;
+    public static final int SIDEBAR = 0xFF15171C;
+    public static final int FOOTER = 0xFF191B21;
+    public static final int ROW_A = 0xFF20232A;
+    public static final int ROW_B = 0xFF1B1E24;
+    public static final int CONTROL = 0xFF292C34;
+    public static final int CONTROL_HOVER = 0xFF393D47;
+    public static final int INPUT = 0xFF101216;
+    public static final int DIVIDER = 0xFF4E535E;
+    public static final int ACCENT = 0xFFE2B85E;
+    public static final int TEXT = 0xFFF4F1EA;
+    public static final int MUTED = 0xFFB3B6BC;
+    public static final int DISABLED = 0xFF70747C;
+    public static final int ERROR = 0xFFFF756F;
+    public static final int SUCCESS = 0xFF61D394;
+    public static final int ENABLED_CONTROL = 0xFF27563D;
+    public static final int ENABLED_HOVER = 0xFF34754F;
+    public static final int DISABLED_CONTROL = 0xFF5A2D31;
+    public static final int DISABLED_HOVER = 0xFF74383C;
+    public static final int FULLSCREEN_HEADER = 0xD81D2027;
+    public static final int FULLSCREEN_SIDEBAR = 0xD815171C;
+    public static final int FULLSCREEN_FOOTER = 0xD8191B21;
+    public static final int FULLSCREEN_ROW_A = 0xC820232A;
+    public static final int FULLSCREEN_ROW_B = 0xC81B1E24;
 
-    private static final int FULLSCREEN_TILE_A = 0xC0141C17;
-    private static final int FULLSCREEN_TILE_B = 0x70172019;
+    private static final int FULLSCREEN_TILE_A = 0xC0111317;
+    private static final int FULLSCREEN_TILE_B = 0x70171A20;
 
     private MireflowGuiTheme() {
     }

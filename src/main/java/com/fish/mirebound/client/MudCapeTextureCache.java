@@ -192,8 +192,8 @@ public final class MudCapeTextureCache {
         int column = textureColumnForLogicalU(u);
         return switch (region.kind) {
             case BROAD -> sample(display, region.side, row, column);
-            case LEFT_EDGE -> mergedSample(display, row, MudCapeLayout.COLUMNS - 1);
-            case RIGHT_EDGE -> mergedSample(display, row, 0);
+            case LEFT_EDGE -> mergedSample(display, row, 0);
+            case RIGHT_EDGE -> mergedSample(display, row, MudCapeLayout.COLUMNS - 1);
             case TOP_EDGE -> mergedSample(display, 0, column);
             case BOTTOM_EDGE -> mergedSample(display, MudCapeLayout.ROWS - 1, column);
         };
@@ -202,7 +202,7 @@ public final class MudCapeTextureCache {
     static int textureColumnForLogicalU(float logicalU) {
         int uvColumn = Mth.clamp(Mth.floor(logicalU * MudCapeLayout.COLUMNS),
                 0, MudCapeLayout.COLUMNS - 1);
-        return MudCapeLayout.COLUMNS - 1 - uvColumn;
+        return uvColumn;
     }
 
     static float logicalU(float regionU, boolean mirrored) {

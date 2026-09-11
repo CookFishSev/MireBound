@@ -167,6 +167,26 @@ class RopeSegmentSpecTest {
     }
 
     @Test
+    void rescueRenderingKeepsEveryFreeLinkAtRestLength() {
+        List<Vec3> nodes = List.of(
+                new Vec3(0.0D, 0.0D, 0.0D),
+                new Vec3(0.0D, 0.0D, 0.8D),
+                new Vec3(0.0D, 0.0D, 1.9D),
+                new Vec3(0.0D, 0.0D, 2.7D),
+                new Vec3(0.0D, 0.0D, 4.0D));
+
+        List<Vec3> adjusted = RopeSegmentPose.withFixedLengthsBeforeNode(
+                nodes, 4, 1.0D);
+
+        for (int segment = 0; segment < 4; segment++) {
+            assertEquals(1.0D,
+                    adjusted.get(segment).distanceTo(adjusted.get(segment + 1)),
+                    1.0E-9D);
+        }
+        assertEquals(nodes.get(4), adjusted.get(4));
+    }
+
+    @Test
     void authoredCuboidsRetainOneBlockLength() {
         RopeSegmentSpec.Cuboid inner = RopeSegmentSpec.INNER;
         RopeSegmentSpec.Cuboid outer = RopeSegmentSpec.OUTER;

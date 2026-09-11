@@ -37,12 +37,17 @@ public final class SkinMaskEdit {
         revision++;
     }
     public void line(int x0, int y0, int x1, int y1, int brush, boolean deny) {
+        line(x0,y0,x1,y1,brush,deny,0,0,width(),height());
+    }
+    public void line(int x0, int y0, int x1, int y1, int brush, boolean deny,
+            int left, int top, int right, int bottom) {
         int steps = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0));
         int low = (brush - 1) / 2, high = brush / 2;
         for (int i = 0; i <= steps; i++) {
             int x = steps == 0 ? x1 : x0 + (x1 - x0) * i / steps;
             int y = steps == 0 ? y1 : y0 + (y1 - y0) * i / steps;
-            rectangle(x - low, y - low, x + high, y + high, deny);
+            int l=Math.max(left,x-low),t=Math.max(top,y-low),r=Math.min(right-1,x+high),b=Math.min(bottom-1,y+high);
+            if(l<=r&&t<=b)rectangle(l,t,r,b,deny);
         }
     }
     public void end() {

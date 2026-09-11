@@ -40,6 +40,8 @@ public final class MudTuningWandSettingsScreen extends Screen {
     private int maximumVents;
     private boolean entityCoverageEnabled;
     private int entityCoverageFadeSeconds;
+    private int wallStainLifetimeSeconds;
+    private int footprintLifetimeSeconds;
     private double interactionRange;
     private boolean editable;
     private int keyScroll;
@@ -73,6 +75,10 @@ public final class MudTuningWandSettingsScreen extends Screen {
         entityCoverageFadeSeconds = Math.max(0, Math.min(
                 MudPhysicsSettings.ENTITY_COVERAGE_MAXIMUM_FADE_SECONDS,
                 payload.entityCoverageAutomaticFadeSeconds()));
+        wallStainLifetimeSeconds = Math.max(30,
+                Math.min(86400, payload.wallStainLifetimeSeconds()));
+        footprintLifetimeSeconds = Math.max(5,
+                Math.min(86400, payload.footprintLifetimeSeconds()));
         interactionRange = Math.max(
                 MudPhysicsSettings.MUD_TUNING_WAND_MINIMUM_INTERACTION_RANGE,
                 Math.min(MudPhysicsSettings.MUD_TUNING_WAND_MAXIMUM_INTERACTION_RANGE,
@@ -103,6 +109,9 @@ public final class MudTuningWandSettingsScreen extends Screen {
     private void addPageNavigation() {
         int y = HEADER_HEIGHT + 4;
         for (Page candidate : Page.values()) {
+            if (candidate == Page.INTERFACE_WAND || candidate == Page.WORLD_LIMITS) {
+                y += 16;
+            }
             Component label = fit(Component.translatable(candidate.translationKey()),
                     SIDEBAR_WIDTH - (candidate == page ? 28 : 20));
             Button button = MireflowButton.builder(label, ignored -> {
@@ -129,13 +138,12 @@ public final class MudTuningWandSettingsScreen extends Screen {
                 MudTuningClientSettings::setSpatialPlacementDistance, 1);
         addInterfaceToggle(2, MudTuningClientSettings.tentacleAutoSnap(), enabled ->
                 MudTuningClientSettings.setTentacleAutoSnap(enabled));
-        addInterfaceNumber(3, interactionRange, 1.0D,
-                MudPhysicsSettings.MUD_TUNING_WAND_MINIMUM_INTERACTION_RANGE,
-                MudPhysicsSettings.MUD_TUNING_WAND_MAXIMUM_INTERACTION_RANGE,
-                value -> interactionRange = value, 1);
         for (int index = 0; index < MudTuningClientSettings.HudColor.values().length;
                 index++) {
-            addInterfaceColor(5 + index,
+            if (index == MudTuningClientSettings.HudColor.TARGET.ordinal()) {
+                continue;
+            }
+            addInterfaceColor(3 + index,
                     MudTuningClientSettings.HudColor.values()[index]);
         }
     }
@@ -233,6 +241,10 @@ public final class MudTuningWandSettingsScreen extends Screen {
         addInteger(1, entityCoverageFadeSeconds, 5, 0,
                 MudPhysicsSettings.ENTITY_COVERAGE_MAXIMUM_FADE_SECONDS,
                 value -> entityCoverageFadeSeconds = value, editable);
+        addInteger(2, wallStainLifetimeSeconds, 30, 30, 86400,
+                value -> wallStainLifetimeSeconds = value, editable);
+        addInteger(3, footprintLifetimeSeconds, 5, 5, 86400,
+                value -> footprintLifetimeSeconds = value, editable);
     }
 
     private void addToggle(int row, boolean value,
@@ -348,7 +360,7 @@ public final class MudTuningWandSettingsScreen extends Screen {
         }
         PacketDistributor.sendToServer(new MudTuningGlobalRequestPayload(
                 true, maximumVents, entityCoverageEnabled, entityCoverageFadeSeconds,
-                interactionRange));
+                wallStainLifetimeSeconds, footprintLifetimeSeconds, interactionRange));
     }
 
     @Override
@@ -395,6 +407,8 @@ public final class MudTuningWandSettingsScreen extends Screen {
         graphics.vLine(SIDEBAR_WIDTH, HEADER_HEIGHT - 1,
                 height - FOOTER_HEIGHT, DIVIDER);
         graphics.drawString(font, title, 7, 9, TEXT, false);
+        renderSidebarHeading(graphics, "client", HEADER_HEIGHT + 5);
+        renderSidebarHeading(graphics, "server", HEADER_HEIGHT + 65);
         if (!editable && page != Page.KEYS) {
             Component readOnly = Component.translatable(
                     "gui.mirebound.physics.read_only");
@@ -428,12 +442,24 @@ public final class MudTuningWandSettingsScreen extends Screen {
         super.render(graphics, mouseX, mouseY, partialTick);
     }
 
+    private void renderSidebarHeading(GuiGraphics graphics, String group, int y) {
+        Component label = fit(Component.translatable(
+                "gui.mirebound.tuning.settings.sidebar." + group), SIDEBAR_WIDTH - 32);
+        int textWidth = font.width(label);
+        int textLeft = (SIDEBAR_WIDTH - textWidth) / 2;
+        int lineY = y + font.lineHeight / 2;
+        graphics.hLine(6, textLeft - 5, lineY, DIVIDER);
+        graphics.hLine(textLeft + textWidth + 5, SIDEBAR_WIDTH - 6, lineY, DIVIDER);
+        graphics.drawString(font, label, textLeft, y, MireflowGuiTheme.ACCENT, false);
+    }
+
     private void renderSettingRows(GuiGraphics graphics) {
         String[] labels = switch (page) {
             case INTERFACE_WAND -> interfaceLabels();
             case WORLD_LIMITS -> new String[] {
                     "maximum_vents_per_dimension",
-                    "entity_coverage_fade_seconds"};
+                    "entity_coverage_fade_seconds", "wall_stain_lifetime_seconds",
+                    "footprint_lifetime_seconds"};
             case EXPERIMENTAL -> new String[] {"entity_coverage_enabled"};
             case KEYS -> new String[0];
         };
@@ -445,8 +471,8 @@ public final class MudTuningWandSettingsScreen extends Screen {
             graphics.fill(contentLeft() - 2, y, width - 5, y + ROW_HEIGHT - 1,
                     slot % 2 == 0 ? ROW_A : ROW_B);
             int labelX = contentLeft() + 3;
-            if (page == Page.INTERFACE_WAND && row >= 5) {
-                int color = MudTuningClientSettings.HudColor.values()[row - 5].color();
+            if (page == Page.INTERFACE_WAND && row >= 4) {
+                int color = MudTuningClientSettings.HudColor.values()[row - 3].color();
                 graphics.fill(labelX, y + 7, labelX + 10, y + 17,
                         0xFF000000 | color);
                 labelX += 15;
@@ -461,8 +487,7 @@ public final class MudTuningWandSettingsScreen extends Screen {
     private static String[] interfaceLabels() {
         return new String[] {
                 "hud_editor", "spatial_placement_distance", "tentacle_auto_snap",
-                "interaction_range", "color_legend", "color.target", "color.point_one", "color.point_two",
-                "color.modified", "color.flow", "color.incompatible",
+                "color_legend", "color.point_one", "color.point_two", "color.modified", "color.flow", "color.incompatible",
                 "color.converted_default", "color.converted_modified"};
     }
 
@@ -682,8 +707,8 @@ public final class MudTuningWandSettingsScreen extends Screen {
     private enum Page {
         INTERFACE_WAND,
         KEYS,
-        EXPERIMENTAL,
-        WORLD_LIMITS;
+        WORLD_LIMITS,
+        EXPERIMENTAL;
 
         private String translationKey() {
             return "gui.mirebound.tuning.settings.page."
