@@ -42,7 +42,7 @@ base {
 }
 
 tasks.named('jar').configure {
-    archiveFileName = "${mod_version}.jar"
+    archiveFileName = "${release_version}.jar"
 }
 
 java.toolchain.languageVersion = JavaLanguageVersion.of(21)
