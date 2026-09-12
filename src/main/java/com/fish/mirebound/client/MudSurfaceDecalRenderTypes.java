@@ -8,7 +8,7 @@ import net.minecraft.client.renderer.RenderStateShard;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.resources.ResourceLocation;
 
-/** Surface layers use a tiny geometric normal offset; precise wall layers also use depth offset. */
+/** Surface layers use a tiny geometric normal offset, keeping shader depth consistent with geometry. */
 final class MudSurfaceDecalRenderTypes {
     private static final boolean SORT_SURFACE_TRANSLUCENT_QUADS = false;
     private static final Map<ResourceLocation, RenderType> CUTOUT = new HashMap<>();
@@ -115,17 +115,7 @@ final class MudSurfaceDecalRenderTypes {
                 256,
                 false,
                 false,
-                RenderType.CompositeState.builder()
-                        .setShaderState(RenderStateShard.RENDERTYPE_ENTITY_CUTOUT_NO_CULL_SHADER)
-                        .setTextureState(new RenderStateShard.TextureStateShard(texture, false, false))
-                        .setTransparencyState(RenderStateShard.NO_TRANSPARENCY)
-                        .setDepthTestState(RenderStateShard.LEQUAL_DEPTH_TEST)
-                        .setCullState(RenderStateShard.NO_CULL)
-                        .setLightmapState(RenderStateShard.LIGHTMAP)
-                        .setOverlayState(RenderStateShard.OVERLAY)
-                        .setLayeringState(RenderStateShard.POLYGON_OFFSET_LAYERING)
-                        .setWriteMaskState(RenderStateShard.COLOR_DEPTH_WRITE)
-                        .createCompositeState(false));
+                wallState(texture, false));
     }
 
     private static RenderType createWallTranslucent(ResourceLocation texture) {
@@ -136,17 +126,22 @@ final class MudSurfaceDecalRenderTypes {
                 256,
                 false,
                 true,
-                RenderType.CompositeState.builder()
-                        .setShaderState(RenderStateShard.RENDERTYPE_ENTITY_TRANSLUCENT_SHADER)
-                        .setTextureState(new RenderStateShard.TextureStateShard(texture, false, false))
-                        .setTransparencyState(RenderStateShard.TRANSLUCENT_TRANSPARENCY)
-                        .setDepthTestState(RenderStateShard.LEQUAL_DEPTH_TEST)
-                        .setCullState(RenderStateShard.NO_CULL)
-                        .setLightmapState(RenderStateShard.LIGHTMAP)
-                        .setOverlayState(RenderStateShard.OVERLAY)
-                        .setLayeringState(RenderStateShard.POLYGON_OFFSET_LAYERING)
-                        .setWriteMaskState(RenderStateShard.COLOR_WRITE)
-                        .createCompositeState(false));
+                wallState(texture, true));
+    }
+
+    static RenderType.CompositeState wallState(ResourceLocation texture, boolean translucent) {
+        return RenderType.CompositeState.builder()
+                .setShaderState(translucent ? RenderStateShard.RENDERTYPE_ENTITY_TRANSLUCENT_SHADER
+                        : RenderStateShard.RENDERTYPE_ENTITY_CUTOUT_NO_CULL_SHADER)
+                .setTextureState(new RenderStateShard.TextureStateShard(texture, false, false))
+                .setTransparencyState(translucent ? RenderStateShard.TRANSLUCENT_TRANSPARENCY
+                        : RenderStateShard.NO_TRANSPARENCY)
+                .setDepthTestState(RenderStateShard.LEQUAL_DEPTH_TEST)
+                .setCullState(RenderStateShard.NO_CULL)
+                .setLightmapState(RenderStateShard.LIGHTMAP)
+                .setOverlayState(RenderStateShard.OVERLAY)
+                .setWriteMaskState(translucent ? RenderStateShard.COLOR_WRITE : RenderStateShard.COLOR_DEPTH_WRITE)
+                .createCompositeState(false);
     }
 
     private static RenderType createSurfaceTranslucent(ResourceLocation texture) {

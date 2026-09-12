@@ -7,6 +7,7 @@ import com.fish.mirebound.mud.SinkingMedium;
 import com.fish.mirebound.compat.sable.SableCompat;
 import com.fish.mirebound.client.config.MireboundClientSettings;
 import com.fish.mirebound.client.config.MireboundClientSettings.ClientOption;
+import com.fish.mirebound.client.compat.ClientRenderCompat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import java.util.Arrays;
@@ -53,6 +54,10 @@ public final class MudFootprintBlockEntityRenderer implements BlockEntityRendere
         }
         PoseStack.Pose pose = poseStack.last();
         List<MudFootprintBlockEntity.Entry> entries = blockEntity.entries();
+        if (ClientRenderCompat.isRenderingShaderShadowPass()) {
+            renderHangingShadows(blockEntity, entries, partialTick, pose, buffers, packedLight);
+            return;
+        }
         int footprintFaceMask = 0;
         int preciseWallFaceMask = 0;
         for (MudFootprintBlockEntity.Entry entry : entries) {
@@ -120,6 +125,31 @@ public final class MudFootprintBlockEntityRenderer implements BlockEntityRendere
                 renderFusedFootprints(blockEntity, face, entries, pose, buffers, packedLight);
             }
         }
+    }
+
+    private void renderHangingShadows(MudFootprintBlockEntity blockEntity,
+            List<MudFootprintBlockEntity.Entry> entries, float partialTick,
+            PoseStack.Pose pose, MultiBufferSource buffers, int packedLight) {
+        // Flat stains share the support's silhouette. Casting them again creates
+        // self-shadow wedges when a shader warps terrain and entity quads differently.
+        Vec3 localDown = localGravity(SableCompat.containingSubLevel(blockEntity));
+        for (MudFootprintBlockEntity.Entry entry : entries) {
+            if (!hasHangingGeometry(entry, localDown)) {
+                continue;
+            }
+            float plane = surfacePlane(blockEntity, entry);
+            if (Float.isFinite(plane)) {
+                renderCeilingDrips(blockEntity, entry, plane, localDown,
+                        partialTick, pose, buffers, packedLight, 1.0F);
+            }
+        }
+    }
+
+    static boolean hasHangingGeometry(MudFootprintBlockEntity.Entry entry, Vec3 localDown) {
+        Direction face = entry.face();
+        return entry.wallStain() && entry.wallPixels().length > 0
+                && localDown.x * face.getStepX() + localDown.y * face.getStepY()
+                        + localDown.z * face.getStepZ() > 0.30D;
     }
 
     private static void renderFusedFootprints(MudFootprintBlockEntity blockEntity, Direction face,
@@ -297,7 +327,7 @@ public final class MudFootprintBlockEntityRenderer implements BlockEntityRendere
             }
             // A tilted physical cube can have two or three underside faces. Each face whose
             // outward normal has a meaningful downward component owns its own hanging drips.
-            if (normalGravity > 0.30D) {
+            if (hasHangingGeometry(entry, localDown)) {
                 renderCeilingDrips(blockEntity, entry, surfacePlane, localDown,
                         partialTick, pose, buffers, packedLight, 1.0F);
             } else if (surfaceGravity.lengthSqr() > 0.025D) {
@@ -612,19 +642,23 @@ public final class MudFootprintBlockEntityRenderer implements BlockEntityRendere
             float canvasMinimum, float canvasSpan,
             int alpha, int packedLight) {
         for (MudRenderedSurfaceGeometry.RenderedQuad quad : surface.quads()) {
-            renderedSurfaceVertex(pose, vertices, quad.first(), quad.normal(),
-                    supportPos, containerPos, face,
-                    canvasMinimum, canvasSpan, alpha, packedLight);
-            renderedSurfaceVertex(pose, vertices, quad.second(), quad.normal(),
-                    supportPos, containerPos, face,
-                    canvasMinimum, canvasSpan, alpha, packedLight);
-            renderedSurfaceVertex(pose, vertices, quad.third(), quad.normal(),
-                    supportPos, containerPos, face,
-                    canvasMinimum, canvasSpan, alpha, packedLight);
-            renderedSurfaceVertex(pose, vertices, quad.fourth(), quad.normal(),
-                    supportPos, containerPos, face,
+            renderSurfaceQuad(pose, vertices, quad, supportPos, containerPos, face,
                     canvasMinimum, canvasSpan, alpha, packedLight);
         }
+    }
+
+    static void renderSurfaceQuad(PoseStack.Pose pose, VertexConsumer vertices,
+            MudRenderedSurfaceGeometry.RenderedQuad quad,
+            BlockPos supportPos, BlockPos containerPos, Direction face,
+            float canvasMinimum, float canvasSpan, int alpha, int packedLight) {
+        renderedSurfaceVertex(pose, vertices, quad.first(), quad.normal(),
+                supportPos, containerPos, face, canvasMinimum, canvasSpan, alpha, packedLight);
+        renderedSurfaceVertex(pose, vertices, quad.second(), quad.normal(),
+                supportPos, containerPos, face, canvasMinimum, canvasSpan, alpha, packedLight);
+        renderedSurfaceVertex(pose, vertices, quad.third(), quad.normal(),
+                supportPos, containerPos, face, canvasMinimum, canvasSpan, alpha, packedLight);
+        renderedSurfaceVertex(pose, vertices, quad.fourth(), quad.normal(),
+                supportPos, containerPos, face, canvasMinimum, canvasSpan, alpha, packedLight);
     }
 
     private static void renderedSurfaceVertex(PoseStack.Pose pose,
@@ -1027,8 +1061,12 @@ public final class MudFootprintBlockEntityRenderer implements BlockEntityRendere
             y += planeY;
             z += planeX;
         }
-        ProjectedSurface projected = projectSurface(
-                blockEntity, face, x, y, z);
+        // Keep the voxel fallback on the same outward plane as model-projected
+        // stains; no slope-dependent depth bias is needed in either path.
+        ProjectedSurface projected = projectSurface(blockEntity, face,
+                x + face.getStepX() * FLOW_SURFACE_OFFSET,
+                y + face.getStepY() * FLOW_SURFACE_OFFSET,
+                z + face.getStepZ() * FLOW_SURFACE_OFFSET);
         vertices.addVertex(pose,
                         (float) projected.point().x,
                         (float) projected.point().y,
