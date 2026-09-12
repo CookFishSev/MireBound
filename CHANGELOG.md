@@ -1,5 +1,21 @@
 # Development Updates
 
+## 2026-09-13 - MireBound-Beta1.2.3-MC1.21.1-NeoForge
+
+- Fixed recessed corners on wall stains with some shader packs.
+- Fixed overlapping wall flow layers and inconsistent fade timing.
+- Fixed mixed materials being lost when stains wrap onto adjacent faces.
+- Added irregular wall-stain edges and opacity variation.
+- Fixed redundant stain calculations and uploads of unchanged textures.
+
+- 修复了部分光影下墙面污染四角凹陷的问题。
+- 修复了墙面流痕重复叠加和消退时间不一致的问题。
+- 修复了相邻面污染丢失混合材质的问题。
+- 添加了墙面污染边缘和浓淡的不规则变化。
+- 修复了污染贴图重复计算和无变化时仍上传的问题。
+
+Minecraft 1.21.1 / NeoForge. Version: `1.2.3-beta`. Author: CookFishSev.
+
 ## 2026-09-12 - MireBound-Beta1.2.2-MC1.21.1-NeoForge
 
 - Added a Shift-expanded wand tooltip with fading text, gentle floating, and subtle gray flicker.

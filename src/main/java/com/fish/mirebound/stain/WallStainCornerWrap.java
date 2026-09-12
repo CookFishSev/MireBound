@@ -98,7 +98,6 @@ public final class WallStainCornerWrap {
         Direction targetFace = axisDirection(crossedAxis, maximumEdge);
         long[] target = wrapped.computeIfAbsent(
                 targetFace, ignored -> new long[GRID_SIZE * GRID_SIZE]);
-        SinkingMedium medium = MudFootprintBlockEntity.wallPixelMedium(source);
         long createdAt = MudFootprintBlockEntity.wallPixelHasCreationTime(source)
                 ? MudFootprintBlockEntity.wallPixelCreatedAt(source)
                 : fallbackCreatedAt;
@@ -117,7 +116,7 @@ public final class WallStainCornerWrap {
             int targetX = coordinates[horizontalAxis(targetFace).ordinal()];
             int targetY = coordinates[verticalAxis(targetFace).ordinal()];
             float strength = edgeStrength * (float) Math.pow(retention, depth + 1);
-            putStrongest(target, targetX, targetY, strength, medium, createdAt);
+            putStrongest(target, targetX, targetY, strength, source, createdAt);
         }
     }
 
@@ -173,10 +172,9 @@ public final class WallStainCornerWrap {
     }
 
     private static void putStrongest(long[] target, int x, int y, float strength,
-            SinkingMedium medium, long createdAt) {
+            long source, long createdAt) {
         int cell = x | y << 4;
-        long packed = MudFootprintBlockEntity.packWallPixel(
-                x, y, strength, medium, createdAt);
+        long packed = MudFootprintBlockEntity.moveWallPixel(source, x, y, strength, createdAt);
         if (target[cell] == 0L
                 || MudFootprintBlockEntity.wallPixelStrength(packed)
                         > MudFootprintBlockEntity.wallPixelStrength(target[cell])) {

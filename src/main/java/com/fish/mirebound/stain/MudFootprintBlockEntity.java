@@ -41,13 +41,31 @@ public final class MudFootprintBlockEntity extends BlockEntity {
     private static final float WATER_GUN_WALL_RADIUS_SCALE = 1.25F;
     private static final float WATER_GUN_WALL_AMOUNT_SCALE = 1.50F;
     private final List<Entry> entries = new ArrayList<>(MAX_ENTRIES_PER_BLOCK);
+    private final List<Entry> entriesView = Collections.unmodifiableList(entries);
+    private int[] wallOccupancyRows;
 
     public MudFootprintBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlocks.MUD_FOOTPRINT_ENTITY.get(), pos, state);
     }
 
     public List<Entry> entries() {
-        return Collections.unmodifiableList(entries);
+        return entriesView;
+    }
+
+    /** Read-only row bits, cached until synchronized wall pixels change. */
+    public int preciseWallRow(Direction face, int row) {
+        if (row < 0 || row >= WALL_GRID_SIZE) return 0;
+        if (wallOccupancyRows == null) {
+            wallOccupancyRows = new int[6 * WALL_GRID_SIZE];
+            for (Entry entry : entries) {
+                if (!entry.wallStain()) continue;
+                int faceOffset = entry.face().get3DDataValue() * WALL_GRID_SIZE;
+                for (long pixel : entry.wallPixels()) {
+                    wallOccupancyRows[faceOffset + wallPixelVertical(pixel)] |= 1 << wallPixelHorizontal(pixel);
+                }
+            }
+        }
+        return wallOccupancyRows[face.get3DDataValue() * WALL_GRID_SIZE + row];
     }
 
     public boolean hasPreciseWallStain(Direction face) {
@@ -137,15 +155,6 @@ public final class MudFootprintBlockEntity extends BlockEntity {
             SinkingMedium medium, long visualSource) {
         return addDecal(level, localX, localY, localZ, rotationDegrees, face, false,
                 size, size, strength, medium, visualSource, NO_WALL_PIXELS);
-    }
-
-    public boolean addWallStain(ServerLevel level, float localX, float localY, float localZ, float rotationDegrees,
-            Direction face, float width, float height, float strength, SinkingMedium medium) {
-        if (!face.getAxis().isHorizontal()) {
-            return false;
-        }
-        return addDecal(level, localX, localY, localZ, rotationDegrees, face, true,
-                width, height, strength, medium, 0L, NO_WALL_PIXELS);
     }
 
     public boolean addPreciseWallStain(ServerLevel level, float localX, float localY, float localZ, Direction face,
@@ -705,6 +714,7 @@ public final class MudFootprintBlockEntity extends BlockEntity {
     }
 
     private void sync() {
+        wallOccupancyRows = null;
         setChanged();
         if (level != null) {
             level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 2);
@@ -747,11 +757,12 @@ public final class MudFootprintBlockEntity extends BlockEntity {
     protected void loadAdditional(CompoundTag tag, HolderLookup.Provider registries) {
         super.loadAdditional(tag, registries);
         entries.clear();
+        wallOccupancyRows = null;
         ListTag list = tag.getList("Footprints", Tag.TAG_COMPOUND);
         int count = Math.min(MAX_ENTRIES_PER_BLOCK, list.size());
         for (int i = 0; i < count; i++) {
             CompoundTag value = list.getCompound(i);
-            entries.add(new Entry(
+            entries.add(normalizeWallEntry(new Entry(
                     value.getLong("Id"),
                     dequantizePosition(value.getShort("X")),
                     dequantizePosition(value.getShort("Y")),
@@ -767,8 +778,39 @@ public final class MudFootprintBlockEntity extends BlockEntity {
                     loadWallPixels(value),
                     value.getLong("Created"),
                     value.getLong("Expires"),
-                    (value.getByte("Fade") & 0xFF) / 255.0F));
+                    (value.getByte("Fade") & 0xFF) / 255.0F)));
         }
+    }
+
+    static Entry normalizeWallEntry(Entry entry) {
+        if (!entry.wallStain() || entry.wallPixels().length > 0) return entry;
+        // Old saves enter the current pixel pipeline once on load, not a parallel renderer.
+        float radians = entry.yawDegrees() * Mth.DEG_TO_RAD;
+        float cos = Mth.cos(radians);
+        float sin = Mth.sin(radians);
+        float centerU = entry.face().getAxis() == Direction.Axis.X ? entry.localZ() : entry.localX();
+        float centerV = entry.face().getAxis() == Direction.Axis.Y ? entry.localZ() : entry.localY();
+        long[] pixels = new long[MAX_WALL_PIXELS];
+        int count = 0;
+        float strength = entry.strength() * entry.fade();
+        for (int y = 0; y < WALL_GRID_SIZE && strength > 0; y++) {
+            for (int x = 0; x < WALL_GRID_SIZE; x++) {
+                float u = (x + 0.5F) / WALL_GRID_SIZE - centerU;
+                float v = (y + 0.5F) / WALL_GRID_SIZE - centerV;
+                if (Math.abs(u * cos + v * sin) <= entry.width() * 0.5F
+                        && Math.abs(v * cos - u * sin) <= entry.height() * 0.5F) {
+                    pixels[count++] = packWallPixel(x, y, strength, entry.medium(), entry.createdAt());
+                }
+            }
+        }
+        return new Entry(entry.id(), entry.localX(), entry.localY(), entry.localZ(), entry.yawDegrees(),
+                entry.face(), true, entry.width(), entry.height(), strength, entry.medium(), entry.visualSource(),
+                Arrays.copyOf(pixels, count), entry.createdAt(), entry.expiresAt(), 1);
+    }
+
+    static long moveWallPixel(long source, int x, int y, float strength, long createdAt) {
+        return packWallPixel(x, y, strength, wallPixelMedium(source), createdAt)
+                | (source & WALL_PIXEL_SECONDARY_DATA_MASK);
     }
 
     private static long[] loadWallPixels(CompoundTag value) {

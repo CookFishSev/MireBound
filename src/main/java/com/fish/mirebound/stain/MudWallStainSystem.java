@@ -937,41 +937,11 @@ public final class MudWallStainSystem {
         for (long pixel : wallPixels) {
             double horizontal = (MudFootprintBlockEntity.wallPixelHorizontal(pixel) + 0.5D) / 16.0D;
             double vertical = (MudFootprintBlockEntity.wallPixelVertical(pixel) + 0.5D) / 16.0D;
-            if (collisionFaceContains(boxes, contact.face(), horizontal, vertical)) {
+            if (WallStainGeometry.contains(boxes, contact.face(), horizontal, vertical)) {
                 clipped[count++] = pixel;
             }
         }
         return count == wallPixels.length ? wallPixels : Arrays.copyOf(clipped, count);
-    }
-
-    private static boolean collisionFaceContains(List<AABB> boxes, Direction face,
-            double horizontal, double vertical) {
-        final double tolerance = 1.0E-4D;
-        for (AABB box : boxes) {
-            boolean reachesFace = switch (face) {
-                case WEST -> box.minX <= tolerance;
-                case EAST -> box.maxX >= 1.0D - tolerance;
-                case DOWN -> box.minY <= tolerance;
-                case UP -> box.maxY >= 1.0D - tolerance;
-                case NORTH -> box.minZ <= tolerance;
-                case SOUTH -> box.maxZ >= 1.0D - tolerance;
-            };
-            if (!reachesFace) {
-                continue;
-            }
-            boolean inside = switch (face.getAxis()) {
-                case X -> horizontal >= box.minZ - tolerance && horizontal <= box.maxZ + tolerance
-                        && vertical >= box.minY - tolerance && vertical <= box.maxY + tolerance;
-                case Y -> horizontal >= box.minX - tolerance && horizontal <= box.maxX + tolerance
-                        && vertical >= box.minZ - tolerance && vertical <= box.maxZ + tolerance;
-                case Z -> horizontal >= box.minX - tolerance && horizontal <= box.maxX + tolerance
-                        && vertical >= box.minY - tolerance && vertical <= box.maxY + tolerance;
-            };
-            if (inside) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private static void placeCornerWrappedStains(ServerLevel level, WallContact sourceContact,

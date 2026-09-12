@@ -89,10 +89,6 @@ final class MudSurfaceRenderBatchCache {
         return RenderType.entityCutoutNoCull(texture);
     }
 
-    static RenderType wallFlowRenderType(ResourceLocation texture) {
-        return RenderType.entityTranslucent(texture);
-    }
-
     static RenderType decalTranslucentRenderType(ResourceLocation texture) {
         return MudSurfaceDecalRenderTypes.translucent(texture);
     }

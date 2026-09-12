@@ -1,6 +1,7 @@
 package com.fish.mirebound.client;
 
 import com.fish.mirebound.client.compat.ClientRenderCompat;
+import com.fish.mirebound.client.compat.IrisDecalMaterials;
 import com.fish.mirebound.compat.sable.SableCompat;
 import com.fish.mirebound.stain.MudFootprintBlock;
 import com.fish.mirebound.stain.MudFootprintBlockEntity;
@@ -82,8 +83,8 @@ final class MudFootprintTextureCache {
     }
 
     private static CachedTexture createTexture() {
-        DynamicTexture stable = new DynamicTexture(TEXTURE_SIZE, TEXTURE_SIZE, true);
-        DynamicTexture translucent = new DynamicTexture(TEXTURE_SIZE, TEXTURE_SIZE, true);
+        DynamicTexture stable = IrisDecalMaterials.createTexture(TEXTURE_SIZE, TEXTURE_SIZE);
+        DynamicTexture translucent = IrisDecalMaterials.createTexture(TEXTURE_SIZE, TEXTURE_SIZE);
         stable.setFilter(false, false);
         translucent.setFilter(false, false);
         ResourceLocation stableLocation = Minecraft.getInstance().getTextureManager()

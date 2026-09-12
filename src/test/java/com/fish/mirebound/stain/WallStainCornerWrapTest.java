@@ -10,6 +10,48 @@ import org.junit.jupiter.api.Test;
 
 class WallStainCornerWrapTest {
     @Test
+    void wrappingPreservesBothMediaAndTheirMixAndCreationTime() {
+        long first = MudFootprintBlockEntity.packWallPixel(0, 7, 1, SinkingMedium.MUD, 80);
+        long second = MudFootprintBlockEntity.packWallPixel(0, 7, 0.7F, SinkingMedium.TAR, 90);
+        long mixed = MudFootprintBlockEntity.mergeWallPixels(new long[] {first}, new long[] {second})[0];
+        WallStainCornerWrap.WrappedFace west = face(WallStainCornerWrap.build(
+                Direction.NORTH, new long[] {mixed}, 2, 0, 0.8F, 0, 99, 0), Direction.WEST);
+        long wrapped = pixel(west, 0, 7);
+        assertEquals(MudFootprintBlockEntity.wallPixelMedium(mixed), MudFootprintBlockEntity.wallPixelMedium(wrapped));
+        assertEquals(MudFootprintBlockEntity.wallPixelSecondaryMedium(mixed), MudFootprintBlockEntity.wallPixelSecondaryMedium(wrapped));
+        assertEquals(MudFootprintBlockEntity.wallPixelSecondaryWeight(mixed), MudFootprintBlockEntity.wallPixelSecondaryWeight(wrapped));
+        assertEquals(MudFootprintBlockEntity.wallPixelCreatedAt(mixed), MudFootprintBlockEntity.wallPixelCreatedAt(wrapped));
+    }
+
+    @Test
+    void everyFaceMapsItsFourEdgesOntoAdjacentFacesWithoutMirroringAlongTheEdge() {
+        for (Direction source : Direction.values()) {
+            for (boolean horizontal : new boolean[] {false, true}) {
+                for (int boundary : new int[] {0, 15}) {
+                    int u = horizontal ? boundary : 7;
+                    int v = horizontal ? 7 : boundary;
+                    var wrapped = WallStainCornerWrap.build(source,
+                            new long[] {MudFootprintBlockEntity.packWallPixel(u, v, 1, SinkingMedium.MUD, 40)},
+                            1, 0, 0.8F, 0, 40, 0);
+                    assertEquals(1, wrapped.size());
+                    Direction target = wrapped.getFirst().face();
+                    assertTrue(source.getAxis() != target.getAxis());
+                    assertEquals(boundary == 0 ? -1 : 1, target.getAxisDirection().getStep());
+                    long pixel = wrapped.getFirst().pixels()[0];
+                    int[] point = new int[3];
+                    point[target.getAxis().ordinal()] = boundary;
+                    point[target.getAxis() == Direction.Axis.X ? 2 : 0] = MudFootprintBlockEntity.wallPixelHorizontal(pixel);
+                    point[target.getAxis() == Direction.Axis.Y ? 2 : 1] = MudFootprintBlockEntity.wallPixelVertical(pixel);
+                    assertEquals(source.getAxisDirection().getStep() > 0 ? 15 : 0, point[source.getAxis().ordinal()]);
+                    for (int axis = 0; axis < 3; axis++) {
+                        if (axis != target.getAxis().ordinal() && axis != source.getAxis().ordinal()) assertEquals(7, point[axis]);
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
     void northFaceWrapsAroundItsWestEdgeInLocalCoordinates() {
         WallStainCornerWrap.WrappedFace west = face(
                 WallStainCornerWrap.build(

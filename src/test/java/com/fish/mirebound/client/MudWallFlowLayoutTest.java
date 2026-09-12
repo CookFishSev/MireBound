@@ -5,11 +5,61 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fish.mirebound.mud.SinkingMedium;
 import com.fish.mirebound.stain.MudFootprintBlockEntity;
+import java.util.Arrays;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import org.junit.jupiter.api.Test;
 
 class MudWallFlowLayoutTest {
+    @Test
+    void growthFastPathsMatchTheCurveIncludingOldAndUntimedPixels() {
+        for (int duration : new int[] {1, 48, 240}) {
+            for (int age = 0; age < duration * 10; age++) {
+                int expected = (int) Math.round(Math.pow(1.0 - Math.exp(-Math.max(0, age - 8)
+                        / (double) duration), 1.32) * 128);
+                assertEquals(expected, MudWallFlowLayout.growthStep(age, 8, duration));
+            }
+        }
+        assertEquals(128, MudWallFlowLayout.growthStep(Integer.MAX_VALUE, 8, 48));
+    }
+
+    @Test
+    void flowRasterStopsAtShapeHolesAndDoesNotJumpToTheOtherSide() {
+        boolean[] support = new boolean[256];
+        Arrays.fill(support, true);
+        for (int x = 0; x < 16; x++) support[x | 8 << 4] = false;
+        float[] coverage = new float[256];
+        MudWallFlowLayout.rasterize(pixel(7, 12), 0, 128, 16, 0, -1, support, coverage);
+        assertTrue(coverage[7 | 10 << 4] > 0);
+        for (int y = 0; y <= 8; y++) {
+            for (int x = 0; x < 16; x++) assertEquals(0, coverage[x | y << 4]);
+        }
+    }
+
+    @Test
+    void flowRasterFollowsSlopedLocalGravityWithoutWrappingAtFaceEdges() {
+        float[] coverage = new float[256];
+        double direction = Math.sqrt(0.5);
+        MudWallFlowLayout.rasterize(pixel(10, 5), 0, 128, 16, direction, -direction, null, coverage);
+        assertTrue(coverage[12 | 3 << 4] > 0);
+        for (int y = 0; y < 16; y++) assertEquals(0, coverage[y << 4]);
+        for (int x = 0; x < 16; x++) assertEquals(0, coverage[x | 15 << 4]);
+    }
+
+    @Test
+    void growthIsBoundedAndMonotonicAndClearsThePreviousRaster() {
+        int previous = 0;
+        for (int age = 0; age < 1000; age++) {
+            int step = MudWallFlowLayout.growthStep(age, 8, 48);
+            assertTrue(step >= previous && step <= 128);
+            previous = step;
+        }
+        float[] coverage = new float[256];
+        Arrays.fill(coverage, 1);
+        MudWallFlowLayout.rasterize(pixel(7, 12), 0, 0, 16, 0, -1, null, coverage);
+        for (float value : coverage) assertEquals(0, value);
+    }
+
     @Test
     void fullStainProducesOnlySparseBottomEdgeChannels() {
         long[] cells = filledCells();

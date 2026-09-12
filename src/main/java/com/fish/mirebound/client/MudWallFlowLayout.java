@@ -14,6 +14,55 @@ final class MudWallFlowLayout {
     private MudWallFlowLayout() {
     }
 
+    static int growthStep(float age, int fadeInTicks, int durationTicks) {
+        if (age <= fadeInTicks) return 0;
+        double elapsed = Math.max(0, age - fadeInTicks);
+        // At six time constants the rounded 0..128 result is already fully grown.
+        if (elapsed >= Math.max(1, durationTicks) * 6.0) return 128;
+        return (int) Math.round(Math.pow(1.0 - Math.exp(-elapsed / Math.max(1, durationTicks)), 1.32) * 128);
+    }
+
+    /** Rasterizes into the owning face, never a second overlapping render surface. */
+    static void rasterize(long pixel, long hash, int growthStep, float maximumCells,
+            double downU, double downV, boolean[] support, float[] coverage) {
+        Arrays.fill(coverage, 0);
+        if (growthStep <= 0 || downU * downU + downV * downV < 0.01) return;
+        double startU = MudFootprintBlockEntity.wallPixelHorizontal(pixel) + 0.5 + downU * 0.5;
+        double startV = MudFootprintBlockEntity.wallPixelVertical(pixel) + 0.5 + downV * 0.5;
+        double length = Math.min(16, Math.max(0, maximumCells)) * growthStep / 128.0
+                * (0.45 + Math.pow(unitNoise(mix(hash)), 1.28) * 0.67);
+        // Stop at a hole or edge; an adjacent face owns its own transferred pixels.
+        for (double distance = 0; distance <= length; distance += 0.25) {
+            int x = Mth.floor(startU + downU * distance);
+            int y = Mth.floor(startV + downV * distance);
+            if (!inside(x, y) || (support != null && !support[cell(x, y)])) {
+                length = distance;
+                break;
+            }
+        }
+        if (length <= 0) return;
+        double endU = startU + downU * length;
+        double endV = startV + downV * length;
+        double halfWidth = 0.36 + unitNoise(hash) * 0.33;
+        int minX = Math.max(0, Mth.floor(Math.min(startU, endU) - halfWidth));
+        int maxX = Math.min(15, Mth.floor(Math.max(startU, endU) + halfWidth));
+        int minY = Math.max(0, Mth.floor(Math.min(startV, endV) - halfWidth));
+        int maxY = Math.min(15, Mth.floor(Math.max(startV, endV) + halfWidth));
+        for (int y = minY; y <= maxY; y++) {
+            for (int x = minX; x <= maxX; x++) {
+                int cell = cell(x, y);
+                if (support != null && !support[cell]) continue;
+                double u = x + 0.5 - startU;
+                double v = y + 0.5 - startV;
+                double along = u * downU + v * downV;
+                double across = Math.abs(u * downV - v * downU);
+                double area = Mth.clamp(halfWidth + 0.5 - across, 0, 1)
+                        * Mth.clamp(along + 0.5, 0, 1) * Mth.clamp(length - along + 0.5, 0, 1);
+                coverage[cell] = (float) (area * (0.25 + 0.35 * Mth.clamp(along / length, 0, 1)));
+            }
+        }
+    }
+
     static int select(long[] cells, BlockPos blockPos, Direction face,
             int downstreamX, int downstreamY, boolean allowOutside,
             float configuredChance, long[] selectedPixels, long[] selectedHashes,
