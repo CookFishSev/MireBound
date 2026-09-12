@@ -51,7 +51,7 @@
   "gui.mirebound.skin.show_part": "显示%s",
   "gui.mirebound.skin.hide_part": "隐藏%s",
   "gui.mirebound.client.option.independent_surface_coverage": "独立表面污染（实验性）",
-  "gui.mirebound.client.option.independent_surface_coverage.desc": "关闭：使用原有稳定的纹理污染。开启：按模型表面记录污染，避免共享 UV 串色，并支持精妙背包。仅影响本机；两套装备污迹独立保存，切换不会删除数据。",
+  "gui.mirebound.client.option.independent_surface_coverage.desc": "关闭：使用原有稳定的纹理污染。开启：按模型表面记录污染，避免共享 UV 串色。",
   "block.mirebound.mud": "\u6ce5\u5df4",
   "block.mirebound.red_quicksand": "\u7ea2\u6d41\u6c99",
   "block.mirebound.ash_quicksand": "\u7070\u70ec\u6d41\u6c99",

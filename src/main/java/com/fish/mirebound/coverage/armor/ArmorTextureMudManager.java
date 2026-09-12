@@ -5,6 +5,7 @@ import com.fish.mirebound.adaptive.MudVisualSource;
 import com.fish.mirebound.compat.curios.CuriosCompat;
 import com.fish.mirebound.compat.sable.SableCompat;
 import com.fish.mirebound.compat.sable.SableCompat.SinkingSample;
+import com.fish.mirebound.coverage.MudFeetContact;
 import com.fish.mirebound.mud.ArmorMudManager;
 import com.fish.mirebound.mud.ArmorTextureMudData;
 import com.fish.mirebound.mud.MudBlock;
@@ -179,6 +180,16 @@ public final class ArmorTextureMudManager {
 
     static MediumContact sinkingMediumAt(ServerPlayer player, Vec3 point,
             Map<BlockPos, Long> visualSourceCache, SableCompat.SinkingVolumeProbe sableProbe) {
+        Vec3 entryPoint = MudFeetContact.entryPoint(player.getY(), point);
+        if (entryPoint != point
+                && sinkingContactAt(player, entryPoint, visualSourceCache, sableProbe) == null) {
+            return null;
+        }
+        return sinkingContactAt(player, point, visualSourceCache, sableProbe);
+    }
+
+    private static MediumContact sinkingContactAt(ServerPlayer player, Vec3 point,
+            Map<BlockPos, Long> visualSourceCache, SableCompat.SinkingVolumeProbe sableProbe) {
         Level level = player.level();
         BlockPos pos = BlockPos.containing(point);
         BlockState state = level.getBlockState(pos);
@@ -186,7 +197,7 @@ public final class ArmorTextureMudManager {
         if (medium != null && MudBlock.containsLocalPoint(
                 level, pos, state, medium,
                 point.subtract(pos.getX(), pos.getY(), pos.getZ()),
-                0.040D)) {
+                0.004D)) {
             long visualSource = state.getBlock() instanceof AdaptiveMudBlock
                     ? visualSourceCache.computeIfAbsent(pos, ignored ->
                             MudVisualSource.capture(level, pos,
@@ -198,6 +209,15 @@ public final class ArmorTextureMudManager {
         SinkingSample sample = sableProbe == null ? SableCompat.sampleSinking(level, point, player) : sableProbe.sample(point);
         if (sample == null) {
             return null;
+        }
+        double supportedFeetY = com.fish.mirebound.compat.sable.SableFeetSupport.feetY(player, sample.subLevel());
+        Vec3 entryPoint = MudFeetContact.entryPoint(supportedFeetY, point);
+        if (entryPoint != point) {
+            Vec3 localEntry = SableCompat.toLocal(sample.subLevel(), entryPoint);
+            if (localEntry == null || !MudBlock.containsLocalPoint(level, sample.pos(), sample.state(), sample.medium(),
+                    localEntry.subtract(sample.pos().getX(), sample.pos().getY(), sample.pos().getZ()), 0.004D)) {
+                return null;
+            }
         }
         return new MediumContact(sample.medium(), sample.visualSource());
     }

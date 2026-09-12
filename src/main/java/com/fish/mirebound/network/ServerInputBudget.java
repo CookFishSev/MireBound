@@ -39,6 +39,7 @@ public final class ServerInputBudget {
         PLAYER_GEOMETRY(4),
         ARMOR_TEXTURE_CONTACT(12),
         EQUIPMENT_SURFACE_CONTACT(12),
+        EQUIPMENT_SURFACE_GRID(2),
         SELF_SKIN_STAIN(1),
         ASSIMILATION_QTE(24),
         ASSIMILATION_TRACE(12),

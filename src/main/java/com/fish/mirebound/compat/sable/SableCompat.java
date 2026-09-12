@@ -1853,6 +1853,14 @@ public final class SableCompat {
             return groups.isEmpty();
         }
 
+        public double supportedFeetY(net.minecraft.world.entity.player.Player player) {
+            double height = player.getY();
+            for (MudVolumeGroup group : groups) {
+                height = Math.max(height, SableFeetSupport.feetY(player, group.subLevel()));
+            }
+            return height;
+        }
+
         public MudVolumeSample sample(Vec3 worldPoint, double tolerance) {
             for (MudVolumeGroup group : groups) {
                 Vec3 localPoint = group.inverse().toWorld(worldPoint);

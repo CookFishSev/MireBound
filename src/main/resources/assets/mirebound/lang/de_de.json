@@ -51,7 +51,7 @@
   "gui.mirebound.skin.show_part": "%s anzeigen",
   "gui.mirebound.skin.hide_part": "%s ausblenden",
   "gui.mirebound.client.option.independent_surface_coverage": "Unabhängige Oberflächenverschmutzung (experimentell)",
-  "gui.mirebound.client.option.independent_surface_coverage.desc": "Aus: bewährtes Textursystem. An: Verschmutzung pro Modellfläche, ohne Übertragung durch gemeinsame UVs, mit Unterstützung für Sophisticated Backpacks. Nur lokal; beide Systeme behalten ihre eigenen Ausrüstungsspuren beim Wechsel.",
+  "gui.mirebound.client.option.independent_surface_coverage.desc": "Aus: bewährtes Textursystem. An: Verschmutzung pro Modellfläche, ohne Übertragung durch gemeinsame UVs.",
     "block.mirebound.mud":  "Schlamm",
     "block.mirebound.red_quicksand":  "Roter Treibsand",
     "block.mirebound.ash_quicksand":  "Aschetreibsand",

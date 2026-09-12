@@ -52,7 +52,7 @@ public final class MudSkinCoverageOperations {
                 cell -> !innerSkinProtected(innerCleanlinessMask, cell)
                         && !com.fish.mirebound.assimilation.AssimilationSystem
                                 .keepsCrackClear(player, cell)
-                        && (!isLegBottomCell(cell) || data.surfaceContactThisTick(cell)),
+                        && (!isFootCell(cell) || data.surfaceContactThisTick(cell)),
                 (cell, mediumId) -> MudCoverageRules.allowsPixel(
                         player.level(),
                         SinkingMedium.byId(mediumId & 0xFF),
@@ -69,9 +69,12 @@ public final class MudSkinCoverageOperations {
                 MudSurfaceLayout.row(cell));
     }
 
-    private static boolean isLegBottomCell(int cell) {
+    static boolean isFootCell(int cell) {
         MudBodyPart part = MudSurfaceLayout.part(cell);
+        MudSurface surface = MudSurfaceLayout.surface(cell);
         return (part == MudBodyPart.LEFT_LEG || part == MudBodyPart.RIGHT_LEG)
-                && MudSurfaceLayout.surface(cell) == MudSurface.BOTTOM;
+                && (surface == MudSurface.BOTTOM
+                        || MudSurfaceLayout.face(part, surface).vertical()
+                                && MudSurfaceLayout.row(cell) == 0);
     }
 }

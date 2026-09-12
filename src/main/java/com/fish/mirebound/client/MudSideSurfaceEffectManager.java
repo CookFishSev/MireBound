@@ -2,6 +2,8 @@ package com.fish.mirebound.client;
 
 import com.fish.mirebound.adaptive.AdaptiveMudBlock;
 import com.fish.mirebound.compat.sable.SableCompat;
+import com.fish.mirebound.compat.sable.SableFeetSupport;
+import com.fish.mirebound.coverage.MudFeetContact;
 import com.fish.mirebound.mud.MudEntityGeometry;
 import com.fish.mirebound.mud.MudBlock;
 import com.fish.mirebound.mud.MudMediumRuntime;
@@ -607,7 +609,9 @@ final class MudSideSurfaceEffectManager {
             boolean[] exposedCells) {
         MudEntityGeometry.OrientedPlaneSlice slice = MudEntityGeometry.planeSlice(
                 player, basis.origin, basis.normal, basis.axisU, basis.axisV);
-        if (slice.empty()) {
+        double minimumContactY = subLevel == null ? Double.NEGATIVE_INFINITY
+                : MudFeetContact.entryHeight(SableFeetSupport.feetY(player, subLevel));
+        if (!reachesEntryPlane(slice, minimumContactY)) {
             return;
         }
         SideKey key = new SideKey(
@@ -641,13 +645,13 @@ final class MudSideSurfaceEffectManager {
         boolean[] direct = imprint.directCells;
         Arrays.fill(direct, false);
         for (MudEntityGeometry.SlicePolygon polygon : slice.polygons()) {
-            rasterize(imprint, polygon.vertices(), direct);
+            rasterize(imprint, polygon.vertices(), direct, minimumContactY);
         }
         addDownwardDrag(imprint, direct, player.getDeltaMovement());
     }
 
     private static void rasterize(SideImprint imprint, List<Vec3> polygon,
-            boolean[] direct) {
+            boolean[] direct, double minimumContactY) {
         if (polygon.size() < 3) {
             return;
         }
@@ -680,6 +684,10 @@ final class MudSideSurfaceEffectManager {
                         || sampleU > imprint.maximumU + 1.0E-5D) {
                     continue;
                 }
+                if (!cellReachesEntryPlane(imprint.basis.origin, imprint.basis.axisU,
+                        imprint.basis.axisV, sampleU, sampleV, minimumContactY)) {
+                    continue;
+                }
                 if (!MudEntityGeometry.containsPlane(
                         polygon,
                         imprint.basis.origin,
@@ -693,6 +701,21 @@ final class MudSideSurfaceEffectManager {
                 refreshCell(imprint, u, v, 1.0D);
             }
         }
+    }
+
+    static boolean reachesEntryPlane(MudEntityGeometry.OrientedPlaneSlice slice, double minimumY) {
+        for (MudEntityGeometry.SlicePolygon polygon : slice.polygons()) {
+            for (Vec3 vertex : polygon.vertices()) {
+                if (vertex.y >= minimumY) return true;
+            }
+        }
+        return false;
+    }
+
+    static boolean cellReachesEntryPlane(Vec3 origin, Vec3 axisU, Vec3 axisV,
+            double u, double v, double minimumY) {
+        // A physicalized NORTH/EAST/etc. face can be the world-space floor.
+        return origin.y + axisU.y * u + axisV.y * v >= minimumY;
     }
 
     private static void addDownwardDrag(SideImprint imprint, boolean[] direct,

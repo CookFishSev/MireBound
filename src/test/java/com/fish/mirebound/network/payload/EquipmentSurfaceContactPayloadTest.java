@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import com.fish.mirebound.coverage.armor.EquipmentSurfaceData;
 import com.fish.mirebound.coverage.armor.EquipmentSurfaceTarget;
 import com.fish.mirebound.coverage.armor.EquipmentSurfaceService;
+import com.fish.mirebound.coverage.armor.EquipmentSurfacePatch;
 import io.netty.buffer.Unpooled;
 import java.util.List;
 import net.minecraft.core.RegistryAccess;
@@ -15,6 +16,62 @@ import net.neoforged.neoforge.network.connection.ConnectionType;
 import org.junit.jupiter.api.Test;
 
 class EquipmentSurfaceContactPayloadTest {
+    @Test void aPartialBatchPreservesTheFullModelDenominatorOnTheWire() {
+        var patch = new EquipmentSurfacePatch(1, 1, 1, Vec3.ZERO, new Vec3(1, 0, 0),
+                new Vec3(1, 1, 0), new Vec3(0, 1, 0), List.of(EquipmentSurfacePatch.probe(0, .5, .5)));
+        var expected = new EquipmentSurfaceContactPayload(EquipmentSurfaceTarget.backpack(),
+                ResourceLocation.parse("test:backpack"), Vec3.ZERO, List.of(), List.of(patch), true, 780);
+        var b = buffer();
+        try {
+            EquipmentSurfaceContactPayload.STREAM_CODEC.encode(b, expected);
+            assertEquals(expected, EquipmentSurfaceContactPayload.STREAM_CODEC.decode(b));
+            assertEquals(0, b.readableBytes());
+        } finally { b.release(); }
+    }
+
+    @Test void fullBackpackPassUsesCompactFacesAndRetainsEveryVisibleCell() {
+        var probes = new java.util.ArrayList<Integer>();
+        for (int cell = 0; cell < 256; cell++) probes.add(EquipmentSurfacePatch.probe(cell, .5, .5));
+        var patches = new java.util.ArrayList<EquipmentSurfacePatch>();
+        for (int face = 1; face <= 4; face++) patches.add(new EquipmentSurfacePatch(face, 16, 16,
+                new Vec3(0, 0, face / 4D), new Vec3(1, 0, face / 4D),
+                new Vec3(1, 1, face / 4D), new Vec3(0, 1, face / 4D), probes));
+        var expected = new EquipmentSurfaceContactPayload(EquipmentSurfaceTarget.backpack(),
+                ResourceLocation.parse("test:backpack"), Vec3.ZERO, List.of(), patches, true);
+        var b = buffer();
+        try {
+            EquipmentSurfaceContactPayload.STREAM_CODEC.encode(b, expected);
+            assertTrue(b.readableBytes() < 4096, () -> "packet bytes=" + b.readableBytes());
+            var restored = EquipmentSurfaceContactPayload.STREAM_CODEC.decode(b);
+            assertEquals(expected, restored);
+            assertEquals(1024, restored.patches().stream().mapToInt(p -> p.probes().size()).sum());
+            assertEquals(0, b.readableBytes());
+        } finally { b.release(); }
+    }
+
+    @Test void tooManyFullSurfaceCellsAreRejected() {
+        var probes = new java.util.ArrayList<Integer>();
+        for (int cell = 0; cell < 256; cell++) probes.add(EquipmentSurfacePatch.probe(cell, .5, .5));
+        var patches = new java.util.ArrayList<EquipmentSurfacePatch>();
+        for (int face = 1; face <= 33; face++) patches.add(new EquipmentSurfacePatch(face, 16, 16,
+                Vec3.ZERO, new Vec3(1, 0, 0), new Vec3(1, 1, 0), new Vec3(0, 1, 0), probes));
+        assertThrows(IllegalArgumentException.class, () -> new EquipmentSurfaceContactPayload(
+                EquipmentSurfaceTarget.backpack(), ResourceLocation.parse("test:backpack"), Vec3.ZERO, List.of(), patches, true));
+    }
+
+    @Test void compactItemSyncKeepsSurfaceSizeAndStainValues() {
+        var cells = new java.util.ArrayList<EquipmentSurfaceData.Cell>();
+        for (int i = 0; i < 256; i++) cells.add(new EquipmentSurfaceData.Cell(1, i, 200, 0, 0));
+        var expected = new EquipmentSurfaceData(cells, 1024);
+        var b = buffer();
+        try {
+            EquipmentSurfaceData.STREAM_CODEC.encode(b, expected);
+            assertTrue(b.readableBytes() < 1500);
+            assertEquals(expected, EquipmentSurfaceData.STREAM_CODEC.decode(b));
+            assertEquals(0, b.readableBytes());
+        } finally { b.release(); }
+    }
+
     private RegistryFriendlyByteBuf buffer() {
         return new RegistryFriendlyByteBuf(Unpooled.buffer(),RegistryAccess.EMPTY,ConnectionType.OTHER);
     }

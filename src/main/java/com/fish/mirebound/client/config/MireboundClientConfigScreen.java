@@ -29,6 +29,7 @@ public final class MireboundClientConfigScreen extends Screen {
     private Section section = Section.WORLD;
     private int scroll;
     private MireflowGuiTheme.Panel panel;
+    private ClientConfigLayout layout;
 
     public MireboundClientConfigScreen(Screen parent) {
         super(Component.translatable("gui.mirebound.client.title"));
@@ -39,17 +40,8 @@ public final class MireboundClientConfigScreen extends Screen {
 
     @Override
     protected void init() {
-        // Rebuild against the live GUI size so the settings remain usable in
-        // both a small window and a wide fullscreen viewport.
-        panel = MireflowGuiTheme.centeredPanel(
-                width, height,
-                Mth.clamp(width - 40, 420, 1100),
-                Mth.clamp(height - 40, 260, 760));
-        rebuildWidgets();
-    }
-
-    @Override
-    protected void rebuildWidgets() {
+        layout = ClientConfigLayout.fit(width, height);
+        panel = layout.panel();
         clearWidgets();
         addSectionButtons();
         addOptionButtons();
@@ -135,6 +127,8 @@ public final class MireboundClientConfigScreen extends Screen {
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY,
             double scrollX, double scrollY) {
+        mouseX = layout.pointer(mouseX);
+        mouseY = layout.pointer(mouseY);
         if (mouseX < sidebarRight() || mouseY < contentTop()
                 || mouseX >= panel.right() || mouseY >= footerTop()
                 || Math.abs(scrollY) < 1.0E-6D) {
@@ -151,6 +145,27 @@ public final class MireboundClientConfigScreen extends Screen {
     }
 
     @Override
+    public void mouseMoved(double x, double y) {
+        super.mouseMoved(layout.pointer(x), layout.pointer(y));
+    }
+
+    @Override
+    public boolean mouseClicked(double x, double y, int button) {
+        return super.mouseClicked(layout.pointer(x), layout.pointer(y), button);
+    }
+
+    @Override
+    public boolean mouseReleased(double x, double y, int button) {
+        return super.mouseReleased(layout.pointer(x), layout.pointer(y), button);
+    }
+
+    @Override
+    public boolean mouseDragged(double x, double y, int button, double dx, double dy) {
+        return super.mouseDragged(layout.pointer(x), layout.pointer(y), button,
+                layout.pointer(dx), layout.pointer(dy));
+    }
+
+    @Override
     public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY,
             float partialTick) {
         // The opaque pixel surface avoids the vanilla blur and remains cheap in-game.
@@ -159,10 +174,18 @@ public final class MireboundClientConfigScreen extends Screen {
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY,
             float partialTick) {
-        renderSurface(graphics);
-        renderRows(graphics);
-        renderHeader(graphics);
-        super.render(graphics, mouseX, mouseY, partialTick);
+        graphics.pose().pushPose();
+        try {
+            float scale = (float) layout.scale();
+            graphics.pose().scale(scale, scale, 1.0F);
+            renderSurface(graphics);
+            renderRows(graphics);
+            renderHeader(graphics);
+            super.render(graphics, (int) layout.pointer(mouseX), (int) layout.pointer(mouseY), partialTick);
+        } finally {
+            graphics.flush();
+            graphics.pose().popPose();
+        }
     }
 
     private void renderSurface(GuiGraphics graphics) {

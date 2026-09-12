@@ -3,12 +3,78 @@ package com.fish.mirebound.client.coverage;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /** Splits a physical cell at actual material texel boundaries, including mirrored/rotated UVs. */
 public final class SurfaceTexelClip {
     private SurfaceTexelClip() {}
     @FunctionalInterface public interface PatchConsumer {
         void accept(double s0, double t0, double s1, double t1, int abgr);
+    }
+
+    /** Pollution uses material alpha; adjacent equal-alpha texels share one coverage quad. */
+    public static int visitCoverage(EquipmentSurfaceGeometry.Face face, int x, int y,
+            SurfaceMaterial material, int budget, PatchConsumer consumer) {
+        CoverageRuns runs = new CoverageRuns(consumer);
+        int visited = visit(face, x, y, material, budget, runs::accept);
+        runs.finish();
+        return visited;
+    }
+
+    private static final class CoverageRuns {
+        private record Key(double left, double right, int alpha) {}
+        private record Run(double left, double top, double right, double bottom, int color) {}
+        private final PatchConsumer consumer;
+        private Map<Key, Run> previous = new LinkedHashMap<>();
+        private Map<Key, Run> current = new LinkedHashMap<>();
+        private Run horizontal;
+        private double row = Double.NaN;
+
+        private CoverageRuns(PatchConsumer consumer) { this.consumer = consumer; }
+
+        private void accept(double left, double top, double right, double bottom, int color) {
+            if (row != top) {
+                endRow();
+                row = top;
+            }
+            if (horizontal != null && horizontal.right == left && horizontal.bottom == bottom
+                    && horizontal.color >>> 24 == color >>> 24) {
+                horizontal = new Run(horizontal.left, top, right, bottom, horizontal.color);
+            } else {
+                endHorizontal();
+                horizontal = new Run(left, top, right, bottom, color);
+            }
+        }
+
+        private void endHorizontal() {
+            if (horizontal == null) return;
+            Run run = horizontal;
+            Key key = new Key(run.left, run.right, run.color >>> 24);
+            Run above = previous.remove(key);
+            if (above != null) {
+                if (above.bottom == run.top) run = new Run(run.left, above.top, run.right, run.bottom, run.color);
+                else emit(above);
+            }
+            current.put(key, run);
+            horizontal = null;
+        }
+
+        private void endRow() {
+            endHorizontal();
+            previous.values().forEach(this::emit);
+            previous = current;
+            current = new LinkedHashMap<>();
+        }
+
+        private void emit(Run run) {
+            consumer.accept(run.left, run.top, run.right, run.bottom, run.color);
+        }
+
+        private void finish() {
+            endRow();
+            previous.values().forEach(this::emit);
+        }
     }
 
     public static int visit(EquipmentSurfaceGeometry.Face face, int x, int y,

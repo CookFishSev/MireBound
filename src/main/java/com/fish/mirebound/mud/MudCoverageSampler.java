@@ -10,6 +10,7 @@ import com.fish.mirebound.compat.sable.SableCompat.SinkingSample;
 import com.fish.mirebound.adaptive.MudVisualSource;
 import com.fish.mirebound.coverage.armor.ArmorTextureMudManager;
 import com.fish.mirebound.coverage.MudCoverageService;
+import com.fish.mirebound.coverage.MudFeetContact;
 import com.fish.mirebound.coverage.MudVisionSamplingLayout;
 import com.fish.mirebound.registry.ModBlocks;
 import java.util.Arrays;
@@ -332,6 +333,9 @@ final class MudCoverageSampler {
             MudBodyPart part, int activeArmorMask, int innerCleanlinessMask) {
         MudEntityGeometry.SurfacePixelSampler geometry =
                 MudEntityGeometry.surfacePixelSampler(player, part);
+        double feetY = threadState.sableVolumeCoverageProbe == null ? playerFeetPosition(player).y
+                : threadState.sableVolumeCoverageProbe.supportedFeetY(player);
+        boolean leg = part == MudBodyPart.LEFT_LEG || part == MudBodyPart.RIGHT_LEG;
         for (MudSurface surface : MUD_SURFACES) {
             MudSurfaceLayout.Face face = MudSurfaceLayout.face(part, surface);
             Vec3 normal = geometry.outwardNormal(surface);
@@ -346,19 +350,15 @@ final class MudCoverageSampler {
                     boolean fracture = com.fish.mirebound.assimilation.AssimilationSystem
                             .keepsCrackClear(player, cell);
                     Vec3 point = geometry.point(part, surface, row, column);
-                    if (soleEntryRequired
+                    Vec3 entryPoint = soleEntryRequired
+                            ? soleEntryProbePoint(feetY, part, surface, row, column,
+                                    point, normal, geometry)
+                            : leg ? MudFeetContact.entryPoint(feetY, point) : point;
+                    if (entryPoint != point
                             && sampleSurfacePixel(
                                     player,
                                     level,
-                                    soleEntryProbePoint(
-                                            player,
-                                            part,
-                                            surface,
-                                            row,
-                                            column,
-                                            point,
-                                            normal,
-                                            geometry),
+                                    entryPoint,
                                     worldColumns,
                                     threadState).strength() <= 0.0F) {
                         continue;
@@ -467,7 +467,7 @@ final class MudCoverageSampler {
         }
     }
 
-    private static Vec3 soleEntryProbePoint(Player player, MudBodyPart part,
+    private static Vec3 soleEntryProbePoint(double feetY, MudBodyPart part,
             MudSurface surface, int row, int column, Vec3 surfacePoint,
             Vec3 outwardNormal, MudEntityGeometry.SurfacePixelSampler geometry) {
         Vec3 solePoint = surfacePoint;
@@ -485,7 +485,7 @@ final class MudCoverageSampler {
             soleNormal = geometry.outwardNormal(adjacent.surface());
         }
         return MudContactRules.soleEntryProbePoint(
-                playerFeetPosition(player).y,
+                feetY,
                 solePoint,
                 soleNormal);
     }

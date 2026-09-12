@@ -51,7 +51,7 @@
   "gui.mirebound.skin.show_part": "Mostrar %s",
   "gui.mirebound.skin.hide_part": "Ocultar %s",
   "gui.mirebound.client.option.independent_surface_coverage": "Suciedad por superficie (experimental)",
-  "gui.mirebound.client.option.independent_surface_coverage.desc": "Desactivado: sistema de texturas original y estable. Activado: suciedad por superficie del modelo, sin propagación por UV compartidas y con soporte para Sophisticated Backpacks. Solo local; cada sistema conserva sus manchas del equipo al cambiar.",
+  "gui.mirebound.client.option.independent_surface_coverage.desc": "Desactivado: sistema de texturas original y estable. Activado: suciedad por superficie del modelo, sin propagación por UV compartidas.",
     "block.mirebound.mud":  "Barro",
     "block.mirebound.red_quicksand":  "Arenas movedizas rojas",
     "block.mirebound.ash_quicksand":  "Arenas movedizas de ceniza",

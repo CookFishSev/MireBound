@@ -1,13 +1,53 @@
 package com.fish.mirebound.client;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.fish.mirebound.coverage.MudFeetContact;
+import com.fish.mirebound.mud.MudBodyPart;
+import com.fish.mirebound.mud.MudEntityGeometry;
+import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;
 
 class MudSideSurfaceEffectManagerTest {
+    @Test
+    void supportedFootSliceDoesNotOpenASableFloorImprint() {
+        Vec3 origin = new Vec3(10, -58.002, -4);
+        Vec3 axisU = new Vec3(0, 0, 1);
+        Vec3 axisV = new Vec3(1, 0, 0);
+        var polygon = new MudEntityGeometry.SlicePolygon(MudBodyPart.LEFT_LEG,
+                List.of(origin, origin.add(axisU), origin.add(axisU).add(axisV), origin.add(axisV)), .04);
+        var slice = new MudEntityGeometry.OrientedPlaneSlice(origin, new Vec3(0, 1, 0),
+                axisU, axisV, List.of(polygon));
+        assertTrue(MudSideSurfaceEffectManager.reachesEntryPlane(slice, MudFeetContact.entryHeight(-58.079)));
+        double entryY = MudFeetContact.entryHeight(-58.001);
+        assertFalse(MudSideSurfaceEffectManager.reachesEntryPlane(slice, entryY));
+        assertFalse(MudSideSurfaceEffectManager.cellReachesEntryPlane(origin, axisU, axisV, .5, .5, entryY));
+    }
+
+    @Test
+    void actualImmersionStillDeformsTheFloor() {
+        assertTrue(MudSideSurfaceEffectManager.cellReachesEntryPlane(new Vec3(10, -58.002, -4),
+                new Vec3(0, 0, 1), new Vec3(1, 0, 0), .5, .5, MudFeetContact.entryHeight(-58.08)));
+    }
+
+    @Test
+    void slopedAndSideFacesOnlyStampTheirPortionAboveTheSupportedFeet() {
+        Vec3 origin = new Vec3(0, 1, 0);
+        Vec3 axisU = new Vec3(1, 0, 0);
+        Vec3 slopeV = new Vec3(0, .6, .8);
+        double entryY = MudFeetContact.entryHeight(1);
+        assertFalse(MudSideSurfaceEffectManager.cellReachesEntryPlane(origin, axisU, slopeV, .5, 0, entryY));
+        assertTrue(MudSideSurfaceEffectManager.cellReachesEntryPlane(origin, axisU, slopeV, .5, .5, entryY));
+        assertTrue(MudSideSurfaceEffectManager.cellReachesEntryPlane(origin, axisU, new Vec3(0, 1, 0), .5, .5, entryY));
+        assertTrue(MudSideSurfaceEffectManager.cellReachesEntryPlane(new Vec3(0, 2, 0), axisU,
+                new Vec3(0, 0, -1), .5, .5, entryY));
+    }
+
     @Test
     void eruptionNeighborOffsetsStayInTheSelectedFacePlane() {
         BlockPos origin = new BlockPos(10, 20, 30);

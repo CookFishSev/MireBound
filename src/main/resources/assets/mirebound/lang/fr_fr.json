@@ -51,7 +51,7 @@
   "gui.mirebound.skin.show_part": "Afficher %s",
   "gui.mirebound.skin.hide_part": "Masquer %s",
   "gui.mirebound.client.option.independent_surface_coverage": "Salissures par surface (expérimental)",
-  "gui.mirebound.client.option.independent_surface_coverage.desc": "Désactivé : système de textures stable d'origine. Activé : salissures par surface du modèle, sans transfert dû aux UV partagés, avec prise en charge de Sophisticated Backpacks. Réglage local ; chaque système conserve ses traces sur l'équipement lors du changement.",
+  "gui.mirebound.client.option.independent_surface_coverage.desc": "Désactivé : système de textures stable d'origine. Activé : salissures par surface du modèle, sans transfert dû aux UV partagés.",
     "block.mirebound.mud":  "Boue",
     "block.mirebound.red_quicksand":  "Sables mouvants rouges",
     "block.mirebound.ash_quicksand":  "Sables mouvants de cendre",

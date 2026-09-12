@@ -195,7 +195,9 @@ final class MudContactResolver {
                 || sampleDepth > column.availableDepth() + 0.035D) {
             return null;
         }
-        Vec3 localFeet = SableCompat.toLocal(sample.subLevel(), player.position());
+        double supportedFeetY = com.fish.mirebound.compat.sable.SableFeetSupport.feetY(player, sample.subLevel());
+        Vec3 localFeet = SableCompat.toLocal(sample.subLevel(),
+                new Vec3(player.getX(), supportedFeetY, player.getZ()));
         if (localFeet == null) {
             return null;
         }

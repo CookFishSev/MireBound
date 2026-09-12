@@ -53,6 +53,55 @@ public final class MudWallStainSystem {
     private MudWallStainSystem() {
     }
 
+    public record EquipmentSource(long face, int cell, Vec3 point, Vec3 normal,
+            float coverage, SinkingMedium medium, long visualSource) {}
+
+    /** Reuses skin/armor wall placement, support clipping, corner wrapping and pixel lifetime. */
+    public static List<EquipmentSource> transferEquipment(ServerPlayer player, List<EquipmentSource> sources) {
+        if (sources.isEmpty()) return List.of();
+        int count = Math.min(sources.size(), com.fish.mirebound.coverage.armor.EquipmentSurfaceData.MAX_CELLS);
+        AABB bounds = new AABB(player.position(), player.position());
+        for (int i = 0; i < count; i++) {
+            EquipmentSource source = sources.get(i);
+            if (validEquipmentSource(player, source)) bounds = bounds.minmax(new AABB(source.point(), source.point()));
+        }
+        SableCompat.SurfaceProbe probe = SableCompat.surfaceProbe(
+                player.level(), bounds.inflate(WALL_STAIN_NEARBY_WALL_REACH + .08D), player);
+        Map<WallSurfaceKey, WallStainAccumulator> bySurface = new HashMap<>();
+        Map<BlockPos, List<AABB>> shapes = new HashMap<>();
+        for (int i = 0; i < count; i++) {
+            EquipmentSource source = sources.get(i);
+            if (!validEquipmentSource(player, source) || !aboveTransferFloor(source.coverage(),
+                    MudPhysicsSettings.wallStainMinimumSourceCoverage(), true)) continue;
+            WallContact contact = findWallContact(player.level(), source.point(), source.normal().normalize(),
+                    player.position(), probe, shapes);
+            if (contact == null) continue;
+            WallSurfaceKey key = new WallSurfaceKey(contact.subLevel(), contact.containerPos(), contact.face(),
+                    source.medium(), source.visualSource());
+            if (!bySurface.containsKey(key) && bySurface.size() >= 32) continue;
+            float strength = wallTransferStrength(source.coverage(),
+                    MudMediumRuntime.coverageOpacity(player.level(), source.medium()),
+                    MudPhysicsSettings.wallStainImprintOpacityScale());
+            if (strength <= 0) continue;
+            bySurface.computeIfAbsent(key, ignored -> new WallStainAccumulator(contact, player.level().getGameTime()))
+                    .add(contact, strength, source.medium(), new WallTransferSource(i, null, -1), source.visualSource());
+        }
+        List<EquipmentSource> transferred = new ArrayList<>();
+        for (WallStainAccumulator accumulator : bySurface.values()) {
+            WallStainCandidate candidate = accumulator.finish();
+            if (candidate == null) continue;
+            WallTransferResult result = placeWallStain(player, candidate);
+            if (result.placed()) for (WallTransferSource source : result.sources()) transferred.add(sources.get(source.cell()));
+        }
+        return transferred;
+    }
+
+    private static boolean validEquipmentSource(ServerPlayer player, EquipmentSource source) {
+        return source != null && source.medium() != null && source.point() != null && source.normal() != null
+                && Double.isFinite(source.point().lengthSqr()) && Double.isFinite(source.normal().lengthSqr())
+                && source.point().distanceToSqr(player.position()) <= 25 && source.normal().lengthSqr() > 1e-10;
+    }
+
     public static void onBlockBreak(BlockEvent.BreakEvent event) {
         if (event.isCanceled()
                 || !(event.getLevel() instanceof ServerLevel level)) {
@@ -496,6 +545,11 @@ public final class MudWallStainSystem {
 
     private static WallContact findWallContact(Level level, Vec3 point, Vec3 outwardNormal, Vec3 playerCenter,
             SableCompat.SurfaceProbe sableProbe) {
+        return findWallContact(level, point, outwardNormal, playerCenter, sableProbe, null);
+    }
+
+    private static WallContact findWallContact(Level level, Vec3 point, Vec3 outwardNormal, Vec3 playerCenter,
+            SableCompat.SurfaceProbe sableProbe, Map<BlockPos, List<AABB>> shapeCache) {
         double reach = WALL_STAIN_NEARBY_WALL_REACH;
         int minX = Mth.floor(point.x - reach);
         int maxX = Mth.floor(point.x + reach);
@@ -509,12 +563,9 @@ public final class MudWallStainSystem {
             for (int x = minX; x <= maxX; x++) {
                 for (int z = minZ; z <= maxZ; z++) {
                     BlockPos supportPos = new BlockPos(x, y, z);
-                    BlockState support = level.getBlockState(supportPos);
-                    if (support.isAir() || ModBlocks.isSinkingBlock(support.getBlock())
-                            || support.getBlock() == ModBlocks.MUD_FOOTPRINT.get()) {
-                        continue;
-                    }
-                    for (AABB localBox : support.getCollisionShape(level, supportPos).toAabbs()) {
+                    List<AABB> boxes = shapeCache == null ? wallSupportBoxes(level, supportPos)
+                            : shapeCache.computeIfAbsent(supportPos, pos -> wallSupportBoxes(level, pos));
+                    for (AABB localBox : boxes) {
                         double worldMinY = supportPos.getY() + localBox.minY;
                         double worldMaxY = supportPos.getY() + localBox.maxY;
                         if (point.y < worldMinY - 0.025D || point.y > worldMaxY + 0.025D) {
@@ -565,6 +616,13 @@ public final class MudWallStainSystem {
                     sableContact.worldPoint());
         }
         return best;
+    }
+
+    private static List<AABB> wallSupportBoxes(Level level, BlockPos pos) {
+        BlockState support = level.getBlockState(pos);
+        if (support.isAir() || ModBlocks.isSinkingBlock(support.getBlock())
+                || support.getBlock() == ModBlocks.MUD_FOOTPRINT.get()) return List.of();
+        return support.getCollisionShape(level, pos).toAabbs();
     }
 
     private static WallContact closerWallContact(Level level, Vec3 point, Vec3 outwardNormal, Vec3 playerCenter,

@@ -51,7 +51,7 @@
   "gui.mirebound.skin.show_part": "Show %s",
   "gui.mirebound.skin.hide_part": "Hide %s",
   "gui.mirebound.client.option.independent_surface_coverage": "Independent Surface Coverage (Experimental)",
-  "gui.mirebound.client.option.independent_surface_coverage.desc": "Off: use the original stable texture system. On: record pollution per model surface to prevent shared-UV bleed and support Sophisticated Backpacks. Local only; each system retains its own equipment stains when switching.",
+  "gui.mirebound.client.option.independent_surface_coverage.desc": "Off: use the original stable texture system. On: record pollution per model surface to prevent shared-UV bleed.",
   "block.mirebound.mud": "Mud",
   "block.mirebound.red_quicksand": "Red Quicksand",
   "block.mirebound.ash_quicksand": "Ash Quicksand",

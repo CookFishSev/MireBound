@@ -51,7 +51,7 @@
   "gui.mirebound.skin.show_part": "Показать: %s",
   "gui.mirebound.skin.hide_part": "Скрыть: %s",
   "gui.mirebound.client.option.independent_surface_coverage": "Загрязнение отдельных поверхностей (экспериментально)",
-  "gui.mirebound.client.option.independent_surface_coverage.desc": "Выкл.: исходная стабильная система текстур. Вкл.: загрязнение по поверхностям модели без переноса через общие UV, с поддержкой Sophisticated Backpacks. Только на этом клиенте; следы на снаряжении каждой системы сохраняются при переключении.",
+  "gui.mirebound.client.option.independent_surface_coverage.desc": "Выкл.: исходная стабильная система текстур. Вкл.: загрязнение по поверхностям модели без переноса через общие UV.",
     "block.mirebound.mud":  "Грязь",
     "block.mirebound.red_quicksand":  "Красучий песок",
     "block.mirebound.ash_quicksand":  "Пепельный зыбучий песок",

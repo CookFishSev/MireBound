@@ -51,7 +51,7 @@
   "gui.mirebound.skin.show_part": "%sを表示",
   "gui.mirebound.skin.hide_part": "%sを非表示",
   "gui.mirebound.client.option.independent_surface_coverage": "独立した表面の汚染（実験的）",
-  "gui.mirebound.client.option.independent_surface_coverage.desc": "オフ：従来の安定したテクスチャ方式。オン：モデルの面ごとに汚染を記録し、共有 UV による汚染の広がりを防ぎ、Sophisticated Backpacks に対応します。このクライアントのみに適用され、切り替えても両方式の装備の汚れは個別に保持されます。",
+  "gui.mirebound.client.option.independent_surface_coverage.desc": "オフ：従来の安定したテクスチャ方式。オン：モデルの面ごとに汚染を記録し、共有 UV による汚染の広がりを防ぎます。",
     "block.mirebound.mud":  "泥",
     "block.mirebound.red_quicksand":  "赤い流砂",
     "block.mirebound.ash_quicksand":  "灰の流砂",

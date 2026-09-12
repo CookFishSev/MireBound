@@ -5,6 +5,8 @@ import com.fish.mirebound.mud.ArmorMudManager;
 import com.fish.mirebound.mud.ArmorTextureMudData;
 import com.fish.mirebound.mud.MudEnchantmentEffects;
 import com.fish.mirebound.mud.SinkingMedium;
+import com.fish.mirebound.coverage.armor.EquipmentSurfaceService;
+import com.fish.mirebound.coverage.armor.EquipmentSurfaceData;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.ChatFormatting;
@@ -34,11 +36,13 @@ final class ArmorMudItemMarker implements IItemDecorator {
         appendEnchantmentEffects(event);
         ArmorMudData data = ArmorMudManager.data(event.getItemStack());
         ArmorTextureMudData textureData = ArmorMudManager.textureData(event.getItemStack());
-        if (data.isEmpty() && textureData.isEmpty()) {
+        EquipmentSurfaceData surfaceData = EquipmentSurfaceService.data(event.getItemStack());
+        if (data.isEmpty() && textureData.isEmpty() && surfaceData.isEmpty()) {
             return;
         }
         float coverage = Math.max(ArmorMudManager.coverageFraction(event.getItemStack()),
                 textureCoverageFraction(event.getItemStack(), textureData));
+        coverage = Math.max(coverage, surfaceData.coverageFraction());
         int percent = Mth.clamp(Math.round(coverage * 100.0F), 1, 100);
         event.getToolTip().add(Component.translatable("tooltip.mirebound.armor_mud", percent));
     }
@@ -106,10 +110,12 @@ final class ArmorMudItemMarker implements IItemDecorator {
     public boolean render(GuiGraphics graphics, Font font, ItemStack stack, int x, int y) {
         ArmorMudData data = ArmorMudManager.data(stack);
         ArmorTextureMudData textureData = ArmorMudManager.textureData(stack);
-        if (data.isEmpty() && textureData.isEmpty()) {
+        EquipmentSurfaceData surfaceData = EquipmentSurfaceService.data(stack);
+        if (data.isEmpty() && textureData.isEmpty() && surfaceData.isEmpty()) {
             return false;
         }
-        int color = markerColor(data.isEmpty() ? textureData.dominantMedium() : data.dominantMedium());
+        int color = markerColor(!surfaceData.isEmpty() ? surfaceData.dominantMedium()
+                : data.isEmpty() ? textureData.dominantMedium() : data.dominantMedium());
         graphics.fill(x + 1, y + 1, x + 5, y + 4, color);
         graphics.fill(x + 2, y, x + 4, y + 5, color);
         graphics.fill(x, y + 2, x + 6, y + 3, color);

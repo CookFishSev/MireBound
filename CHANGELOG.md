@@ -1,5 +1,20 @@
 # Development Updates
 
+## 2026-09-12 - MireBound-Beta1.2.1-MC1.21.1-NeoForge
+
+- Improved backpack staining, washing, pollution indicators, and stain transfer to walls.
+- Fixed missed equipment surfaces and reduced coverage rendering overhead.
+- Fixed false foot stains and surface compression at Sable block edges.
+- Fixed F11 settings panel positioning when resizing the window.
+
+- 改善背包沾染、水洗、污染度显示和向墙壁转移污染。
+- 修复装备部分表面漏染，减少污染渲染开销。
+- 修复 Sable 方块交界处脚底误染和挤压误触发。
+- 修复缩放窗口后 F11 设置面板的位置。
+
+Minecraft 1.21.1 / NeoForge. Version: `1.2.1-beta`. Author: CookFishSev.
+Clients and servers must both update to this version. 客户端与服务端均需更新至此版本。
+
 ## 2026-09-12 - MireBound-Beta1.2.0-MC1.21.1-NeoForge
 
 - Added free-end rope connections, including closed loops and rescue ropes.

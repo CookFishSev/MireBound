@@ -1,5 +1,6 @@
 package com.fish.mirebound.mud;
 
+import com.fish.mirebound.coverage.MudFeetContact;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.Mth;
 import net.minecraft.world.level.block.state.BlockState;
@@ -10,7 +11,6 @@ final class MudContactRules {
     static final double REQUIRED_PENETRATION = 0.012D;
     private static final double MIN_HORIZONTAL_OVERLAP = 0.040D;
     private static final double MIN_VOLUME_IMMERSION = 0.060D;
-    private static final double SOLE_ENTRY_INSET = 0.020D;
 
     private MudContactRules() {
     }
@@ -97,17 +97,13 @@ final class MudContactRules {
     }
 
     static Vec3 soleEntryProbePoint(Vec3 surfacePoint, Vec3 outwardNormal) {
-        return surfacePoint.subtract(outwardNormal.scale(SOLE_ENTRY_INSET));
+        return surfacePoint.subtract(outwardNormal.scale(MudFeetContact.ENTRY_INSET));
     }
 
     static Vec3 soleEntryProbePoint(double authoritativeFeetY,
             Vec3 surfacePoint, Vec3 outwardNormal) {
-        Vec3 probe = soleEntryProbePoint(surfacePoint, outwardNormal);
-        double minimumY = authoritativeFeetY + SOLE_ENTRY_INSET;
-        if (outwardNormal.y < -0.50D && probe.y < minimumY) {
-            return new Vec3(probe.x, minimumY, probe.z);
-        }
-        return probe;
+        return MudFeetContact.entryPoint(authoritativeFeetY,
+                soleEntryProbePoint(surfacePoint, outwardNormal));
     }
 
     private static double smoothStep(double value) {

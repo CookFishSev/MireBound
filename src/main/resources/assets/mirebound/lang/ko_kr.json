@@ -51,7 +51,7 @@
   "gui.mirebound.skin.show_part": "%s 표시",
   "gui.mirebound.skin.hide_part": "%s 숨기기",
   "gui.mirebound.client.option.independent_surface_coverage": "독립 표면 오염 (실험적)",
-  "gui.mirebound.client.option.independent_surface_coverage.desc": "끔: 기존의 안정적인 텍스처 방식. 켬: 모델 표면별로 오염을 기록하여 공유 UV로 인한 번짐을 방지하고 Sophisticated Backpacks를 지원합니다. 이 클라이언트에만 적용되며, 전환해도 각 방식의 장비 오염 데이터가 유지됩니다.",
+  "gui.mirebound.client.option.independent_surface_coverage.desc": "끔: 기존의 안정적인 텍스처 방식. 켬: 모델 표면별로 오염을 기록하여 공유 UV로 인한 번짐을 방지합니다.",
     "block.mirebound.mud":  "진흙",
     "block.mirebound.red_quicksand":  "붉은 유사",
     "block.mirebound.ash_quicksand":  "재 유사",

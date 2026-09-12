@@ -51,7 +51,7 @@
   "gui.mirebound.skin.show_part": "Mostrar %s",
   "gui.mirebound.skin.hide_part": "Ocultar %s",
   "gui.mirebound.client.option.independent_surface_coverage": "Sujeira por superfície (experimental)",
-  "gui.mirebound.client.option.independent_surface_coverage.desc": "Desativado: sistema de texturas original e estável. Ativado: sujeira por superfície do modelo, sem propagação por UVs compartilhadas e com suporte a Sophisticated Backpacks. Apenas local; cada sistema mantém suas manchas nos equipamentos ao alternar.",
+  "gui.mirebound.client.option.independent_surface_coverage.desc": "Desativado: sistema de texturas original e estável. Ativado: sujeira por superfície do modelo, sem propagação por UVs compartilhadas.",
     "block.mirebound.mud":  "Lama",
     "block.mirebound.red_quicksand":  "Areia movediça vermelha",
     "block.mirebound.ash_quicksand":  "Areia movediça de cinzas",

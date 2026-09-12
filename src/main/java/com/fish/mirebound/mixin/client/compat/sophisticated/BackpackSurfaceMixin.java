@@ -18,7 +18,7 @@ abstract class BackpackSurfaceMixin {
     @Inject(method = "renderBackpack", at = @At("HEAD"), require = 0)
     private static void mirebound$begin(EntityModel<?> model, LivingEntity entity, PoseStack pose,
             MultiBufferSource buffers, int light, ItemStack stack, boolean offset, CallbackInfo callback) {
-        BackpackSurfaceContext.begin(entity, stack, buffers);
+        BackpackSurfaceContext.begin(entity, stack, buffers, light);
     }
     @Inject(method = "renderBackpack", at = @At("RETURN"), require = 0)
     private static void mirebound$end(EntityModel<?> model, LivingEntity entity, PoseStack pose,

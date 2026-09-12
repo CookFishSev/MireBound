@@ -80,7 +80,7 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
 import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 
 public final class ModNetworking {
-    private static final String PROTOCOL_VERSION = "175";
+    private static final String PROTOCOL_VERSION = "177";
 
     private ModNetworking() {
     }
@@ -102,7 +102,9 @@ public final class ModNetworking {
                 com.fish.mirebound.network.payload.EquipmentSurfaceContactPayload.STREAM_CODEC,
                 (payload, context) -> context.enqueueWork(() -> {
                     if (context.player() instanceof ServerPlayer player
-                            && ServerInputBudget.allow(player, ServerInputBudget.Channel.EQUIPMENT_SURFACE_CONTACT))
+                            && ServerInputBudget.allow(player, payload.patches().isEmpty()
+                                    ? ServerInputBudget.Channel.EQUIPMENT_SURFACE_CONTACT
+                                    : ServerInputBudget.Channel.EQUIPMENT_SURFACE_GRID))
                         com.fish.mirebound.coverage.armor.EquipmentSurfaceService.handle(player, payload);
                 }));
         registrar.playToServer(MudStrugglePayload.TYPE, MudStrugglePayload.STREAM_CODEC, ModNetworking::handleStruggle);

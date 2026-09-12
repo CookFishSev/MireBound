@@ -11,7 +11,7 @@ This mod continues the design concept of the 1.7.10 mod `More Fun Quicksand
 Mod`, rebuilding its gameplay balance and physics systems while introducing a
 small number of new items.
 
-Current development release: `MireBound-Beta1.2.0-MC1.21.1-NeoForge`.
+Current development release: `MireBound-Beta1.2.1-MC1.21.1-NeoForge`.
 
 ---
 
@@ -73,7 +73,7 @@ The built mod JAR is written to `build/libs/`.
 Feedback and support from players and developers are welcome!
 
 - **Report a bug**: please visit [GitHub Issues](https://github.com/CookFishSev/MireBound/issues). When submitting an issue, please include:
-  - The mod and game version, such as Mirebound `MireBound-Beta1.2.0-MC1.21.1-NeoForge`;
+  - The mod and game version, such as Mirebound `MireBound-Beta1.2.1-MC1.21.1-NeoForge`;
   - The complete error log (`latest.log` or a crash report);
   - Clear steps to reproduce the problem.
 - **Other feedback**: suggestions and questions are also welcome in [Issues](https://github.com/CookFishSev/MireBound/issues).
