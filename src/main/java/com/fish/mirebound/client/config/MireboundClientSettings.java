@@ -21,6 +21,7 @@ public final class MireboundClientSettings {
     public static final double DEFAULT_TUNING_CONTROLS_OPACITY = 0.82D;
     private static final ModConfigSpec.IntValue CROSS_SECTION_SIDES;
     private static final ModConfigSpec.DoubleValue RENDER_DISTANCE;
+    private static final ModConfigSpec.DoubleValue ROPE_ENDPOINT_HIGHLIGHT_DISTANCE;
     private static final ModConfigSpec.DoubleValue LOD_DISTANCE;
     private static final ModConfigSpec.IntValue LOD_STRIDE;
     private static final ModConfigSpec.IntValue INTERPOLATION_TICKS;
@@ -119,6 +120,11 @@ public final class MireboundClientSettings {
 
     static {
         ModConfigSpec.Builder builder = new ModConfigSpec.Builder();
+        builder.push("rope");
+        ROPE_ENDPOINT_HIGHLIGHT_DISTANCE = builder
+                .comment("Maximum player eye distance to a rope end for its yellow outline, in blocks.")
+                .defineInRange("endpoint_highlight_distance", 6.5D, 1.0D, 64.0D);
+        builder.pop();
         builder.push("procedural_tentacles");
         CROSS_SECTION_SIDES = builder
                 .comment("Tube cross-section sides. Eight gives a clearly volumetric silhouette.")
@@ -874,6 +880,10 @@ public final class MireboundClientSettings {
 
     public static double mudSurfaceRenderDistance() {
         return MUD_SURFACE_RENDER_DISTANCE.get();
+    }
+
+    public static double ropeEndpointHighlightDistance() {
+        return ROPE_ENDPOINT_HIGHLIGHT_DISTANCE.get();
     }
 
     public static int mudSurfaceMaxHoles() {

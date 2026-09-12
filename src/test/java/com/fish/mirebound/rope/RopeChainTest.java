@@ -219,6 +219,8 @@ class RopeChainTest {
 
         simulation.dampFreeVelocities(3);
 
+        assertEquals(1.0D, simulation.velocity(0).x, 1.0E-12D);
+        assertEquals(1.0D, simulation.velocity(6).x, 1.0E-12D);
         assertTrue(simulation.velocity(2).x < simulation.velocity(1).x);
         assertEquals(simulation.velocity(1).x,
                 simulation.velocity(4).x, 1.0E-12D);
@@ -965,7 +967,7 @@ class RopeChainTest {
     }
 
     @Test
-    void releasingAGrabClearsItsStoredVelocity() {
+    void releasingAStationaryGrabFallsUnderGravity() {
         RopeProperties properties = RopeProperties.DEFAULT.withSegmentCount(8);
         Vec3[] positions = new Vec3[properties.nodeCount()];
         Vec3[] velocities = new Vec3[positions.length];
@@ -976,8 +978,7 @@ class RopeChainTest {
         RopeChain rope = new RopeChain(properties, positions, velocities);
 
         assertTrue(rope.setDragTarget(0, new Vec3(0.5D, 12.0D, 0.0D)));
-        rope.step(null);
-        rope.step(null);
+        for (int tick = 0; tick < 120; tick++) rope.step(null);
         rope.clearDrag();
         Vec3 released = rope.segmentCenter(0);
         for (int tick = 0; tick < 8; tick++) {
@@ -1024,86 +1025,6 @@ class RopeChainTest {
         assertTrue(rope.canConnectAt(0));
         assertTrue(rope.canConnectAt(2));
         assertTrue(!rope.canConnectAt(1));
-    }
-
-    @Test
-    void joiningEndpointsPreservesDraggedRopeAndSharesTheEndpoint() {
-        RopeProperties properties = RopeProperties.DEFAULT.withSegmentCount(2);
-        Vec3[] velocities = {Vec3.ZERO, Vec3.ZERO, Vec3.ZERO};
-        RopeChain dragged = new RopeChain(properties, new Vec3[] {
-                new Vec3(0.0D, 2.0D, 0.0D),
-                new Vec3(1.0D, 2.0D, 0.0D),
-                new Vec3(2.0D, 2.0D, 0.0D)
-        }, velocities);
-        RopeChain target = new RopeChain(properties, new Vec3[] {
-                new Vec3(10.0D, 2.0D, 0.0D),
-                new Vec3(11.0D, 2.0D, 0.0D),
-                new Vec3(12.0D, 2.0D, 0.0D)
-        }, velocities);
-
-        RopeChain joined = dragged.join(target, 1, 0);
-
-        assertTrue(joined != null);
-        assertEquals(4, joined.segmentCount());
-        assertEquals(new Vec3(0.0D, 2.0D, 0.0D), joined.positions().get(0));
-        assertEquals(new Vec3(1.0D, 2.0D, 0.0D), joined.positions().get(1));
-        assertEquals(new Vec3(2.0D, 2.0D, 0.0D), joined.positions().get(2));
-        assertEquals(new Vec3(3.0D, 2.0D, 0.0D), joined.positions().get(3));
-        assertEquals(new Vec3(4.0D, 2.0D, 0.0D), joined.positions().get(4));
-        assertEquals(0.0D, joined.maximumSegmentError(), 1.0E-9D);
-    }
-
-    @Test
-    void joiningReversedEndpointsKeepsAllSegmentsRigid() {
-        RopeProperties properties = RopeProperties.DEFAULT.withSegmentCount(2);
-        Vec3[] velocities = {Vec3.ZERO, Vec3.ZERO, Vec3.ZERO};
-        RopeChain first = new RopeChain(properties, new Vec3[] {
-                new Vec3(0.0D, 2.0D, 0.0D),
-                new Vec3(1.0D, 2.0D, 0.0D),
-                new Vec3(2.0D, 2.0D, 0.0D)
-        }, velocities);
-        RopeChain second = new RopeChain(properties, new Vec3[] {
-                new Vec3(10.0D, 2.0D, 0.0D),
-                new Vec3(11.0D, 2.0D, 0.0D),
-                new Vec3(12.0D, 2.0D, 0.0D)
-        }, velocities);
-
-        RopeChain joined = first.join(second, 0, 1);
-
-        assertTrue(joined != null);
-        assertEquals(new Vec3(2.0D, 2.0D, 0.0D), joined.positions().get(0));
-        assertEquals(new Vec3(1.0D, 2.0D, 0.0D), joined.positions().get(1));
-        assertEquals(new Vec3(0.0D, 2.0D, 0.0D), joined.positions().get(2));
-        assertEquals(new Vec3(-1.0D, 2.0D, 0.0D), joined.positions().get(3));
-        assertEquals(new Vec3(-2.0D, 2.0D, 0.0D), joined.positions().get(4));
-        assertEquals(0.0D, joined.maximumSegmentError(), 1.0E-9D);
-    }
-
-    @Test
-    void everyHeadAndTailPairCanConnectWithoutStretching() {
-        RopeProperties properties = RopeProperties.DEFAULT.withSegmentCount(2);
-        int[] endpoints = {0, 1};
-        for (int firstEndpoint : endpoints) {
-            for (int secondEndpoint : endpoints) {
-                RopeChain first = new RopeChain(properties, new Vec3[] {
-                        new Vec3(0.0D, 2.0D, 0.0D),
-                        new Vec3(1.0D, 2.0D, 0.0D),
-                        new Vec3(2.0D, 2.0D, 0.0D)
-                }, new Vec3[] {Vec3.ZERO, Vec3.ZERO, Vec3.ZERO});
-                RopeChain second = new RopeChain(properties, new Vec3[] {
-                        new Vec3(10.0D, 2.0D, 0.0D),
-                        new Vec3(11.0D, 2.0D, 0.0D),
-                        new Vec3(12.0D, 2.0D, 0.0D)
-                }, new Vec3[] {Vec3.ZERO, Vec3.ZERO, Vec3.ZERO});
-
-                RopeChain joined = first.join(
-                        second, firstEndpoint, secondEndpoint);
-
-                assertTrue(joined != null);
-                assertEquals(4, joined.segmentCount());
-                assertEquals(0.0D, joined.maximumSegmentError(), 1.0E-9D);
-            }
-        }
     }
 
     @Test

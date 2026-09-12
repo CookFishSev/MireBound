@@ -18,6 +18,8 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.HashSet;
 import java.util.UUID;
 import java.util.WeakHashMap;
 import java.util.function.BiPredicate;
@@ -95,6 +97,9 @@ public final class RopeRuntime {
         if (ropes.chains.isEmpty()) {
             saved.replace(ropes.nextId, List.of());
         } else {
+            for (RopeConnections.State link : saved.connections()) {
+                ropes.connections.restore(link, ropes::chain);
+            }
             LEVELS.put(level, ropes);
         }
     }
@@ -403,8 +408,11 @@ public final class RopeRuntime {
             return;
         }
         Vec3 target = origin.add(look.scale(RopeProperties.GRAB_DISTANCE));
-        Vec3 constrainedTarget = rope.chain.clampDragTarget(
-                pending.segmentIndex(), target, pending.frame());
+        LevelRopes ropes = LEVELS.get(player.serverLevel());
+        Vec3 constrainedTarget = ropes == null ? rope.chain.clampDragTarget(
+                pending.segmentIndex(), target, pending.frame())
+                : ropes.connections.clampDragTarget(rope.id, pending.segmentIndex(),
+                        target, pending.frame(), ropes::chain);
         if (rope.chain.setDragTarget(
                 pending.segmentIndex(), constrainedTarget, pending.frame())) {
             if (rope.rescueState == RescueStateMachine.State.ANCHORED
@@ -510,6 +518,8 @@ public final class RopeRuntime {
                 || (payload.endpointSegment() != 0
                         && payload.endpointSegment() != rope.chain.segmentCount() - 1)
                 || !rope.chain.canExtendAt(payload.endpointSegment())
+                || ropes.connections.other(new RopeEndpoint(rope.id,
+                        payload.endpointSegment() == 0)) != null
                 || !withinReach(player,
                         rope.chain.segmentCenter(payload.endpointSegment()))
                 || !hasLineOfSight(player,
@@ -543,7 +553,7 @@ public final class RopeRuntime {
             return;
         }
         LevelRopes ropes = LEVELS.get(player.serverLevel());
-        if (ropes == null || payload.sourceRopeId() == payload.targetRopeId()) {
+        if (ropes == null) {
             return;
         }
         ActiveRope source = ropes.find(payload.sourceRopeId());
@@ -560,8 +570,11 @@ public final class RopeRuntime {
                 || source.chain.draggedSegment() != payload.sourceSegment()
                 || !source.chain.canConnectAt(payload.sourceSegment())
                 || !target.chain.canConnectAt(payload.targetSegment())
-                || source.chain.rescueLassoFirstSegment() >= 0
-                || target.chain.rescueLassoFirstSegment() >= 0) {
+                || source == target && payload.sourceSegment() == payload.targetSegment()
+                || source != target && (target.dragging || target.pendingDrag != null)
+                || target.isRescueHauling()
+                || source.rescueState == RescueStateMachine.State.FLYING
+                || target.rescueState == RescueStateMachine.State.FLYING) {
             return;
         }
         if (!aimsAtSegment(player, target.chain, payload.targetSegment())) {
@@ -788,6 +801,7 @@ public final class RopeRuntime {
 
     private static final class LevelRopes {
         private final List<ActiveRope> chains = new ArrayList<>();
+        private final RopeConnections connections = new RopeConnections();
         private int nextId;
 
         private LevelRopes() {
@@ -806,16 +820,52 @@ public final class RopeRuntime {
                     saved.add(state);
                 }
             }
-            RopeSavedData.get(level).replace(nextId, saved);
+            RopeSavedData.get(level).replace(nextId, saved, connections.states());
         }
 
         private void tick(ServerLevel level) {
-            Iterator<ActiveRope> iterator = chains.iterator();
-            while (iterator.hasNext()) {
-                if (!iterator.next().tick(level)) {
-                    iterator.remove();
+            Map<Integer, ActiveRope> byId = new HashMap<>();
+            for (ActiveRope rope : chains) {
+                byId.put(rope.id, rope);
+            }
+            Set<Integer> connected = new HashSet<>();
+            for (RopeConnections.State link : connections.states()) {
+                connected.add(link.first().ropeId());
+                connected.add(link.second().ropeId());
+            }
+            Set<Integer> paused = new HashSet<>();
+            for (int id : connected) {
+                ActiveRope rope = byId.get(id);
+                if (rope != null && !paused.contains(id) && !RopeChunkAvailability.loaded(rope.chain.positions(),
+                        rope.chain.properties().collisionCapturePadding(), level.getChunkSource()::hasChunk)) {
+                    paused.addAll(connections.component(id));
                 }
             }
+            Iterator<ActiveRope> iterator = chains.iterator();
+            while (iterator.hasNext()) {
+                ActiveRope rope = iterator.next();
+                rope.connectionPaused = paused.contains(rope.id);
+                rope.connected = connected.contains(rope.id);
+                if (!rope.tick(level)) {
+                    iterator.remove();
+                    connections.remove(Set.of(rope.id));
+                    byId.remove(rope.id);
+                }
+            }
+            java.util.function.IntFunction<RopeChain> available = id ->
+                    paused.contains(id) || !byId.containsKey(id) ? null : byId.get(id).chain;
+            connections.step(available, id -> byId.get(id).collision);
+            // Publish only the completed pose, including endpoint constraints.
+            for (ActiveRope rope : chains) {
+                if (!rope.connectionPaused && (rope.dragging || rope.age % SNAPSHOT_INTERVAL == 0)) {
+                    rope.send(level, false, rope.dragging ? 1 : SNAPSHOT_INTERVAL);
+                }
+            }
+        }
+
+        private RopeChain chain(int id) {
+            ActiveRope rope = find(id);
+            return rope == null ? null : rope.chain;
         }
 
         private ActiveRope find(int id) {
@@ -868,8 +918,18 @@ public final class RopeRuntime {
             if (allConnected) {
                 level.playSound(null, dropPosition.x, dropPosition.y, dropPosition.z,
                         SoundEvents.LEASH_KNOT_BREAK, SoundSource.BLOCKS, 0.9F, 0.9F);
-                active.send(level, true);
-                chains.remove(active);
+                Set<Integer> removed = connections.component(active.id);
+                droppedCount = 0;
+                for (ActiveRope rope : List.copyOf(chains)) {
+                    if (!removed.contains(rope.id)) continue;
+                    rope.stopRescueHaul(level, true);
+                    rope.stopDragAndNotify(rope.dragPlayerId == null ? null
+                            : level.getServer().getPlayerList().getPlayer(rope.dragPlayerId));
+                    droppedCount += rope.chain.segmentCount();
+                    rope.send(level, true);
+                    chains.remove(rope);
+                }
+                connections.remove(removed);
                 dropRopes(level, dropPosition, droppedCount);
                 persist(level);
                 return;
@@ -882,35 +942,39 @@ public final class RopeRuntime {
             level.playSound(null, dropPosition.x, dropPosition.y, dropPosition.z,
                     SoundEvents.LEASH_KNOT_BREAK, SoundSource.BLOCKS, 0.9F, 0.9F);
             chains.remove(active);
+            int firstId = -1;
+            int secondId = -1;
             if (split.first() != null) {
                 ActiveRope first = splitChild(active, split.first());
                 chains.add(first);
-                first.send(level, false);
+                firstId = first.id;
             }
             if (split.second() != null) {
                 ActiveRope second = splitChild(active, split.second());
                 chains.add(second);
-                second.send(level, false);
+                secondId = second.id;
             }
+            connections.split(active.id, firstId, secondId);
+            for (ActiveRope rope : chains) rope.send(level, false);
             dropRopes(level, dropPosition, droppedCount);
             persist(level);
         }
 
         private void connect(ServerLevel level, ActiveRope source, int sourceSegment,
                 ActiveRope target, int targetSegment) {
-            RopeChain joined = source.chain.join(target.chain, sourceSegment, targetSegment);
-            if (joined == null) {
+            RopeEndpoint first = new RopeEndpoint(source.id, sourceSegment == 0);
+            RopeEndpoint second = new RopeEndpoint(target.id, targetSegment == 0);
+            double gap = source.chain.point(first.point(source.chain))
+                    .distanceTo(target.chain.point(second.point(target.chain)));
+            if (!connections.add(new RopeConnections.State(first, second, gap), this::chain)) {
                 return;
             }
             Vec3 joinPoint = target.chain.segmentCenter(targetSegment);
-            source.chain.clearDrag();
-            source.send(level, true);
-            target.send(level, true);
-            chains.remove(source);
-            chains.remove(target);
-            ActiveRope merged = new ActiveRope(nextId++, source.ownerId, joined);
-            chains.add(merged);
-            merged.send(level, false);
+            ServerPlayer player = level.getServer().getPlayerList().getPlayer(source.dragPlayerId);
+            source.stopDragAndNotify(player);
+            source.pendingDrag = null;
+            source.send(level, false);
+            if (source != target) target.send(level, false);
             if (joinPoint != null) {
                 level.playSound(null, joinPoint.x, joinPoint.y, joinPoint.z,
                         SoundEvents.LEASH_KNOT_PLACE, SoundSource.PLAYERS,
@@ -945,6 +1009,8 @@ public final class RopeRuntime {
         private int age;
         private int snapshotSequence;
         private int nextCollisionCapture;
+        private boolean connectionPaused;
+        private boolean connected;
         private boolean dragging;
         private UUID dragPlayerId;
         private final RopeDragInputOrder dragInputs = new RopeDragInputOrder();
@@ -1194,7 +1260,7 @@ public final class RopeRuntime {
 
         private boolean tick(ServerLevel level) {
             RopeProperties properties = chain.properties();
-            if (!RopeChunkAvailability.loaded(chain.positions(),
+            if (connectionPaused || !RopeChunkAvailability.loaded(chain.positions(),
                     properties.collisionCapturePadding(), level.getChunkSource()::hasChunk)) {
                 // Keep the persisted pose and velocity until collision data is available again.
                 // Transient interaction leases cannot survive an unloaded part of the chain.
@@ -1227,6 +1293,17 @@ public final class RopeRuntime {
                 List<List<Vec3>> corridors = new ArrayList<>();
                 corridors.add(chain.positions());
                 corridors.add(chain.motionTargets(refresh));
+                LevelRopes ropes = LEVELS.get(level);
+                if (ropes != null) {
+                    for (boolean start : new boolean[] {true, false}) {
+                        RopeEndpoint endpoint = new RopeEndpoint(id, start);
+                        RopeEndpoint peer = ropes.connections.other(endpoint);
+                        RopeChain other = peer == null ? null : ropes.chain(peer.ropeId());
+                        if (other != null) {
+                            corridors.add(List.of(chain.point(endpoint.point(chain)), other.point(peer.point(other))));
+                        }
+                    }
+                }
                 if (captureDragTarget) {
                     ServerPlayer player = level.getServer().getPlayerList()
                             .getPlayer(pending.playerId());
@@ -1269,14 +1346,7 @@ public final class RopeRuntime {
                     stopDragAndNotify(player);
                 }
             }
-            chain.step(collision);
-            if (dragging) {
-                // A grabbed segment is rendered from the server pose. Send
-                // every tick so the client never has to predict the chain.
-                send(level, false, 1);
-            } else if (age % SNAPSHOT_INTERVAL == 0) {
-                send(level, false, SNAPSHOT_INTERVAL);
-            }
+            if (!connected) chain.step(collision);
             return true;
         }
 
@@ -1570,7 +1640,9 @@ public final class RopeRuntime {
             }
             Vec3 target = pending.viewOrigin().add(
                     pending.viewDirection().normalize().scale(RopeProperties.GRAB_DISTANCE));
-            return chain.clampDragTarget(pending.segmentIndex(), target, pending.frame());
+            LevelRopes ropes = LEVELS.get(player.serverLevel());
+            return ropes == null ? chain.clampDragTarget(pending.segmentIndex(), target, pending.frame())
+                    : ropes.connections.clampDragTarget(id, pending.segmentIndex(), target, pending.frame(), ropes::chain);
         }
 
         private void send(ServerLevel level, boolean removed) {
@@ -1581,12 +1653,17 @@ public final class RopeRuntime {
             List<Vec3> nodes = chain.positions();
             Vec3 origin = average(nodes);
             int sequence = ++snapshotSequence;
+            LevelRopes ropes = LEVELS.get(level);
+            RopeEndpoint startConnection = ropes == null ? null
+                    : ropes.connections.other(new RopeEndpoint(id, true));
+            RopeEndpoint endConnection = ropes == null ? null
+                    : ropes.connections.other(new RopeEndpoint(id, false));
             RopeSnapshotPayload payload = removed
                     ? RopeSnapshotPayload.removed(id, sequence)
             : new RopeSnapshotPayload(id, false, age, sequence, interval,
                             chain.anchoredOrientations(), chain.rescueAnchoredOrientations(),
                             chain.draggedOrientation(),
-                            origin.x, origin.y, origin.z, nodes);
+                            origin.x, origin.y, origin.z, nodes, startConnection, endConnection);
             PacketDistributor.sendToPlayersNear(
                     level, null, origin.x, origin.y, origin.z,
                     TRACKING_DISTANCE, payload);

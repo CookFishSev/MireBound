@@ -158,6 +158,72 @@ public final class RopeSimulation {
         }
     }
 
+    double connectionPointWeight(int point) {
+        return fixedTargets[point] == null ? 1.0D : 0.0D;
+    }
+
+    void moveConnectionPoint(int point, Vec3 correction, RopeCollisionWorld collision) {
+        if (fixedTargets[point] != null || correction.lengthSqr() <= MIN_DISTANCE_SQUARED) {
+            return;
+        }
+        Vec3 current = point(point);
+        Vec3 target = current.add(correction);
+        if (collision != null && !collision.isEmpty()) {
+            target = collision.sweep(current, target, properties.collisionRadius());
+        }
+        setPoint(point, target);
+    }
+
+    /** Same Verlet integration and distance/collision passes, shared by connected chains. */
+    static void stepConnected(List<RopeSimulation> ropes, List<RopeCollisionWorld> collisions,
+            Runnable solveJoints) {
+        if (ropes.isEmpty()) return;
+        int substeps = ropes.getFirst().substeps;
+        int iterations = 16;
+        for (RopeSimulation rope : ropes) {
+            if (rope.substeps != substeps) throw new IllegalArgumentException("Incompatible rope substeps");
+            iterations = Math.max(iterations, rope.constraintIterations);
+        }
+        double timeStep = 1.0D / substeps;
+        for (int substep = 0; substep < substeps; substep++) {
+            for (RopeSimulation rope : ropes) {
+                Arrays.fill(rope.collisionContact, false);
+                rope.pinFixedPoints();
+                rope.integrate(Math.pow(rope.properties.velocityDamping(), timeStep),
+                        rope.properties.gravityPerTick() * timeStep * timeStep);
+            }
+            for (int iteration = 0; iteration < iterations; iteration++) {
+                for (int i = 0; i < ropes.size(); i++) {
+                    RopeSimulation rope = ropes.get(i);
+                    rope.solveDistanceConstraints();
+                    RopeCollisionWorld collision = collisions.get(i);
+                    if (collision != null && !collision.isEmpty()
+                            && ((iteration & 3) == 3 || iteration == iterations - 1)) {
+                        rope.resolvePointCollisions(collision);
+                        rope.resolveSegmentCollisions(collision);
+                    }
+                    rope.pinFixedPoints();
+                }
+                solveJoints.run();
+            }
+            for (int i = 0; i < ropes.size(); i++) {
+                RopeSimulation rope = ropes.get(i);
+                RopeCollisionWorld collision = collisions.get(i);
+                if (collision != null && !collision.isEmpty() && rope.hasCollisionContact()) {
+                    for (int pass = 0; pass < 8; pass++) {
+                        rope.pinFixedPoints();
+                        rope.solveDistanceConstraints();
+                    }
+                    rope.resolvePointCollisions(collision);
+                    rope.resolveSegmentCollisions(collision);
+                }
+                rope.pinFixedPoints();
+            }
+            solveJoints.run();
+            for (RopeSimulation rope : ropes) rope.stabilizeCollisionContacts();
+        }
+    }
+
     /** Repeats a bounded local solve for a rope tail that needs hard links. */
     public void enforceDistanceConstraints(int firstSegment,
             int segmentCount, int iterations) {
@@ -246,13 +312,17 @@ public final class RopeSimulation {
         }
     }
 
-    public void dampFreeVelocities() {
-        dampFreeVelocities(-1);
-    }
-
     /** Damps the two free nodes directly attached to a grabbed segment. */
     public void dampFreeVelocities(int grabbedSegment) {
-        dampFreeVelocities(grabbedSegment - 1, grabbedSegment + 2);
+        for (int side = 0; side < 2; side++) {
+            int point = side == 0 ? grabbedSegment - 1 : grabbedSegment + 2;
+            if (point >= 0 && point < x.length && fixedTargets[point] == null) {
+                double retention = properties.dragVelocityDamping();
+                previousX[point] = x[point] - (x[point] - previousX[point]) * retention;
+                previousY[point] = y[point] - (y[point] - previousY[point]) * retention;
+                previousZ[point] = z[point] - (z[point] - previousZ[point]) * retention;
+            }
+        }
     }
 
     /** Damps the two free nodes directly attached to one rescue-held point. */
@@ -326,21 +396,6 @@ public final class RopeSimulation {
         previousX[point] = x[point] - used.x / substeps;
         previousY[point] = y[point] - used.y / substeps;
         previousZ[point] = z[point] - used.z / substeps;
-    }
-
-    /** Removes only the velocity component moving into the supplied direction. */
-    public void removeVelocityInto(int point, Vec3 direction) {
-        checkPoint(point);
-        if (fixedTargets[point] != null || !finite(direction)
-                || direction.lengthSqr() <= MIN_DISTANCE_SQUARED) {
-            return;
-        }
-        Vec3 axis = direction.normalize();
-        Vec3 velocity = velocity(point);
-        double into = velocity.dot(axis);
-        if (into > 0.0D) {
-            setVelocity(point, velocity.subtract(axis.scale(into)));
-        }
     }
 
     public List<Vec3> positions() {

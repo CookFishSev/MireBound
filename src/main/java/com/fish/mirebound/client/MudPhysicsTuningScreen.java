@@ -60,6 +60,7 @@ public final class MudPhysicsTuningScreen extends Screen {
     private MudTuningSlider naturalDepthSlider;
     private EditBox naturalDepthField;
     private boolean syncingDepthEditors;
+    private boolean syncingEditors;
     private MudTuningScreenLayout layout;
     private MudTuningObjectId selectedObject;
     private ObjectFilter objectFilter = ObjectFilter.NATIVE;
@@ -252,6 +253,7 @@ public final class MudPhysicsTuningScreen extends Screen {
         naturalDepthSlider = null;
         naturalDepthField = null;
         syncingDepthEditors = false;
+        syncingEditors = false;
         if (layout == null) {
             return;
         }
@@ -551,7 +553,7 @@ public final class MudPhysicsTuningScreen extends Screen {
         field.setEditable(editable);
         field.active = editable;
         field.setResponder(text -> {
-            if (syncingDepthEditors) {
+            if (syncingDepthEditors || syncingEditors) {
                 return;
             }
             Double parsed = parseDouble(text);
@@ -808,7 +810,7 @@ public final class MudPhysicsTuningScreen extends Screen {
             field.setEditable(editable);
             field.active = editable;
             field.setResponder(text -> {
-                if (syncingDepthEditors) {
+                if (syncingDepthEditors || syncingEditors) {
                     return;
                 }
                 Double parsed = parseDouble(text);
@@ -866,26 +868,42 @@ public final class MudPhysicsTuningScreen extends Screen {
 
     private void normalizeUnfocusedEditors() {
         ObjectModel object = current();
-        if (object == null || syncingDepthEditors) {
+        if (object == null || syncingDepthEditors || syncingEditors) {
             return;
         }
-        if (maximumDepthField != null && !maximumDepthField.isFocused()) {
-            normalizeDepthField(object, maximumDepthField, false);
-        }
-        if (naturalDepthField != null && !naturalDepthField.isFocused()) {
-            normalizeDepthField(object, naturalDepthField, true);
-        }
-        for (RowEditor editor : editors) {
-            if (!editor.field.isFocused()) {
-                Double parsed = parseDouble(editor.field.getValue());
-                if (parsed != null) {
-                    double normalized = MudTuningSlider.snapValue(
-                            editor.parameter.minimum(), editor.parameter.maximum(),
-                            editor.parameter.step(), parsed);
-                    editor.field.setValue(format(editor.parameter, normalized));
+        syncingEditors = true;
+        try {
+            if (maximumDepthField != null && !maximumDepthField.isFocused()) {
+                normalizeDepthEditorDisplay(maximumDepthField);
+            }
+            if (naturalDepthField != null && !naturalDepthField.isFocused()) {
+                normalizeDepthEditorDisplay(naturalDepthField);
+            }
+            for (RowEditor editor : editors) {
+                if (!editor.field.isFocused()) {
+                    Double parsed = parseDouble(editor.field.getValue());
+                    if (parsed != null) {
+                        double normalized = MudTuningSlider.snapValue(
+                                editor.parameter.minimum(), editor.parameter.maximum(),
+                                editor.parameter.step(), parsed);
+                        editor.field.setValue(format(editor.parameter, normalized));
+                    }
                 }
             }
+        } finally {
+            syncingEditors = false;
         }
+    }
+
+    private void normalizeDepthEditorDisplay(EditBox field) {
+        Double parsed = parseDouble(field.getValue());
+        if (parsed == null) {
+            return;
+        }
+        double normalized = MudTuningSlider.snapValue(
+                MudSinkingDepthControl.MINIMUM, MudSinkingDepthControl.MAXIMUM,
+                MudSinkingDepthControl.STEP, parsed);
+        field.setValue(formatMaximumDepth(normalized));
     }
 
     private void normalizeDepthField(ObjectModel object, EditBox field,
@@ -1470,6 +1488,15 @@ public final class MudPhysicsTuningScreen extends Screen {
             normalizeDepthField(object, naturalDepthField, true);
         }
         for (RowEditor editor : editors) {
+            // A slider may display a stepped value that is only an approximation
+            // of the stored value. Do not write that approximation back merely
+            // because the user changed pages without touching the field.
+            if (editor.field.getValue().equals(format(editor.parameter,
+                    MudTuningSlider.snapValue(editor.parameter.minimum(),
+                            editor.parameter.maximum(), editor.parameter.step(),
+                            object.values()[editor.parameter.ordinal()])))) {
+                continue;
+            }
             Double parsed = parseDouble(editor.field.getValue());
             if (parsed == null) {
                 if (reportError) {

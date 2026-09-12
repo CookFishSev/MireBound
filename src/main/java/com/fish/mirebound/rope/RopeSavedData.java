@@ -18,13 +18,14 @@ import net.minecraft.world.level.saveddata.SavedData;
 /** Persistent, reconstructable state for non-entity rope chains in one dimension. */
 public final class RopeSavedData extends SavedData {
     private static final String DATA_NAME = "mirebound_ropes";
-    private static final int DATA_VERSION = 1;
+    private static final int DATA_VERSION = 2;
     private static final int MAX_ENTRIES = 64;
     private static final int MAX_NODES = RopeProperties.MAX_SEGMENTS + 1;
     private static final Factory<RopeSavedData> FACTORY =
             new Factory<>(RopeSavedData::new, RopeSavedData::load);
 
     private final Map<Integer, State> states = new LinkedHashMap<>();
+    private List<RopeConnections.State> connections = List.of();
     private int nextId = 1;
 
     private RopeSavedData() {
@@ -43,6 +44,14 @@ public final class RopeSavedData extends SavedData {
     }
 
     public void replace(int nextId, Collection<State> replacement) {
+        replace(nextId, replacement, List.of());
+    }
+
+    public List<RopeConnections.State> connections() {
+        return connections;
+    }
+
+    public void replace(int nextId, Collection<State> replacement, List<RopeConnections.State> links) {
         states.clear();
         int highest = 0;
         for (State state : replacement) {
@@ -53,10 +62,12 @@ public final class RopeSavedData extends SavedData {
             highest = Math.max(highest, state.id());
         }
         this.nextId = Math.max(1, Math.max(nextId, highest + 1));
+        connections = links.stream().filter(link -> states.containsKey(link.first().ropeId())
+                && states.containsKey(link.second().ropeId())).limit(RopeConnections.MAX_CONNECTIONS).toList();
         setDirty();
     }
 
-    private static RopeSavedData load(CompoundTag tag, HolderLookup.Provider registries) {
+    static RopeSavedData load(CompoundTag tag, HolderLookup.Provider registries) {
         RopeSavedData data = new RopeSavedData();
         data.nextId = Math.max(1, tag.getInt("NextId"));
         ListTag entries = tag.getList("Entries", Tag.TAG_COMPOUND);
@@ -71,6 +82,7 @@ public final class RopeSavedData extends SavedData {
         if (tag.getInt("Version") < DATA_VERSION) {
             data.setDirty();
         }
+        data.connections = readConnections(tag.getList("Connections", Tag.TAG_COMPOUND));
         return data;
     }
 
@@ -128,7 +140,37 @@ public final class RopeSavedData extends SavedData {
             entries.add(entry);
         }
         tag.put("Entries", entries);
+        tag.put("Connections", writeConnections(connections));
         return tag;
+    }
+
+    static ListTag writeConnections(List<RopeConnections.State> links) {
+        ListTag result = new ListTag();
+        for (RopeConnections.State link : links) {
+            CompoundTag tag = new CompoundTag();
+            tag.putInt("First", link.first().ropeId());
+            tag.putBoolean("FirstStart", link.first().start());
+            tag.putInt("Second", link.second().ropeId());
+            tag.putBoolean("SecondStart", link.second().start());
+            tag.putDouble("Slack", link.slack());
+            result.add(tag);
+            if (result.size() == RopeConnections.MAX_CONNECTIONS) break;
+        }
+        return result;
+    }
+
+    static List<RopeConnections.State> readConnections(ListTag tags) {
+        List<RopeConnections.State> result = new ArrayList<>();
+        for (int i = 0; i < Math.min(tags.size(), RopeConnections.MAX_CONNECTIONS); i++) {
+            CompoundTag tag = tags.getCompound(i);
+            double slack = tag.getDouble("Slack");
+            if (tag.getInt("First") <= 0 || tag.getInt("Second") <= 0
+                    || !Double.isFinite(slack) || slack < 0 || slack > 8) continue;
+            result.add(new RopeConnections.State(
+                    new RopeEndpoint(tag.getInt("First"), tag.getBoolean("FirstStart")),
+                    new RopeEndpoint(tag.getInt("Second"), tag.getBoolean("SecondStart")), slack));
+        }
+        return List.copyOf(result);
     }
 
     private static RopeProperties readProperties(CompoundTag tag, int fallbackSegments) {

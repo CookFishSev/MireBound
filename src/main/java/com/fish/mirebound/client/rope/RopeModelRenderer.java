@@ -1,6 +1,7 @@
 package com.fish.mirebound.client.rope;
 
 import com.fish.mirebound.Mirebound;
+import com.fish.mirebound.rope.RopeEndpoint;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import java.util.HashMap;
@@ -57,8 +58,10 @@ public final class RopeModelRenderer {
                 if (event.getFrustum() != null && !event.getFrustum().isVisible(rope.bounds())) {
                     continue;
                 }
-                renderChain(poseStack.last(), inner, outer, lights, rope.nodes(), rope.frames());
+                renderChain(poseStack.last(), inner, outer, lights, rope.nodes(), rope.frames(),
+                        rope.startConnection() == null, rope.endConnection() == null);
             }
+            renderConnections(poseStack.last(), inner, outer, lights, ropes);
             poseStack.popPose();
             buffers.endBatch(INNER_TYPE);
             buffers.endBatch(OUTER_TYPE);
@@ -144,7 +147,7 @@ public final class RopeModelRenderer {
 
     private static void renderChain(PoseStack.Pose pose, VertexConsumer inner,
             VertexConsumer outer, LightSampler lights, List<Vec3> nodes,
-            RopeSegmentPose.Frame[] frames) {
+            RopeSegmentPose.Frame[] frames, boolean capStart, boolean capEnd) {
         Vec3[] startRing = new Vec3[4];
         Vec3[] endRing = new Vec3[4];
         Vec3[] jointFirstRing = new Vec3[4];
@@ -166,16 +169,47 @@ public final class RopeModelRenderer {
             }
         }
         int startLight = lights.sample(nodes.getFirst());
-        renderCap(pose, inner, nodes.getFirst(), frames[0], true,
-                RopeSegmentSpec.INNER, startLight, startRing);
-        renderCap(pose, outer, nodes.getFirst(), frames[0], true,
-                RopeSegmentSpec.OUTER, startLight, startRing);
+        if (capStart) {
+            renderCap(pose, inner, nodes.getFirst(), frames[0], true,
+                    RopeSegmentSpec.INNER, startLight, startRing);
+            renderCap(pose, outer, nodes.getFirst(), frames[0], true,
+                    RopeSegmentSpec.OUTER, startLight, startRing);
+        }
         int last = frames.length - 1;
         int endLight = lights.sample(nodes.getLast());
-        renderCap(pose, inner, nodes.getLast(), frames[last], false,
-                RopeSegmentSpec.INNER, endLight, startRing);
-        renderCap(pose, outer, nodes.getLast(), frames[last], false,
-                RopeSegmentSpec.OUTER, endLight, startRing);
+        if (capEnd) {
+            renderCap(pose, inner, nodes.getLast(), frames[last], false,
+                    RopeSegmentSpec.INNER, endLight, startRing);
+            renderCap(pose, outer, nodes.getLast(), frames[last], false,
+                    RopeSegmentSpec.OUTER, endLight, startRing);
+        }
+    }
+
+    private static void renderConnections(PoseStack.Pose pose, VertexConsumer inner,
+            VertexConsumer outer, LightSampler lights, List<ClientRopes.View> ropes) {
+        Map<Integer, ClientRopes.View> byId = new HashMap<>();
+        for (ClientRopes.View rope : ropes) byId.put(rope.id(), rope);
+        Vec3[] firstRing = new Vec3[4];
+        Vec3[] secondRing = new Vec3[4];
+        for (ClientRopes.View rope : ropes) {
+            for (int end = 0; end < 2; end++) {
+                boolean start = end == 0;
+                RopeEndpoint link = start ? rope.startConnection() : rope.endConnection();
+                if (link == null || rope.id() > link.ropeId()
+                        || rope.id() == link.ropeId() && !start) continue;
+                ClientRopes.View peer = byId.get(link.ropeId());
+                if (peer == null) continue;
+                RopeEndpoint reverse = link.start() ? peer.startConnection() : peer.endConnection();
+                if (!new RopeEndpoint(rope.id(), start).equals(reverse)) continue;
+                Vec3 a = start ? rope.nodes().getFirst() : rope.nodes().getLast();
+                Vec3 b = link.start() ? peer.nodes().getFirst() : peer.nodes().getLast();
+                if (a.distanceToSqr(b) < 1.0E-8D) continue;
+                RopeSegmentPose.Frame frame = RopeSegmentPose.initial(b.subtract(a));
+                int light = lights.sample(a.lerp(b, 0.5D));
+                renderSegmentLayer(pose, inner, a, b, frame, RopeSegmentSpec.INNER, light, firstRing, secondRing);
+                renderSegmentLayer(pose, outer, a, b, frame, RopeSegmentSpec.OUTER, light, firstRing, secondRing);
+            }
+        }
     }
 
     private static void renderSegmentLayer(PoseStack.Pose pose,

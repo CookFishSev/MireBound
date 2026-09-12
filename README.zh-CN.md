@@ -4,7 +4,7 @@
 
 本模组延续了 1.7.10 时期 `More Fun Quicksand Mod` 的设计理念，对玩法平衡性与物理系统进行了重构，并引入少量新道具。
 
-当前开发版本：`MireBound-Beta1.1.0-MC1.21.1-NeoForge`。
+当前开发版本：`MireBound-Beta1.2.0-MC1.21.1-NeoForge`。
 
 ---
 
@@ -57,7 +57,7 @@ gradle "-Dorg.gradle.problems.report=false" build --no-configuration-cache --sta
 欢迎所有玩家和开发者为本模组提供反馈与支持！
 
 - **报告 Bug**：请前往 [GitHub Issues](https://github.com/CookFishSev/MireBound/issues) 提交问题。提交时请务必附上：
-  - 模组版本（如 `MireBound-Beta1.1.0-MC1.21.1-NeoForge`）；
+  - 模组版本（如 `MireBound-Beta1.2.0-MC1.21.1-NeoForge`）；
   - 完整的错误日志（`latest.log` 或崩溃报告）；
   - 清晰的重现步骤。
 - **其他反馈**：如果你有任何建议或疑问，也可以在 [Issues](https://github.com/CookFishSev/MireBound/issues) 中提出，我会尽快回复。

@@ -80,9 +80,17 @@ public final class RopeChain {
     }
 
     public void step(RopeCollisionWorld collision) {
+        prepareStep();
+        simulation.step(collision);
+        finishStep();
+    }
+
+    void prepareStep() {
         advancePickupTransition();
         advanceRescueTemporaryFixedPoint();
-        simulation.step(collision);
+    }
+
+    void finishStep() {
         if (rescueTemporaryFixedPoint >= 0 && rescueLassoFirstSegment >= 3) {
             simulation.enforceDistanceConstraints(
                     rescueLassoFirstSegment - 3, 3,
@@ -236,39 +244,21 @@ public final class RopeChain {
         }
         // The rescue end is reserved as soon as the lasso is created. Do not
         // wait for the five loop segments to be reported as anchored.
-        return rescueLassoFirstSegment < 0
-                || endpointSegment < rescueLassoFirstSegment;
+        int first = rescueLassoFirstSegment();
+        return !rescueAnchoredSegments[endpointSegment]
+                && (first < 0 || endpointSegment < first);
     }
 
     public void clearDrag() {
         int releasedSegment = draggedSegment;
         Vec3 releaseVelocity = dragVelocity;
-        Vec3 releasedStart = releasedSegment >= 0
-                ? simulation.point(releasedSegment) : null;
-        Vec3 releasedEnd = releasedSegment >= 0
-                ? simulation.point(releasedSegment + 1) : null;
         clearDragState();
         syncFixedPoints();
         if (releasedSegment < 0 || releasedSegment >= properties.segmentCount()) {
             return;
         }
-        simulation.resetVelocities();
         simulation.setVelocity(releasedSegment, releaseVelocity);
         simulation.setVelocity(releasedSegment + 1, releaseVelocity);
-        removeReleaseTension(releasedSegment, releasedStart, releasedEnd);
-    }
-
-    private void removeReleaseTension(int segment, Vec3 start, Vec3 end) {
-        if (segment > 0 && start != null) {
-            int adjacent = segment - 1;
-            simulation.removeVelocityInto(adjacent,
-                    start.subtract(simulation.point(adjacent)));
-        }
-        if (segment + 2 < simulation.pointCount() && end != null) {
-            int adjacent = segment + 2;
-            simulation.removeVelocityInto(adjacent,
-                    end.subtract(simulation.point(adjacent)));
-        }
     }
 
     private void clearDragState() {
@@ -492,58 +482,6 @@ public final class RopeChain {
         return result;
     }
 
-    /** Joins two free endpoints while preserving every fixed-length segment. */
-    public RopeChain join(RopeChain other, int thisEndpointSegment,
-            int otherEndpointSegment) {
-        if (other == null || other == this
-                || !validEndpointSegment(thisEndpointSegment)
-                || !other.validEndpointSegment(otherEndpointSegment)
-                || rescueLassoFirstSegment() >= 0
-                || other.rescueLassoFirstSegment() >= 0
-                || properties.segmentCount() + other.properties.segmentCount()
-                        > RopeProperties.MAX_SEGMENTS
-                || Math.abs(properties.segmentLength() - other.properties.segmentLength())
-                        > 1.0E-6D
-                || isAnchored(thisEndpointSegment)
-                || other.isAnchored(otherEndpointSegment)) {
-            return null;
-        }
-        boolean reverseThis = thisEndpointSegment == 0;
-        boolean reverseOther = otherEndpointSegment == other.properties.segmentCount() - 1;
-        int thisCount = properties.segmentCount();
-        int otherCount = other.properties.segmentCount();
-        Vec3[] thisPositions = simulation.positionArray();
-        Vec3[] otherPositions = other.simulation.positionArray();
-        Vec3[] thisVelocities = simulation.velocityArrayPerTick();
-        Vec3[] otherVelocities = other.simulation.velocityArrayPerTick();
-        Vec3 thisJoin = thisPositions[reverseThis ? 0 : thisPositions.length - 1];
-        Vec3 otherJoin = otherPositions[reverseOther ? otherPositions.length - 1 : 0];
-        // Keep the rope being dragged in place and translate only the target
-        // rope onto its endpoint. The shared endpoint is written once below.
-        Vec3 translation = thisJoin.subtract(otherJoin);
-        Vec3[] joinedPositions = new Vec3[thisPositions.length + otherPositions.length - 1];
-        Vec3[] joinedVelocities = new Vec3[joinedPositions.length];
-        for (int index = 0; index < thisPositions.length; index++) {
-            int source = reverseThis ? thisPositions.length - 1 - index : index;
-            joinedPositions[index] = thisPositions[source];
-            joinedVelocities[index] = thisVelocities[source];
-        }
-        for (int index = 1; index < otherPositions.length; index++) {
-            int source = reverseOther
-                    ? otherPositions.length - 1 - index : index;
-            int target = thisPositions.length + index - 1;
-            joinedPositions[target] = otherPositions[source].add(translation);
-            joinedVelocities[target] = otherVelocities[source];
-        }
-        RopeChain result = new RopeChain(
-                properties.withSegmentCount(thisCount + otherCount),
-                joinedPositions, joinedVelocities);
-        copyAnchorsTo(result, 0, 0, thisCount, reverseThis, Vec3.ZERO);
-        other.copyAnchorsTo(result, thisCount, 0, otherCount, reverseOther, translation);
-        result.syncFixedPoints();
-        return result;
-    }
-
     public Split splitAt(int segment) {
         if (!validSegment(segment)) {
             return null;
@@ -575,56 +513,35 @@ public final class RopeChain {
 
     private void copyAnchorsTo(RopeChain target, int targetOffset,
             int sourceSegment, int targetSegmentCount) {
-        copyAnchorsTo(target, targetOffset, sourceSegment, targetSegmentCount, false);
-    }
-
-    private void copyAnchorsTo(RopeChain target, int targetOffset,
-            int sourceSegment, int targetSegmentCount, boolean reverse) {
-        copyAnchorsTo(target, targetOffset, sourceSegment, targetSegmentCount,
-                reverse, Vec3.ZERO);
-    }
-
-    private void copyAnchorsTo(RopeChain target, int targetOffset,
-            int sourceSegment, int targetSegmentCount, boolean reverse,
-            Vec3 translation) {
         for (int segment = sourceSegment;
-                segment < sourceSegment + targetSegmentCount
-                        && segment < anchoredSegments.length; segment++) {
-            if (!anchoredSegments[segment]) {
-                continue;
-            }
-            int localSegment = reverse
-                    ? targetSegmentCount - 1 - (segment - sourceSegment)
-                    : segment - sourceSegment;
-            int targetSegment = localSegment + targetOffset;
+                segment < sourceSegment + targetSegmentCount && segment < anchoredSegments.length; segment++) {
+            if (!anchoredSegments[segment]) continue;
+            int targetSegment = targetOffset + segment - sourceSegment;
             target.anchoredSegments[targetSegment] = true;
             target.rescueAnchoredSegments[targetSegment] = rescueAnchoredSegments[segment];
-            target.anchorFrames[targetSegment] = reverse
-                    ? reverseFrame(anchorFrames[segment]) : anchorFrames[segment];
-            Vec3 start = anchorStarts[segment];
-            Vec3 end = anchorEnds[segment];
-            if (reverse) {
-                Vec3 swap = start;
-                start = end;
-                end = swap;
-            }
-            target.anchorStarts[targetSegment] = start == null
-                    ? null : start.add(translation);
-            target.anchorEnds[targetSegment] = end == null
-                    ? null : end.add(translation);
+            target.anchorFrames[targetSegment] = anchorFrames[segment];
+            target.anchorStarts[targetSegment] = anchorStarts[segment];
+            target.anchorEnds[targetSegment] = anchorEnds[segment];
         }
     }
 
-    private static RopeFrame reverseFrame(RopeFrame frame) {
-        return frame == null ? null : new RopeFrame(
-                frame.x(), frame.y().scale(-1.0D), frame.z().scale(-1.0D));
-    }
-
-    /** Returns whether this segment is an unlocked, ordinary rope endpoint. */
+    /** The free end of a rescue rope remains available; only its loop is reserved. */
     public boolean canConnectAt(int segment) {
         return validEndpointSegment(segment)
                 && !anchoredSegments[segment]
-                && rescueLassoFirstSegment < 0;
+                && canExtendAt(segment);
+    }
+
+    double connectionPointWeight(int point) {
+        return simulation.connectionPointWeight(point);
+    }
+
+    void moveConnectionPoint(int point, Vec3 correction, RopeCollisionWorld collision) {
+        simulation.moveConnectionPoint(point, correction, collision);
+    }
+
+    RopeSimulation simulation() {
+        return simulation;
     }
 
     private boolean validEndpointSegment(int segment) {

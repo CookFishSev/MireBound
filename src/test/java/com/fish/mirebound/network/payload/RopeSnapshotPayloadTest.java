@@ -15,6 +15,24 @@ import org.junit.jupiter.api.Test;
 
 class RopeSnapshotPayloadTest {
     @Test
+    void codecPreservesSelfAndRescueEndpointLinks() {
+        RopeSnapshotPayload expected = new RopeSnapshotPayload(7, false, 0, 4, 1,
+                List.of(), List.of(), null, 0, 0, 0,
+                List.of(Vec3.ZERO, new Vec3(1, 0, 0)),
+                new com.fish.mirebound.rope.RopeEndpoint(7, false),
+                new com.fish.mirebound.rope.RopeEndpoint(9, true));
+        RegistryFriendlyByteBuf buffer = new RegistryFriendlyByteBuf(
+                Unpooled.buffer(), RegistryAccess.EMPTY, ConnectionType.OTHER);
+        try {
+            RopeSnapshotPayload.STREAM_CODEC.encode(buffer, expected);
+            assertEquals(expected, RopeSnapshotPayload.STREAM_CODEC.decode(buffer));
+            assertEquals(0, buffer.readableBytes());
+        } finally {
+            buffer.release();
+        }
+    }
+
+    @Test
     void codecPreservesHeldAndAnchoredState() {
         List<Vec3> nodes = new ArrayList<>();
         for (int index = 0; index < 21; index++) {

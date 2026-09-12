@@ -11,6 +11,7 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.phys.Vec3;
 import com.fish.mirebound.rope.RopeFrame;
+import com.fish.mirebound.rope.RopeEndpoint;
 import com.fish.mirebound.rope.RopeProperties;
 import com.fish.mirebound.rope.RopeSegmentOrientation;
 
@@ -27,7 +28,9 @@ public record RopeSnapshotPayload(
         double originX,
         double originY,
         double originZ,
-        List<Vec3> nodes) implements CustomPacketPayload {
+        List<Vec3> nodes,
+        RopeEndpoint startConnection,
+        RopeEndpoint endConnection) implements CustomPacketPayload {
     private static final int MAX_NODES = RopeProperties.MAX_SEGMENTS + 1;
     public static final Type<RopeSnapshotPayload> TYPE = new Type<>(
             ResourceLocation.fromNamespaceAndPath(Mirebound.MOD_ID, "rope_snapshot"));
@@ -84,7 +87,8 @@ public record RopeSnapshotPayload(
                     }
                     return new RopeSnapshotPayload(
                             id, false, age, snapshotSequence, interval,
-                            anchored, rescueAnchored, dragged, x, y, z, nodes);
+                            anchored, rescueAnchored, dragged, x, y, z, nodes,
+                            readEndpoint(buffer), readEndpoint(buffer));
                 }
 
                 @Override
@@ -124,6 +128,8 @@ public record RopeSnapshotPayload(
                         buffer.writeFloat((float) (node.y - payload.originY()));
                         buffer.writeFloat((float) (node.z - payload.originZ()));
                     }
+                    writeEndpoint(buffer, payload.startConnection());
+                    writeEndpoint(buffer, payload.endConnection());
                 }
             };
 
@@ -172,6 +178,29 @@ public record RopeSnapshotPayload(
         }
         if (!removed && (nodes.size() < 2 || nodes.size() > MAX_NODES)) {
             throw new IllegalArgumentException("Active rope requires 2.." + MAX_NODES + " nodes");
+        }
+    }
+
+    public RopeSnapshotPayload(int ropeId, boolean removed, int age, int snapshotSequence,
+            int interval, List<RopeSegmentOrientation> anchoredOrientations,
+            List<RopeSegmentOrientation> rescueAnchoredOrientations, RopeSegmentOrientation draggedOrientation,
+            double originX, double originY, double originZ, List<Vec3> nodes) {
+        this(ropeId, removed, age, snapshotSequence, interval, anchoredOrientations,
+                rescueAnchoredOrientations, draggedOrientation, originX, originY, originZ, nodes, null, null);
+    }
+
+    private static RopeEndpoint readEndpoint(RegistryFriendlyByteBuf buffer) {
+        if (!buffer.readBoolean()) return null;
+        int id = buffer.readVarInt();
+        if (id <= 0) throw new IllegalArgumentException("Invalid rope endpoint ID");
+        return new RopeEndpoint(id, buffer.readBoolean());
+    }
+
+    private static void writeEndpoint(RegistryFriendlyByteBuf buffer, RopeEndpoint endpoint) {
+        buffer.writeBoolean(endpoint != null);
+        if (endpoint != null) {
+            buffer.writeVarInt(endpoint.ropeId());
+            buffer.writeBoolean(endpoint.start());
         }
     }
 

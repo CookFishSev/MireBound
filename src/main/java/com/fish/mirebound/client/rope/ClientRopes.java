@@ -1,5 +1,7 @@
 package com.fish.mirebound.client.rope;
 
+import com.fish.mirebound.rope.RopeEndpoint;
+
 import com.fish.mirebound.network.payload.RopeAnchorPayload;
 import com.fish.mirebound.network.payload.RopeBreakPayload;
 import com.fish.mirebound.network.payload.RopeConnectPayload;
@@ -246,7 +248,8 @@ public final class ClientRopes {
                 draggedSegment = dragSegmentIndex;
             }
             result.add(new View(rope.id, nodes, bounds(nodes), frames,
-                    List.copyOf(anchors), List.copyOf(rescueAnchors), draggedSegment));
+                    List.copyOf(anchors), List.copyOf(rescueAnchors), draggedSegment,
+                    rope.startConnection, rope.endConnection));
         }
         cachedViews = List.copyOf(result);
         cachedViewRevision = viewRevision;
@@ -458,6 +461,7 @@ public final class ClientRopes {
             int[] endpoints = {0, segmentCount - 1};
             for (int segment : endpoints) {
                 if (segment < 0 || segment >= segmentCount
+                        || view.connectionAt(segment) != null
                         || (rescueFirst >= 0 && segment >= rescueFirst)) {
                     continue;
                 }
@@ -477,7 +481,7 @@ public final class ClientRopes {
         return List.copyOf(result);
     }
 
-    /** Returns visible, unlocked endpoints of other ropes while an endpoint is dragged. */
+    /** Only unoccupied endpoints are candidates, including the opposite end of this rope. */
     public static List<Selection> connectSelections(float partialTick) {
         Minecraft minecraft = Minecraft.getInstance();
         if (!dragging || dragRopeId < 0 || dragSegmentIndex < 0
@@ -493,7 +497,7 @@ public final class ClientRopes {
         }
         if (source == null || dragSegmentIndex != 0
                 && dragSegmentIndex != source.nodes().size() - 2
-                || rescueLassoFirstSegment(source) >= 0) {
+                || source.connectionAt(dragSegmentIndex) != null) {
             return List.of();
         }
         Vec3 eye = minecraft.player.getEyePosition(partialTick);
@@ -505,13 +509,15 @@ public final class ClientRopes {
         double range = connectionPickRange(minecraft, eye, direction);
         List<Selection> result = new ArrayList<>();
         for (View view : views(partialTick)) {
-            if (view.id() == dragRopeId || rescueLassoFirstSegment(view) >= 0) {
-                continue;
-            }
             int count = view.nodes().size() - 1;
+            int rescueFirst = rescueLassoFirstSegment(view);
             int[] endpoints = {0, count - 1};
             for (int segment : endpoints) {
                 if (segment < 0 || segment >= count
+                        || view.id() == dragRopeId && (segment == dragSegmentIndex || count < 3)
+                        || view.id() != dragRopeId && view.draggedSegment() >= 0
+                        || view.connectionAt(segment) != null
+                        || rescueFirst >= 0 && segment >= rescueFirst
                         || view.anchoredSegments().contains(segment)
                         || view.rescueAnchoredSegments().contains(segment)) {
                     continue;
@@ -1306,7 +1312,15 @@ public final class ClientRopes {
     public record View(int id, List<Vec3> nodes, AABB bounds,
             RopeSegmentPose.Frame[] frames, List<Integer> anchoredSegments,
             List<Integer> rescueAnchoredSegments,
-            int draggedSegment) {
+            int draggedSegment, RopeEndpoint startConnection, RopeEndpoint endConnection) {
+        public View(int id, List<Vec3> nodes, AABB bounds, RopeSegmentPose.Frame[] frames,
+                List<Integer> anchoredSegments, List<Integer> rescueAnchoredSegments, int draggedSegment) {
+            this(id, nodes, bounds, frames, anchoredSegments, rescueAnchoredSegments, draggedSegment, null, null);
+        }
+
+        public RopeEndpoint connectionAt(int segment) {
+            return segment == 0 ? startConnection : segment == nodes.size() - 2 ? endConnection : null;
+        }
     }
 
     public record Selection(int ropeId, int segmentIndex, Vec3 start, Vec3 end,
@@ -1322,6 +1336,8 @@ public final class ClientRopes {
         private List<RopeSegmentOrientation> anchoredOrientations;
         private List<RopeSegmentOrientation> rescueAnchoredOrientations;
         private RopeSegmentOrientation draggedOrientation;
+        private RopeEndpoint startConnection;
+        private RopeEndpoint endConnection;
         private long clientToServerAgeOffset;
         private final ArrayList<Vec3> poseBuffer = new ArrayList<>();
 
@@ -1334,6 +1350,8 @@ public final class ClientRopes {
             anchoredOrientations = payload.anchoredOrientations();
             rescueAnchoredOrientations = payload.rescueAnchoredOrientations();
             draggedOrientation = payload.draggedOrientation();
+            startConnection = payload.startConnection();
+            endConnection = payload.endConnection();
         }
 
         private void accept(RopeSnapshotPayload payload, long tick) {
@@ -1366,6 +1384,8 @@ public final class ClientRopes {
             anchoredOrientations = payload.anchoredOrientations();
             rescueAnchoredOrientations = payload.rescueAnchoredOrientations();
             draggedOrientation = payload.draggedOrientation();
+            startConnection = payload.startConnection();
+            endConnection = payload.endConnection();
         }
 
         private List<Vec3> pose(double partialTick) {

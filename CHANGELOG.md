@@ -1,5 +1,18 @@
 # Development Updates
 
+## 2026-09-12 - MireBound-Beta1.2.0-MC1.21.1-NeoForge
+
+- Added free-end rope connections, including closed loops and rescue ropes.
+- Adjusted drag damping and preserved rope motion when released.
+- Fixed reset buttons lighting up when switching unchanged settings pages.
+
+- 新增绳索自由端连接，支持首尾闭环和救援绳互接。
+- 调整拖动阻尼，松手后保留绳索运动状态。
+- 修复未修改设置时切换分类导致重置按钮误亮的问题。
+
+Minecraft 1.21.1 / NeoForge. Version: `1.2.0-beta`. Author: CookFishSev.
+Clients and servers must both update to this version. 客户端与服务端均需更新至此版本。
+
 ## 2026-09-12 - MireBound-Beta1.1.0-MC1.21.1-NeoForge
 
 A development release with a new skin editor and improvements from the recent code review.
