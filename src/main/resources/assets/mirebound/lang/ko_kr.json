@@ -111,6 +111,8 @@
     "key.mirebound.tuning_generation_axis":  "생성 회전축 전환",
     "key.mirebound.tuning_generation_rotate":  "생성 미리보기 회전",
     "item.mirebound.mud_tuning_wand":  "유사의 지팡이",
+    "tooltip.mirebound.wand.expand": "%s 키를 눌러 자세히 보기",
+    "tooltip.mirebound.wand.lore": "⌈ 모든 것이 끝내 가라앉을 운명이라면……그 숙명은 내가 먼저 선고하리라. ⌋",
     "item.mirebound.mud_probe":  "진흙 탐지기",
     "item.mirebound.mud_probe.tooltip.1":  "진흙을 조준하고 길게 눌러 연속 깊이를 측정하세요",
     "item.mirebound.mud_probe.tooltip.2":  "측정값에는 설정 가능한 깊이 오차가 있습니다",

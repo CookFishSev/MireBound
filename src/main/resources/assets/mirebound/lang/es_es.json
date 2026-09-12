@@ -111,6 +111,8 @@
     "key.mirebound.tuning_generation_axis":  "Cambiar eje de rotacion",
     "key.mirebound.tuning_generation_rotate":  "Girar vista previa de generacion",
     "item.mirebound.mud_tuning_wand":  "Vara de arenas movedizas",
+    "tooltip.mirebound.wand.expand": "Mantén %s para ver detalles",
+    "tooltip.mirebound.wand.lore": "⌈ Si todo ha de hundirse al final, entonces… seré yo quien anuncie ese destino antes de tiempo. ⌋",
     "item.mirebound.mud_probe":  "Sonda de barro",
     "item.mirebound.mud_probe.tooltip.1":  "Mantener pulsado al apuntar al barro para medir su profundidad",
     "item.mirebound.mud_probe.tooltip.2":  "La lectura tiene un error de profundidad configurable",

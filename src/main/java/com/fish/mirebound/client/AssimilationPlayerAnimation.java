@@ -77,9 +77,9 @@ public final class AssimilationPlayerAnimation {
             if (frozen == null) {
                 frozen = ModelPose.capture(model);
             }
+            frozen = frozen.withRenderedParts(LAST_DETACHED_PARTS.get(player.getId()));
             frozenByModel.put(model, frozen);
         }
-        frame.frozenPose = frozen;
         frozen.apply();
     }
 
@@ -99,16 +99,17 @@ public final class AssimilationPlayerAnimation {
                     ignored -> new IdentityHashMap<>()).put(part, PartTransform.capture(part));
             return;
         }
-        if (frame.frozenPose != null && frame.frozenPose.apply(part)) {
-            return;
-        }
-
         Map<ModelPart, PartTransform> frozenParts = FROZEN_DETACHED_PARTS.computeIfAbsent(
                 frame.entityId, ignored -> new IdentityHashMap<>());
+        applyFrozenPart(part, LAST_DETACHED_PARTS.get(frame.entityId), frozenParts);
+    }
+
+    static void applyFrozenPart(ModelPart part, Map<ModelPart, PartTransform> renderedParts,
+            Map<ModelPart, PartTransform> frozenParts) {
+        // Late model animations own scales and visibility that setupAnim snapshots may not contain.
         PartTransform transform = frozenParts.get(part);
         if (transform == null) {
-            Map<ModelPart, PartTransform> lastParts = LAST_DETACHED_PARTS.get(frame.entityId);
-            transform = lastParts == null ? null : lastParts.get(part);
+            transform = renderedParts == null ? null : renderedParts.get(part);
             if (transform == null) {
                 transform = PartTransform.capture(part);
             }
@@ -179,7 +180,6 @@ public final class AssimilationPlayerAnimation {
         private final float speed;
         private final float position;
         private ModelPose savedPose;
-        private ModelPose frozenPose;
 
         private SavedWalk(int entityId, float speedOld, float speed, float position) {
             this.entityId = entityId;
@@ -210,7 +210,7 @@ public final class AssimilationPlayerAnimation {
         }
     }
 
-    private record PartTransform(float x, float y, float z,
+    record PartTransform(float x, float y, float z,
             float xRot, float yRot, float zRot,
             float xScale, float yScale, float zScale,
             boolean visible, boolean skipDraw) {
@@ -273,13 +273,14 @@ public final class AssimilationPlayerAnimation {
             transforms.forEach((part, transform) -> transform.apply(part));
         }
 
-        boolean apply(ModelPart part) {
-            PartTransform transform = transforms.get(part);
-            if (transform != null) {
-                transform.apply(part);
-                return true;
-            }
-            return false;
+        ModelPose withRenderedParts(Map<ModelPart, PartTransform> renderedParts) {
+            if (renderedParts == null || renderedParts.isEmpty()) return this;
+            IdentityHashMap<ModelPart, PartTransform> merged = new IdentityHashMap<>(transforms);
+            transforms.keySet().forEach(part -> {
+                PartTransform rendered = renderedParts.get(part);
+                if (rendered != null) merged.put(part, rendered);
+            });
+            return new ModelPose(merged);
         }
     }
 }

@@ -1,5 +1,17 @@
 # Development Updates
 
+## 2026-09-12 - MireBound-Beta1.2.2-MC1.21.1-NeoForge
+
+- Added a Shift-expanded wand tooltip with fading text, gentle floating, and subtle gray flicker.
+- Fixed assimilation coverage on extra skin UV pixels while preserving transparency and ignoring custom stain exclusions.
+- Adjusted frozen model poses to retain rendered part sizes and visibility.
+
+- 新增权杖 Shift 展开提示，文字逐字浮现、缓慢浮动并带有灰色暗闪。
+- 修复特殊皮肤 UV 像素的同化覆盖，保留透明区域，并忽略自定义禁止沾染标记。
+- 调整冻结姿势，保留部件实际渲染时的尺寸和可见状态。
+
+Minecraft 1.21.1 / NeoForge. Version: `1.2.2-beta`. Author: CookFishSev.
+
 ## 2026-09-12 - MireBound-Beta1.2.1-MC1.21.1-NeoForge
 
 - Improved backpack staining, washing, pollution indicators, and stain transfer to walls.

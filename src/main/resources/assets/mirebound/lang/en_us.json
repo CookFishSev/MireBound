@@ -111,6 +111,8 @@
   "key.mirebound.tuning_generation_axis": "Cycle generation rotation axis",
   "key.mirebound.tuning_generation_rotate": "Rotate generation preview",
   "item.mirebound.mud_tuning_wand": "Quicksand Wand",
+  "tooltip.mirebound.wand.expand": "Hold %s for details",
+  "tooltip.mirebound.wand.lore": "⌈ If all must sink in the end, then... let me proclaim that fate ahead of its time. ⌋",
   "item.mirebound.mud_probe": "Mud Probe",
   "item.mirebound.mud_probe.tooltip.1": "Aim at mud and hold right-click to measure depth",
   "item.mirebound.mud_probe.tooltip.2": "The reading has a configurable depth error",

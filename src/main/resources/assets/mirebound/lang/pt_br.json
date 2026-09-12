@@ -111,6 +111,8 @@
     "key.mirebound.tuning_generation_axis":  "Alternar eixo de rotacao",
     "key.mirebound.tuning_generation_rotate":  "Girar pre-visualizacao",
     "item.mirebound.mud_tuning_wand":  "Bastao de areia movediça",
+    "tooltip.mirebound.wand.expand": "Segure %s para ver detalhes",
+    "tooltip.mirebound.wand.lore": "⌈ Se tudo há de afundar no fim, então… serei eu a anunciar esse destino antes da hora. ⌋",
     "item.mirebound.mud_probe":  "Sonda de lama",
     "item.mirebound.mud_probe.tooltip.1":  "Segure ao mirar na lama para medir sua profundidade",
     "item.mirebound.mud_probe.tooltip.2":  "A leitura tem um erro de profundidade configuravel",

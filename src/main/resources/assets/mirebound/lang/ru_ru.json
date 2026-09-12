@@ -111,6 +111,8 @@
     "key.mirebound.tuning_generation_axis":  "Сменить ось вращения",
     "key.mirebound.tuning_generation_rotate":  "Повернуть предпросмотр",
     "item.mirebound.mud_tuning_wand":  "Жезл зыбучего песка",
+    "tooltip.mirebound.wand.expand": "Удерживайте %s для подробностей",
+    "tooltip.mirebound.wand.lore": "⌈ Если всему суждено погрузиться во мрак, то… я оглашу эту судьбу раньше срока. ⌋",
     "item.mirebound.mud_probe":  "Грязевой зонд",
     "item.mirebound.mud_probe.tooltip.1":  "Удерживайте кнопку, целясь в грязь, чтобы измерить глубину",
     "item.mirebound.mud_probe.tooltip.2":  "Показание имеет настраиваемую погрешность глубины",

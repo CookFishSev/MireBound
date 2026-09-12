@@ -111,6 +111,8 @@
     "key.mirebound.tuning_generation_axis":  "Changer l axe de rotation",
     "key.mirebound.tuning_generation_rotate":  "Faire pivoter l apercu",
     "item.mirebound.mud_tuning_wand":  "Baton des sables mouvants",
+    "tooltip.mirebound.wand.expand": "Maintenez %s pour les détails",
+    "tooltip.mirebound.wand.lore": "⌈ Si tout doit finir par sombrer, alors… c'est moi qui proclamerai ce destin avant l'heure. ⌋",
     "item.mirebound.mud_probe":  "Sonde de boue",
     "item.mirebound.mud_probe.tooltip.1":  "Maintenez l'utilisation en visant la boue pour mesurer sa profondeur",
     "item.mirebound.mud_probe.tooltip.2":  "La mesure comporte une erreur de profondeur configurable",

@@ -117,6 +117,7 @@ public final class ClientEvents {
 
     public static void register(IEventBus modBus, ModContainer modContainer) {
         MireboundClientSettings.register(modContainer, modBus);
+        com.fish.mirebound.client.tooltip.WandTooltip.register(modBus);
         modBus.addListener(ClientEvents::registerKeys);
         modBus.addListener(ClientEvents::registerParticleProviders);
         modBus.addListener(MudVariantModels::registerAdditional);
@@ -257,6 +258,7 @@ public final class ClientEvents {
             MudRenderedSurfaceGeometry.reset();
             MudTuningWandCoreTexture.reset();
             MudTuningWandClientEffects.reset();
+            com.fish.mirebound.client.tooltip.WandTooltip.reset();
             MudCapeTextureCache.reset();
             ArmorMudTextureCache.reset();
             ArmorMudRenderBridge.reset();
@@ -544,6 +546,7 @@ public final class ClientEvents {
     }
 
     private static void resetClientSessionState() {
+        com.fish.mirebound.client.tooltip.WandTooltip.reset();
         com.fish.mirebound.client.skin.ClientSkinStainRules.resetSession();
         wasStruggleDown = false;
         wasLocalPlayerDead = false;

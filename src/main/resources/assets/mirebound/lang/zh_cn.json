@@ -111,6 +111,8 @@
   "key.mirebound.tuning_generation_axis": "切换生成旋转轴",
   "key.mirebound.tuning_generation_rotate": "旋转生成预览",
   "item.mirebound.mud_tuning_wand": "\u6d41\u6c99\u6743\u6756",
+  "tooltip.mirebound.wand.expand": "按住 %s 查看详情",
+  "tooltip.mirebound.wand.lore": "⌈ 如果一切终将沉降，那么……这一宿命，由我来提前宣读 ⌋",
   "item.mirebound.mud_probe": "\u63a2\u6ce5\u6756",
   "item.mirebound.mud_probe.tooltip.1": "\u5bf9\u51c6\u6d41\u6c99\u957f\u6309\u53f3\u952e\u63a2\u6d4b\u6df1\u5ea6",
   "item.mirebound.mud_probe.tooltip.2": "\u6df1\u5ea6\u8bfb\u6570\u5e26\u6709\u53ef\u914d\u7f6e\u8bef\u5dee",

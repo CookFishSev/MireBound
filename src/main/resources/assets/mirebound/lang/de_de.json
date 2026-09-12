@@ -111,6 +111,8 @@
     "key.mirebound.tuning_generation_axis":  "Drehachse wechseln",
     "key.mirebound.tuning_generation_rotate":  "Erzeugungsvorschau drehen",
     "item.mirebound.mud_tuning_wand":  "Treibsandstab",
+    "tooltip.mirebound.wand.expand": "Für Details %s gedrückt halten",
+    "tooltip.mirebound.wand.lore": "⌈ Wenn am Ende alles versinken muss, dann… werde ich dieses Schicksal vor seiner Zeit verkünden. ⌋",
     "item.mirebound.mud_probe":  "Schlammsonde",
     "item.mirebound.mud_probe.tooltip.1":  "Beim Zielen auf Schlamm gedrueckt halten, um die Tiefe zu messen",
     "item.mirebound.mud_probe.tooltip.2":  "Die Messung hat einen konfigurierbaren Tiefenfehler",

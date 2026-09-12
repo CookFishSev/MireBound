@@ -111,6 +111,8 @@
     "key.mirebound.tuning_generation_axis":  "生成回転軸を切り替える",
     "key.mirebound.tuning_generation_rotate":  "生成プレビューを回転",
     "item.mirebound.mud_tuning_wand":  "流砂の杖",
+    "tooltip.mirebound.wand.expand": "%s を押し続けて詳細を表示",
+    "tooltip.mirebound.wand.lore": "⌈ すべてがいずれ沈みゆくのなら……この宿命は、私が先んじて告げよう。 ⌋",
     "item.mirebound.mud_probe":  "泥プローブ",
     "item.mirebound.mud_probe.tooltip.1":  "泥に照準を合わせて長押しすると深さを測定します",
     "item.mirebound.mud_probe.tooltip.2":  "測定値には設定可能な深さの誤差があります",

@@ -19,6 +19,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.IntBinaryOperator;
+import java.util.function.IntToDoubleFunction;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.resources.ResourceLocation;
@@ -415,39 +417,67 @@ public final class MudSkinTextureCache {
     private static boolean[] assimilationPixels(int entityId,
             ResourceLocation skinTexture, boolean slimModel,
             int width, int height) {
-        boolean[] pixels = new boolean[width * height];
         if (ClientAssimilationState.signature(entityId) == 0L) {
-            return pixels;
+            return new boolean[width * height];
         }
+        return assimilationPixels(width, height, slimModel,
+                (x, y) -> SkinPixelCache.pixel(skinTexture, x, y),
+                cell -> ClientAssimilationState.coverage(entityId, cell));
+    }
+
+    static boolean[] assimilationPixels(int width, int height, boolean slimModel,
+            IntBinaryOperator source, IntToDoubleFunction coverage) {
+        boolean[] pixels = new boolean[width * height];
+        visitAssimilationPixels(width, height, slimModel, null, source, (x, y, cell, salt) -> {
+            if (coverage.applyAsDouble(cell) > EDGE_BAND_THRESHOLD) pixels[y * width + x] = true;
+        });
+        return pixels;
+    }
+
+    @FunctionalInterface
+    interface AssimilationPixelVisitor {
+        void visit(int x, int y, int cell, int salt);
+    }
+
+    static void visitAssimilationPixels(int width, int height, boolean slimModel,
+            MudBodyPart onlyPart, IntBinaryOperator source, AssimilationPixelVisitor visitor) {
         FaceSection[] sections = slimModel ? SLIM_FACE_SECTIONS : WIDE_FACE_SECTIONS;
         for (FaceSection section : sections) {
-            SectionBounds bounds = sectionBounds(section, width, height);
-            MudSurfaceLayout.Face face = MudSurfaceLayout.face(section.part, section.surface);
-            for (int py = bounds.y; py < bounds.y + bounds.height; py++) {
-                for (int px = bounds.x; px < bounds.x + bounds.width; px++) {
-                    if (!writableSkinPixel(skinTexture, bounds, px, py)) {
-                        continue;
-                    }
-                    int localX = px - bounds.x;
-                    int localY = py - bounds.y;
-                    if (section.reverseLane) {
-                        localX = bounds.width - 1 - localX;
-                    }
-                    int column = Math.min(face.width() - 1,
-                            localX * face.width() / Math.max(1, bounds.width));
-                    int uvRow = Math.min(face.height() - 1,
-                            localY * face.height() / Math.max(1, bounds.height));
-                    int row = face.vertical() ? face.height() - 1 - uvRow : uvRow;
-                    int cell = MudSurfaceLayout.cellIndex(
-                            section.part, section.surface, row, column);
-                    if (ClientAssimilationState.coverage(entityId, cell)
-                            > EDGE_BAND_THRESHOLD) {
-                        pixels[py * width + px] = true;
-                    }
+            visitAssimilationSection(section, width, height, onlyPart, source, visitor, false);
+        }
+        for (FaceSection section : BASE_UV_EXTENSION_SECTIONS) {
+            visitAssimilationSection(section, width, height, onlyPart, source, visitor, true);
+        }
+    }
+
+    private static void visitAssimilationSection(FaceSection section, int width, int height,
+            MudBodyPart onlyPart, IntBinaryOperator source, AssimilationPixelVisitor visitor,
+            boolean extensionsOnly) {
+        if (onlyPart != null && section.part != onlyPart) return;
+        SectionBounds bounds = sectionBounds(section, width, height);
+        MudSurfaceLayout.Face face = MudSurfaceLayout.face(section.part, section.surface);
+        for (int py = bounds.y; py < bounds.y + bounds.height; py++) {
+            for (int px = bounds.x; px < bounds.x + bounds.width; px++) {
+                if (extensionsOnly && standardFaceUv(px, py, width, height)
+                        || !writableSkinPixel(source.applyAsInt(px, py),
+                                source.applyAsInt(bounds.maskX + px - bounds.x, bounds.maskY + py - bounds.y))) {
+                    continue;
                 }
+                int localX = px - bounds.x;
+                int localY = py - bounds.y;
+                if (section.reverseLane) {
+                    localX = bounds.width - 1 - localX;
+                }
+                int column = Math.min(face.width() - 1,
+                        localX * face.width() / Math.max(1, bounds.width));
+                int uvRow = Math.min(face.height() - 1,
+                        localY * face.height() / Math.max(1, bounds.height));
+                int row = face.vertical() ? face.height() - 1 - uvRow : uvRow;
+                int cell = MudSurfaceLayout.cellIndex(
+                        section.part, section.surface, row, column);
+                visitor.visit(px, py, cell, section.salt);
             }
         }
-        return pixels;
     }
 
     private static void applyAssimilationLayer(NativeImage target, int entityId,
@@ -461,49 +491,26 @@ public final class MudSkinTextureCache {
         if (ClientAssimilationState.signature(entityId) == 0L) {
             return;
         }
-        FaceSection[] sections = slimModel ? SLIM_FACE_SECTIONS : WIDE_FACE_SECTIONS;
-        for (FaceSection section : sections) {
-            if (onlyPart != null && section.part != onlyPart) {
-                continue;
-            }
-            SectionBounds bounds = sectionBounds(section, target.getWidth(), target.getHeight());
-            MudSurfaceLayout.Face face = MudSurfaceLayout.face(section.part, section.surface);
-            for (int py = bounds.y; py < bounds.y + bounds.height; py++) {
-                for (int px = bounds.x; px < bounds.x + bounds.width; px++) {
-                    if (!writableSkinPixel(skinTexture, bounds, px, py)) {
-                        continue;
-                    }
-                    int localX = px - bounds.x;
-                    int localY = py - bounds.y;
-                    if (section.reverseLane) {
-                        localX = bounds.width - 1 - localX;
-                    }
-                    int column = Math.min(face.width() - 1,
-                            localX * face.width() / Math.max(1, bounds.width));
-                    int uvRow = Math.min(face.height() - 1,
-                            localY * face.height() / Math.max(1, bounds.height));
-                    int row = face.vertical() ? face.height() - 1 - uvRow : uvRow;
-                    int cell = MudSurfaceLayout.cellIndex(section.part, section.surface, row, column);
+        visitAssimilationPixels(target.getWidth(), target.getHeight(), slimModel, onlyPart,
+                (x, y) -> SkinPixelCache.pixel(skinTexture, x, y), (px, py, cell, salt) -> {
                     float strength = ClientAssimilationState.coverage(entityId, cell);
                     if (strength <= EDGE_BAND_THRESHOLD) {
-                        continue;
+                        return;
                     }
                     int original = bakedSkin
                             ? target.getPixelRGBA(px, py)
                             : SkinPixelCache.pixel(skinTexture, px, py);
                     int color = blendedAssimilationOverlayPixel(
                             entityId, cell, original, px, py, strength,
-                            section.salt, bakedSkin);
+                            salt, bakedSkin);
                     if (ClientAssimilationState.rescueFractureEdge(entityId, cell)) {
                         ClientAssimilationState.View view = ClientAssimilationState.view(entityId);
                         float darkness = view == null ? 0.0F
                                 : view.profile().rescueCrackDarkness();
-                        color = assimilationFracturePixel(color, darkness, section.salt + cell);
+                        color = assimilationFracturePixel(color, darkness, salt + cell);
                     }
                     target.setPixelRGBA(px, py, color);
-                }
-            }
-        }
+                });
     }
 
     static int assimilationFracturePixel(int color, float darkness, int salt) {
@@ -602,8 +609,7 @@ public final class MudSkinTextureCache {
 
         for (int py = bounds.y; py < bounds.y + bounds.height; py++) {
             for (int px = bounds.x; px < bounds.x + bounds.width; px++) {
-                if (extensionsOnly && STANDARD_FACE_UV_MASK[
-                        Math.min(63, py * 64 / plan.height) * 64 + Math.min(63, px * 64 / plan.width)]) {
+                if (extensionsOnly && standardFaceUv(px, py, plan.width, plan.height)) {
                     continue;
                 }
                 if (!writableSkinPixel(skinTexture, bounds, px, py)) {
@@ -641,6 +647,10 @@ public final class MudSkinTextureCache {
                     true, false, first.salt + 9000));
         }
         return sections.toArray(FaceSection[]::new);
+    }
+
+    private static boolean standardFaceUv(int x, int y, int width, int height) {
+        return STANDARD_FACE_UV_MASK[Math.min(63, y * 64 / height) * 64 + Math.min(63, x * 64 / width)];
     }
 
     private static PaintCandidate bestCandidateForPixel(ClientMudState.CoverageState display,
