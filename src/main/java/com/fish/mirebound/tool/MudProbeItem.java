@@ -518,8 +518,6 @@ public final class MudProbeItem extends Item {
             ItemStack stack, TooltipContext context, List<Component> tooltip, TooltipFlag flag) {
         tooltip.add(Component.translatable("item.mirebound.mud_probe.tooltip.1")
                 .withStyle(ChatFormatting.GRAY));
-        tooltip.add(Component.translatable("item.mirebound.mud_probe.tooltip.2")
-                .withStyle(ChatFormatting.DARK_GREEN));
     }
 
     record Reading(double depth, boolean outOfRange, Set<SinkingMedium> media) {

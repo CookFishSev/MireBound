@@ -1052,9 +1052,6 @@ public final class MudPhysicsTuningScreen extends Screen {
             return;
         }
         if (adaptiveActionView()) {
-            graphics.drawString(font, Component.translatable(
-                            "gui.mirebound.tuning.source_actions"),
-                    x, layout.contentTop() - 15, COLOR_MUTED, false);
             return;
         }
         if (current() == null

@@ -82,7 +82,7 @@ public final class NaturalMudWorldgenScreen extends Screen {
     private final List<NaturalMudDimensionCatalog.Entry> dimensions;
     private ResourceLocation dimension = ResourceLocation.withDefaultNamespace("overworld");
     private ResourceLocation coverageBiome = ResourceLocation.withDefaultNamespace("swamp");
-    private boolean coverageMode = true;
+    private boolean coverageMode;
     private final NaturalMudCoveragePanel coveragePanel = new NaturalMudCoveragePanel();
     private Button dimensionButton;
     private BiomeSourceFilter biomeSource = BiomeSourceFilter.ALL;
@@ -1096,6 +1096,9 @@ public final class NaturalMudWorldgenScreen extends Screen {
             rotatingPreview = false;
             return true;
         }
+        // The click that opened this screen belongs to its parent. A release
+        // without a local press must not reach a slider and play another sound.
+        if (button == 0 && !isDragging()) return false;
         return super.mouseReleased(mouseX, mouseY, button);
     }
 
