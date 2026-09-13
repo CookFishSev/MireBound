@@ -2,12 +2,14 @@
 
 ## 2026-09-13 - MireBound-Beta1.3.0-MC1.21.1-NeoForge
 
+- Fixed a client crash when rendering mixed mud surface materials.
 - Fixed multiplayer mud compression area and closing synchronization.
 - Fixed buried mud strands appearing dark.
 - Added regional mud coverage with probability, material mixing, and tree-dependent sinking depth.
 - Added per-dimension generation switches and presets for the new settings.
 - Fixed world-generation controls and dimension names.
 
+- 修复了混合泥面材质渲染时可能发生的客户端崩溃。
 - 修复了多人游戏中泥面挤压范围和闭合同步的问题。
 - 修复了泥面拉丝埋入介质后变黑的问题。
 - 添加了大范围流沙覆盖、生成概率、材质混合和树木附近下陷加深设置。
