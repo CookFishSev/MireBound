@@ -314,7 +314,7 @@ public class MudBlock extends Block implements Fallable {
 
     static int configuredHeightPixels(BlockState state, SinkingMedium medium) {
         return switch (variant(state)) {
-            case DEFAULT -> 16;
+            case DEFAULT, NATURAL_DEPTH, NATURAL_DEPTH_END -> 16;
             case HEIGHT -> state.hasProperty(HEIGHT) ? state.getValue(HEIGHT) : 16;
             case SPECIAL -> MudShapeProfile.special(medium).heightPixels();
         };
@@ -470,7 +470,7 @@ public class MudBlock extends Block implements Fallable {
             return new MudShapeProfile(MudShapeType.FULL, 1.0D);
         }
         return switch (variant(state)) {
-            case DEFAULT -> new MudShapeProfile(MudShapeType.FULL, 1.0D);
+            case DEFAULT, NATURAL_DEPTH, NATURAL_DEPTH_END -> new MudShapeProfile(MudShapeType.FULL, 1.0D);
             case HEIGHT -> new MudShapeProfile(MudShapeType.STATIC_HEIGHT,
                     heightPixels(state, medium) / 16.0D);
             case SPECIAL -> MudShapeProfile.special(medium);

@@ -374,9 +374,9 @@ public final class MudTuningObjectScanner {
             int offeredHeight = 16;
             if (shape) {
                 MudBlockVariant actual = MudBlock.variant(mudState);
-                offeredVariant = (actual == MudBlockVariant.SPECIAL
+                offeredVariant = (actual.naturalDepth() ? MudBlockVariant.DEFAULT : actual == MudBlockVariant.SPECIAL
                         ? MudBlockVariant.HEIGHT : actual).ordinal();
-                offeredHeight = actual == MudBlockVariant.SPECIAL
+                offeredHeight = actual.naturalDepth() ? 16 : actual == MudBlockVariant.SPECIAL
                         ? MudShapeProfile.special(medium).heightPixels()
                         : MudBlock.storedHeight(mudState);
             }

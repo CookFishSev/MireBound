@@ -49,11 +49,12 @@ public final class NaturalMudDepositFeature
         }
         WorldGenLevel level = context.level();
         Level dimensionLevel = level.getLevel();
-        if (dimensionLevel.dimension() != Level.OVERWORLD
-                && dimensionLevel.dimension() != Level.NETHER
-                && dimensionLevel.dimension() != Level.END) {
+        NaturalMudGenerationProfile profile =
+                NaturalMudGenerationSettings.active(level.getLevel());
+        if (!profile.dimensionEnabled(dimensionLevel.dimension().location())) {
             return false;
         }
+        boolean covered = NaturalMudCoveragePlacement.place(level, context.origin(), profile);
 
         RandomSource random = context.random();
         int candidateX = context.origin().getX() + random.nextInt(16);
@@ -64,14 +65,12 @@ public final class NaturalMudDepositFeature
                 new BlockPos(candidateX, surfaceY, candidateZ));
         Holder<Biome> undergroundBiome = level.getBiome(
                 new BlockPos(candidateX, undergroundY, candidateZ));
-        NaturalMudGenerationProfile profile =
-                NaturalMudGenerationSettings.active(level.getLevel());
         List<EligibleRule> eligible = eligibleRules(
                 profile, dimensionLevel.dimension(), surfaceBiome,
                 undergroundBiome);
         EligibleRule selected = selectRule(eligible, random);
         if (selected == null) {
-            return false;
+            return covered;
         }
 
         int radius = randomBetween(random,
@@ -92,7 +91,7 @@ public final class NaturalMudDepositFeature
                 return true;
             }
         }
-        return false;
+        return covered;
     }
 
     private static List<EligibleRule> eligibleRules(

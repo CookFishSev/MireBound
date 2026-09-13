@@ -3,7 +3,6 @@ package com.fish.mirebound.client.worldgen;
 import com.fish.mirebound.client.gui.MireflowButton;
 import com.fish.mirebound.client.gui.MireflowEditBox;
 import com.fish.mirebound.client.gui.MireflowGuiTheme;
-import com.fish.mirebound.client.gui.MireflowToggleButton;
 import com.fish.mirebound.client.tuning.MudTuningWandUiSounds;
 import com.fish.mirebound.generation.MudTerrainGenerationType;
 import com.fish.mirebound.generation.MudTerrainLakeSettings;
@@ -47,7 +46,6 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.tags.BiomeTags;
 import net.minecraft.util.Mth;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.biome.Biome;
@@ -81,11 +79,19 @@ public final class NaturalMudWorldgenScreen extends Screen {
     private NaturalMudGenerationProfile profile;
     private SinkingMedium selected = SinkingMedium.SOFT_QUICKSAND;
     private NaturalMudDepositForm previewForm;
-    private DimensionFilter dimension = DimensionFilter.ALL;
+    private final List<NaturalMudDimensionCatalog.Entry> dimensions;
+    private ResourceLocation dimension = ResourceLocation.withDefaultNamespace("overworld");
+    private ResourceLocation coverageBiome = ResourceLocation.withDefaultNamespace("swamp");
+    private boolean coverageMode = true;
+    private final NaturalMudCoveragePanel coveragePanel = new NaturalMudCoveragePanel();
+    private Button dimensionButton;
     private BiomeSourceFilter biomeSource = BiomeSourceFilter.ALL;
     private int mediumScroll;
     private int biomeScroll;
     private EditBox chanceField;
+    private WorldgenNumericControl chanceControl;
+    private WorldgenNumericControl averageRadiusControl;
+    private WorldgenNumericControl radiusVariationControl;
     private EditBox averageRadiusField;
     private EditBox radiusVariationField;
     private EditBox searchField;
@@ -121,6 +127,7 @@ public final class NaturalMudWorldgenScreen extends Screen {
         super(Component.translatable("gui.mirebound.worldgen.title"));
         this.parent = parent;
         this.profile = profile;
+        dimensions = NaturalMudDimensionCatalog.read(parent.getUiState().getSettings());
         Registry<Biome> registry = parent.getUiState().getSettings()
                 .worldgenLoadContext().registryOrThrow(Registries.BIOME);
         allBiomes = registry.holders()
@@ -153,14 +160,38 @@ public final class NaturalMudWorldgenScreen extends Screen {
     protected void rebuildWidgets() {
         String retainedQuery = searchField == null ? query : searchField.getValue();
         clearWidgets();
+        averageRadiusControl = null;
+        radiusVariationControl = null;
         presetNameField = null;
         query = retainedQuery;
         addPresetControls();
+        int depositControlsStart = children().size();
         addMediumButtons();
         addRuleEditors();
+        if (coverageMode) for (var child : children().subList(depositControlsStart, children().size())) {
+            if (child instanceof net.minecraft.client.gui.components.AbstractWidget widget) {
+                widget.active = false;
+                if (widget instanceof EditBox field) field.setEditable(false);
+            }
+        }
         addBiomeWidgets();
-        addPreviewEditors();
+        addCoverageTabs();
+        if (coverageMode) {
+            averageRadiusField = null;
+            radiusVariationField = null;
+            coveragePanel.widgets(formLeft() + 4, 60, width - formLeft() - 8,
+                    height - FOOTER_HEIGHT - 4, dimensionEnabled(),
+                    () -> profile.coverageRule(coverageBiome.toString()),
+                    rule -> profile = profile.withCoverageRule(coverageBiome.toString(), rule),
+                    widget -> addRenderableWidget(widget), this::rebuildWidgets);
+        } else addPreviewEditors();
         addFooter();
+        if (!dimensionEnabled()) for (var child : children()) {
+            if (child instanceof net.minecraft.client.gui.components.AbstractWidget widget
+                    && widget != dimensionButton && widget.getX() >= settingsLeft()
+                    && widget.getY() >= HEADER_HEIGHT && widget.getY() < height - FOOTER_HEIGHT)
+                widget.active = false;
+        }
         if (presetSaveDialog) {
             addPresetDialogWidgets();
         }
@@ -286,24 +317,14 @@ public final class NaturalMudWorldgenScreen extends Screen {
         int sidebar = sidebarWidth();
         int gap = 3;
         int half = Math.max(20, (sidebar - 13) / 2);
-        addRenderableWidget(MireflowButton.builder(fit(Component.translatable(
-                        "gui.mirebound.worldgen.enable_all_short"), half - 4),
-                         ignored -> setAllEnabled(true))
-                .tone(MireflowButton.Tone.POSITIVE)
-                .tooltip(Tooltip.create(Component.translatable(
-                        "gui.mirebound.worldgen.enable_all")))
-                .bounds(5, HEADER_HEIGHT + 3, half, 20)
-                .build());
-        addRenderableWidget(MireflowButton.builder(fit(Component.translatable(
+        addRenderableWidget(new WorldgenChoiceButton(5, HEADER_HEIGHT + 3, half, fit(Component.translatable(
+                        "gui.mirebound.worldgen.enable_all_short"), half - 4), true, false,
+                        () -> {}, () -> setAllEnabled(true)));
+        addRenderableWidget(new WorldgenChoiceButton(5 + half + gap, HEADER_HEIGHT + 3,
+                Math.max(20, sidebar - 10 - half - gap), fit(Component.translatable(
                         "gui.mirebound.worldgen.disable_all_short"),
-                         Math.max(1, sidebar - 10 - half - gap - 4)),
-                         ignored -> setAllEnabled(false))
-                .tone(MireflowButton.Tone.DANGER)
-                .tooltip(Tooltip.create(Component.translatable(
-                        "gui.mirebound.worldgen.disable_all")))
-                .bounds(5 + half + gap, HEADER_HEIGHT + 3,
-                        Math.max(20, sidebar - 10 - half - gap), 20)
-                .build());
+                         Math.max(1, sidebar - 10 - half - gap - 4)), false, false,
+                        () -> {}, () -> setAllEnabled(false)));
         for (int row = 0; row < visible && row + mediumScroll < rules.size(); row++) {
             Rule rule = rules.get(row + mediumScroll);
             addRenderableWidget(MireflowButton.builder(
@@ -314,7 +335,7 @@ public final class NaturalMudWorldgenScreen extends Screen {
                     .tone(rule.enabled()
                             ? MireflowButton.Tone.POSITIVE
                             : MireflowButton.Tone.DANGER)
-                    .selected(rule.medium() == selected)
+                    .selected(!coverageMode && rule.medium() == selected)
                     .bounds(5, MEDIUM_LIST_TOP + row * ROW_HEIGHT,
                             sidebar - 10, 20)
                     .build());
@@ -351,66 +372,30 @@ public final class NaturalMudWorldgenScreen extends Screen {
         }
         previewForm = rule.forms().isEmpty()
                 ? NaturalMudDepositForm.MARSH_MOSAIC : rule.forms().getFirst();
-        dimension = inferredDimension(rule);
         invalidatePreview();
     }
 
     private void addRuleEditors() {
         Rule rule = profile.rule(selected);
-        if (rule == null) {
-            return;
-        }
+        if (rule == null) return;
         int left = settingsLeft() + 5;
-        int width = Math.max(42, settingsWidth() - 10);
+        int available = Math.max(42, settingsWidth() - 10);
         int top = settingsTop();
-        addRenderableWidget(new MireflowToggleButton(left, top, width, 20,
-                rule.enabled(), ignored -> {
-                    if (!commitRuleEditors()) {
-                        return;
-                    }
+        addRenderableWidget(new WorldgenChoiceButton(left, top, available,
+                NaturalMudCoveragePanel.text(rule.enabled() ? "on" : "off"), rule.enabled(), false,
+                () -> {}, () -> {
+                    if (!commitRuleEditors()) return;
                     Rule current = profile.rule(selected);
-                    Rule updated = current.withEnabled(!current.enabled());
-                    profile = profile.withRule(updated);
+                    profile = profile.withRule(current.withEnabled(!current.enabled()));
                     rebuildWidgets();
                 }));
-
-        Button minus = MireflowButton.builder(Component.literal("-"), ignored -> {
-            if (!commitRuleEditors()) {
-                return;
-            }
-            Rule current = profile.rule(selected);
-            Rule updated = current.withChance(Math.max(0,
-                    current.chancePerHundredThousandChunks() - 10));
-            profile = profile.withRule(updated);
-            rebuildWidgets();
-        }).bounds(left, top + 40, 22, 20).build();
-        minus.active = rule.enabled()
-                && rule.chancePerHundredThousandChunks() > 0;
-        addRenderableWidget(minus);
-
-        chanceField = new MireflowEditBox(font, left + 25, top + 40,
-                Math.max(20, width - 50), 20, Component.empty());
-        chanceField.setFilter(NaturalMudWorldgenScreen::validNumberInput);
-        chanceField.setValue(formatPercent(rule.chancePerHundredThousandChunks()));
-        chanceField.active = rule.enabled();
-        addRenderableWidget(chanceField);
-
-        Button plus = MireflowButton.builder(Component.literal("+"), ignored -> {
-            if (!commitRuleEditors()) {
-                return;
-            }
-            Rule current = profile.rule(selected);
-            Rule updated = current.withChance(Math.min(
-                    NaturalMudGenerationProfile.MAXIMUM_CHANCE,
-                    current.chancePerHundredThousandChunks() + 10));
-            profile = profile.withRule(updated);
-            rebuildWidgets();
-        }).bounds(left + width - 22, top + 40, 22, 20).build();
-        plus.active = rule.enabled()
-                && rule.chancePerHundredThousandChunks()
-                < NaturalMudGenerationProfile.MAXIMUM_CHANCE;
-        addRenderableWidget(plus);
-
+        chanceControl = new WorldgenNumericControl(font, left, top + 40, available,
+                Component.translatable("gui.mirebound.worldgen.probability"),
+                0, NaturalMudGenerationProfile.MAXIMUM_CHANCE / 1000.0, .001, 3,
+                rule.chancePerHundredThousandChunks() / 1000.0, rule.enabled(),
+                value -> profile = profile.withRule(profile.rule(selected).withChance((int) Math.round(value * 1000))),
+                widget -> addRenderableWidget(widget));
+        chanceField = chanceControl.field();
         Button reset = MireflowButton.builder(Component.translatable(
                         "gui.mirebound.worldgen.reset_medium"), ignored -> {
                     profile = profile.reset(selected);
@@ -418,7 +403,7 @@ public final class NaturalMudWorldgenScreen extends Screen {
                     loadSelectedRuleState();
                     rebuildWidgets();
                 }).tone(MireflowButton.Tone.DANGER)
-                .bounds(left, top + 70, width, 20).build();
+                .bounds(left, top + 70, available, 20).build();
         reset.active = rule.enabled();
         addRenderableWidget(reset);
     }
@@ -442,97 +427,79 @@ public final class NaturalMudWorldgenScreen extends Screen {
         random.active = rule.enabled();
         addRenderableWidget(random);
 
-        addRadiusEditor(layout.averageLeft, layout.controlTop,
-                layout.averageWidth, true, rule);
-        addRadiusEditor(layout.variationLeft, layout.controlTop,
-                layout.variationWidth, false, rule);
+        boolean stacked = previewWidth() < 330;
+        addRadiusEditor(stacked ? previewLeft() + 6 : layout.averageLeft,
+                stacked ? layout.controlTop + 30 : layout.controlTop,
+                stacked ? previewWidth() - 12 : layout.averageWidth, true, rule);
+        addRadiusEditor(stacked ? previewLeft() + 6 : layout.variationLeft,
+                stacked ? layout.controlTop + 62 : layout.controlTop,
+                stacked ? previewWidth() - 12 : layout.variationWidth, false, rule);
     }
 
     private void addRadiusEditor(
             int left, int top, int width, boolean average, Rule rule) {
-        Button minus = MireflowButton.builder(Component.literal("-"), ignored -> {
-            if (!commitRuleEditors()) {
-                return;
-            }
-            Rule current = profile.rule(selected);
-            Rule changed = average
-                    ? current.withRadiusRange(
-                            current.minimumRadius() - 1,
-                            current.maximumRadius() - 1)
-                    : current.withRadiusRange(
-                            current.minimumRadius() + 1,
-                            current.maximumRadius() - 1);
-            profile = profile.withRule(changed);
-            invalidatePreview();
-            rebuildWidgets();
-        }).bounds(left, top, 22, 20).build();
-        minus.active = rule.enabled() && (average
-                ? rule.minimumRadius() > 2
-                : rule.maximumRadius() - rule.minimumRadius() >= 2);
-        addRenderableWidget(minus);
-
-        EditBox field = new MireflowEditBox(font, left + 25, top,
-                Math.max(20, width - 50), 20, Component.empty());
-        field.setFilter(NaturalMudWorldgenScreen::validNumberInput);
-        field.setValue(formatRadiusMetric(average
-                ? rule.averageRadius() : rule.radiusVariation()));
-        field.active = rule.enabled();
-        addRenderableWidget(field);
+        WorldgenNumericControl control = new WorldgenNumericControl(font, left, top, width,
+                Component.translatable(average ? "gui.mirebound.worldgen.average_scale" : "gui.mirebound.worldgen.scale_variation"),
+                average ? 2 : 0, average ? 12 : 5, .5, 1,
+                average ? rule.averageRadius() : rule.radiusVariation(), rule.enabled(),
+                value -> updateRadius(average, value), widget -> addRenderableWidget(widget));
         if (average) {
-            averageRadiusField = field;
+            averageRadiusControl = control;
+            averageRadiusField = control.field();
         } else {
-            radiusVariationField = field;
+            radiusVariationControl = control;
+            radiusVariationField = control.field();
         }
+    }
 
-        Button plus = MireflowButton.builder(Component.literal("+"), ignored -> {
-            if (!commitRuleEditors()) {
-                return;
-            }
-            Rule current = profile.rule(selected);
-            Rule changed = average
-                    ? current.withRadiusRange(
-                            current.minimumRadius() + 1,
-                            current.maximumRadius() + 1)
-                    : current.withRadiusRange(
-                            current.minimumRadius() - 1,
-                            current.maximumRadius() + 1);
-            profile = profile.withRule(changed);
-            invalidatePreview();
-            rebuildWidgets();
-        }).bounds(left + width - 22, top, 22, 20).build();
-        plus.active = rule.enabled() && (average
-                ? rule.maximumRadius() < 12
-                : rule.minimumRadius() > 2 && rule.maximumRadius() < 12);
-        addRenderableWidget(plus);
+    private void updateRadius(boolean averageChanged, double value) {
+        Rule current = profile.rule(selected);
+        double average = averageChanged ? value : current.averageRadius();
+        double variation = averageChanged ? current.radiusVariation() : value;
+        variation = Math.min(variation, Math.min(average - 2, 12 - average));
+        Rule next = current.withRadiusRange((int) Math.round(average - variation), (int) Math.round(average + variation));
+        profile = profile.withRule(next);
+        if (averageRadiusControl != null) averageRadiusControl.syncValue(next.averageRadius());
+        if (radiusVariationControl != null) radiusVariationControl.syncValue(next.radiusVariation());
+        invalidatePreview();
     }
 
     private void addBiomeWidgets() {
         renderedBiomeGroupHeaders.clear();
         int left = biomeLeft() + 5;
         int width = Math.max(42, biomeWidth() - 10);
-        searchField = new MireflowEditBox(font, left, 46, width, 20,
+        searchField = new MireflowEditBox(font, left, 76, width, 20,
                 Component.translatable("gui.mirebound.worldgen.search"));
         searchField.setValue(query);
         searchField.setHint(Component.translatable(
                 "gui.mirebound.worldgen.search"));
         Rule rule = profile.rule(selected);
-        boolean enabled = rule != null && rule.enabled();
+        boolean enabled = dimensionEnabled() && (coverageMode || rule != null && rule.enabled());
         searchField.active = enabled;
         addRenderableWidget(searchField);
 
         int gap = 3;
         int half = Math.max(20, (width - gap) / 2);
-        Button dimensionButton = MireflowButton.builder(fit(Component.translatable(
-                        dimension.translationKey()), half - 8), ignored -> {
+        dimensionButton = new WorldgenChoiceButton(left, 99, half,
+                fit(dimensionName(), half - 8), dimensionEnabled(), false, () -> {
                     if (!commitRuleEditors()) {
                         return;
                     }
-                    dimension = dimension.next();
+                    int index = 0;
+                    for (int i = 0; i < dimensions.size(); i++) if (dimensions.get(i).id().equals(dimension)) index = i;
+                    if (!dimensions.isEmpty()) dimension = dimensions.get((index + 1) % dimensions.size()).id();
+                    if (!dimensionMatches(coverageBiome)) coverageBiome = allBiomes.stream()
+                            .filter(entry -> dimensionMatches(entry.id)).map(entry -> entry.id)
+                            .findFirst().orElse(coverageBiome);
                     biomeScroll = 0;
                     rebuildWidgets();
-                }).tone(MireflowButton.Tone.INFO)
-                .bounds(left, 69, half, 20).build();
-        dimensionButton.active = enabled;
+                }, () -> {
+                    if (!commitRuleEditors()) return;
+                    profile = profile.withDimensionEnabled(dimension, !dimensionEnabled());
+                    rebuildWidgets();
+                });
+        dimensionButton.setTooltip(Tooltip.create(NaturalMudCoveragePanel.text("dimension_hint")));
+        dimensionButton.active = true;
         addRenderableWidget(dimensionButton);
         Button sourceButton = MireflowButton.builder(fit(Component.translatable(
                         biomeSource.translationKey()), half - 8), ignored -> {
@@ -543,34 +510,40 @@ public final class NaturalMudWorldgenScreen extends Screen {
                     biomeScroll = 0;
                     rebuildWidgets();
                 }).tone(MireflowButton.Tone.CONVERTED)
-                .bounds(left + half + gap, 69,
+                .bounds(left + half + gap, 99,
                         Math.max(20, width - half - gap), 20).build();
         sourceButton.active = enabled;
         addRenderableWidget(sourceButton);
 
-        Button selectVisible = MireflowButton.builder(Component.translatable(
-                        "gui.mirebound.worldgen.select_visible"), ignored -> {
+        Button selectVisible = new WorldgenChoiceButton(left, 122, half, Component.translatable(
+                        "gui.mirebound.worldgen.select_visible"), true, false, () -> {}, () -> {
                     if (!commitRuleEditors()) {
                         return;
                     }
-                    filteredBiomes().forEach(entry -> selectedBiomes.add(entry.id));
-                    commitBiomeSelection();
+                    if (coverageMode) filteredBiomes().forEach(entry -> profile = profile.withCoverageRule(
+                            entry.id.toString(), profile.coverageRule(entry.id.toString()).withEnabled(true)));
+                    else {
+                        filteredBiomes().forEach(entry -> selectedBiomes.add(entry.id));
+                        commitBiomeSelection();
+                    }
                     rebuildWidgets();
-                }).tone(MireflowButton.Tone.NATIVE)
-                .bounds(left, 92, half, 20).build();
+                });
         selectVisible.active = enabled;
         addRenderableWidget(selectVisible);
-        Button clearVisible = MireflowButton.builder(Component.translatable(
-                        "gui.mirebound.worldgen.clear_visible"), ignored -> {
+        Button clearVisible = new WorldgenChoiceButton(left + half + gap, 122,
+                Math.max(20, width - half - gap), Component.translatable(
+                        "gui.mirebound.worldgen.clear_visible"), false, false, () -> {}, () -> {
                     if (!commitRuleEditors()) {
                         return;
                     }
-                    filteredBiomes().forEach(entry -> selectedBiomes.remove(entry.id));
-                    commitBiomeSelection();
+                    if (coverageMode) filteredBiomes().forEach(entry -> profile = profile.withCoverageRule(
+                            entry.id.toString(), profile.coverageRule(entry.id.toString()).withEnabled(false)));
+                    else {
+                        filteredBiomes().forEach(entry -> selectedBiomes.remove(entry.id));
+                        commitBiomeSelection();
+                    }
                     rebuildWidgets();
-                }).tone(MireflowButton.Tone.INCOMPATIBLE)
-                .bounds(left + half + gap, 92,
-                        Math.max(20, width - half - gap), 20).build();
+                });
         clearVisible.active = enabled;
         addRenderableWidget(clearVisible);
 
@@ -587,24 +560,27 @@ public final class NaturalMudWorldgenScreen extends Screen {
                 continue;
             }
             BiomeEntry entry = listRow.biome;
-            boolean selectedBiome = selectedBiomes.contains(entry.id);
+            boolean selectedBiome = coverageMode ? profile.coverageRule(entry.id.toString()).enabled()
+                    : selectedBiomes.contains(entry.id);
             Component label = fit(displayName(entry.id), width - 12);
-            Button biomeButton = MireflowButton.builder(label, ignored -> {
+            Button biomeButton = new WorldgenChoiceButton(left, rowTop, width, label,
+                    selectedBiome, entry.id.equals(coverageBiome), () -> {
+                        if (!commitRuleEditors()) return;
+                        coverageBiome = entry.id;
+                        rebuildWidgets();
+                    }, () -> {
                         if (!commitRuleEditors()) {
                             return;
                         }
-                        if (!selectedBiomes.add(entry.id)) {
-                            selectedBiomes.remove(entry.id);
+                        if (coverageMode) profile = profile.withCoverageRule(entry.id.toString(),
+                                profile.coverageRule(entry.id.toString()).withEnabled(!selectedBiome));
+                        else {
+                            if (!selectedBiomes.add(entry.id)) selectedBiomes.remove(entry.id);
+                            commitBiomeSelection();
                         }
-                        commitBiomeSelection();
                         rebuildWidgets();
-                    }).tone(selectedBiome
-                            ? MireflowButton.Tone.POSITIVE
-                            : MireflowButton.Tone.NORMAL)
-                    .selected(selectedBiome)
-                    .bounds(left, rowTop, width, 20)
-                    .build();
-            biomeButton.active = rule != null && rule.enabled();
+                    });
+            biomeButton.active = enabled;
             addRenderableWidget(biomeButton);
         }
     }
@@ -651,7 +627,7 @@ public final class NaturalMudWorldgenScreen extends Screen {
     }
 
     private boolean commitRuleEditors() {
-        if (chanceField == null) {
+        if (coverageMode || chanceField == null) {
             return true;
         }
         Rule current = profile.rule(selected);
@@ -686,10 +662,10 @@ public final class NaturalMudWorldgenScreen extends Screen {
                         || maximumRadius != current.maximumRadius();
             }
             profile = profile.withRule(updated);
-            chanceField.setValue(formatPercent(updated.chancePerHundredThousandChunks()));
+            chanceControl.setValue(updated.chancePerHundredThousandChunks() / 1000.0);
             if (averageRadiusField != null && radiusVariationField != null) {
-                averageRadiusField.setValue(formatRadiusMetric(updated.averageRadius()));
-                radiusVariationField.setValue(formatRadiusMetric(updated.radiusVariation()));
+                averageRadiusControl.setValue(updated.averageRadius());
+                radiusVariationControl.setValue(updated.radiusVariation());
             }
             error = Component.empty();
             if (radiusChanged) {
@@ -740,11 +716,13 @@ public final class NaturalMudWorldgenScreen extends Screen {
         if (!hasSelectedPreset()) {
             return false;
         }
-        if (!profile.rules().equals(selectedPresetProfile.rules())) {
+        if (!profile.rules().equals(selectedPresetProfile.rules())
+                || !profile.coverageRules().equals(selectedPresetProfile.coverageRules())
+                || !profile.disabledDimensions().equals(selectedPresetProfile.disabledDimensions())) {
             return true;
         }
         Rule rule = profile.rule(selected);
-        return rule != null && hasUncommittedRuleEditorChanges(rule);
+        return !coverageMode && rule != null && hasUncommittedRuleEditorChanges(rule);
     }
 
     private boolean hasUncommittedRuleEditorChanges(Rule rule) {
@@ -992,13 +970,13 @@ public final class NaturalMudWorldgenScreen extends Screen {
             return;
         }
         if (chanceField != null && !chanceField.isFocused()) {
-            chanceField.setValue(formatPercent(rule.chancePerHundredThousandChunks()));
+            chanceControl.syncValue(rule.chancePerHundredThousandChunks() / 1000.0);
         }
         if (averageRadiusField != null && !averageRadiusField.isFocused()) {
-            averageRadiusField.setValue(formatRadiusMetric(rule.averageRadius()));
+            averageRadiusControl.syncValue(rule.averageRadius());
         }
         if (radiusVariationField != null && !radiusVariationField.isFocused()) {
-            radiusVariationField.setValue(formatRadiusMetric(rule.radiusVariation()));
+            radiusVariationControl.syncValue(rule.radiusVariation());
         }
     }
 
@@ -1032,6 +1010,7 @@ public final class NaturalMudWorldgenScreen extends Screen {
                 && clickPresetMenuEntry(mouseX, mouseY)) {
             return true;
         }
+        if (disabledDepositArea(mouseX, mouseY)) return true;
         if (button == 1 && mouseX >= 3 && mouseX < sidebarWidth()
                 && mouseY >= MEDIUM_LIST_TOP) {
             int row = (int) ((mouseY - MEDIUM_LIST_TOP) / ROW_HEIGHT)
@@ -1047,11 +1026,11 @@ public final class NaturalMudWorldgenScreen extends Screen {
             }
         }
         Rule rule = profile.rule(selected);
-        for (FormBounds bounds : renderedFormBounds) {
+        for (FormBounds bounds : coverageMode ? List.<FormBounds>of() : renderedFormBounds) {
             if (!bounds.contains(mouseX, mouseY)) {
                 continue;
             }
-            if (rule == null || !rule.enabled()) {
+            if (rule == null || !rule.enabled() || !dimensionEnabled()) {
                 return true;
             }
             if (button == 0) {
@@ -1065,7 +1044,7 @@ public final class NaturalMudWorldgenScreen extends Screen {
                 return true;
             }
         }
-        if (button == 0 && rule != null && rule.enabled()
+        if (button == 0 && dimensionEnabled() && !coverageMode && rule != null && rule.enabled()
                 && insideShapePreview(mouseX, mouseY)) {
             rotatingPreview = true;
             return true;
@@ -1100,7 +1079,7 @@ public final class NaturalMudWorldgenScreen extends Screen {
             double mouseX, double mouseY, int button,
             double dragX, double dragY) {
         Rule rule = profile.rule(selected);
-        if (button == 0 && rotatingPreview
+        if (button == 0 && dimensionEnabled() && !coverageMode && rotatingPreview
                 && rule != null && rule.enabled()) {
             previewYaw = (previewYaw + (float) dragX * 0.8F) % 360.0F;
             previewPitch = Mth.clamp(
@@ -1163,8 +1142,13 @@ public final class NaturalMudWorldgenScreen extends Screen {
             return true;
         }
         Rule rule = profile.rule(selected);
+        if (coverageMode && dimensionEnabled() && coveragePanel.scroll(mouseX, mouseY, scrollY)) {
+            rebuildWidgets();
+            return true;
+        }
+        if (disabledDepositArea(mouseX, mouseY)) return true;
         if (insideShapePreview(mouseX, mouseY)
-                && rule != null && rule.enabled()) {
+                && !coverageMode && dimensionEnabled() && rule != null && rule.enabled()) {
             previewZoom = Mth.clamp((float) (previewZoom
                     * Math.pow(1.12D, scrollY)), 0.5F, 2.5F);
             return true;
@@ -1175,7 +1159,7 @@ public final class NaturalMudWorldgenScreen extends Screen {
             return true;
         }
         if (mouseX >= biomeLeft() && mouseX < formLeft()) {
-            if (rule == null || !rule.enabled()) {
+            if (!dimensionEnabled() || !coverageMode && (rule == null || !rule.enabled())) {
                 return true;
             }
             biomeScroll -= (int) Math.signum(scrollY);
@@ -1203,11 +1187,12 @@ public final class NaturalMudWorldgenScreen extends Screen {
                 height - FOOTER_HEIGHT, DIVIDER);
         graphics.vLine(biomeLeft(), HEADER_HEIGHT - 1,
                 height - FOOTER_HEIGHT, DIVIDER);
-        graphics.vLine(formLeft(), HEADER_HEIGHT - 1,
+        graphics.vLine(formLeft(), 58,
                 height - FOOTER_HEIGHT, DIVIDER);
-        graphics.vLine(previewLeft(), HEADER_HEIGHT - 1,
+        if (!coverageMode) graphics.vLine(previewLeft(), 58,
                 height - FOOTER_HEIGHT, DIVIDER);
-        graphics.drawString(font, title, 8, 9, TEXT, false);
+        if (presetHeaderLeft() > 35) graphics.drawString(font,
+                fit(title, presetHeaderLeft() - 16), 8, 9, TEXT, false);
         if (!error.getString().isEmpty()) {
             Component fitted = fit(error,
                     Math.max(20, width - font.width(title) - 24));
@@ -1217,18 +1202,20 @@ public final class NaturalMudWorldgenScreen extends Screen {
 
         renderSidebarRows(graphics);
         renderSectionLabels(graphics);
-        renderFormControls(graphics, mouseX, mouseY);
-        renderBlockPreview(graphics);
-        renderShapePreview(graphics);
+        if (!coverageMode) renderFormControls(graphics, mouseX, mouseY);
+        if (!coverageMode) renderBlockPreview(graphics);
+        if (coverageMode) coveragePanel.render(graphics,
+                profile.coverageRule(coverageBiome.toString()), displayName(coverageBiome), dimensionEnabled());
+        else renderShapePreview(graphics);
         renderBiomeGroupHeaders(graphics);
         renderPresetMenu(graphics);
         Rule rule = profile.rule(selected);
-        if (rule != null && !rule.enabled()) {
+        if (!dimensionEnabled() || !coverageMode && rule != null && !rule.enabled()) {
             graphics.fill(settingsLeft(), HEADER_HEIGHT,
                     width, height - FOOTER_HEIGHT, 0x48000000);
         }
         super.render(graphics, mouseX, mouseY, partialTick);
-        renderFormTooltip(graphics, mouseX, mouseY);
+        if (!coverageMode && dimensionEnabled()) renderFormTooltip(graphics, mouseX, mouseY);
         if (presetSaveDialog) {
             renderPresetSaveDialog(graphics, mouseX, mouseY, partialTick);
         }
@@ -1332,29 +1319,29 @@ public final class NaturalMudWorldgenScreen extends Screen {
         graphics.drawString(font,
                 fit(Component.translatable("block.mirebound."
                                 + selected.serializedName()), settingsWidth() - 10),
-                settingsLeft, settingsTop() - 15, TEXT, false);
+                settingsLeft, settingsTop() - 15, coverageMode ? MireflowGuiTheme.DISABLED : TEXT, false);
         graphics.drawString(font,
                 fit(Component.translatable("gui.mirebound.worldgen.probability"),
                         settingsWidth() - 10),
-                settingsLeft, settingsTop() + 29, MUTED, false);
+                settingsLeft, settingsTop() + 29, coverageMode ? MireflowGuiTheme.DISABLED : MUTED, false);
 
         Component biomes = Component.translatable(
                 "gui.mirebound.worldgen.biomes", selectedBiomes.size());
         graphics.drawString(font, fit(biomes, biomeWidth() - 10),
-                biomeLeft() + 5, 34, TEXT, false);
-        graphics.drawString(font,
-                Component.translatable("gui.mirebound.worldgen.forms"),
-                formLeft() + 5, 34, TEXT, false);
+                biomeLeft() + 5, 64, TEXT, false);
         PreviewControlLayout layout = previewControlLayout();
-        if (layout != null) {
+        if (!coverageMode && layout != null) {
+            boolean stacked = previewWidth() < 330;
             graphics.drawString(font, fit(Component.translatable(
                             "gui.mirebound.worldgen.average_scale"),
                             layout.averageWidth),
-                    layout.averageLeft, layout.labelTop, MUTED, false);
+                    stacked ? previewLeft() + 6 : layout.averageLeft,
+                    stacked ? layout.controlTop + 19 : layout.labelTop, MUTED, false);
             graphics.drawString(font, fit(Component.translatable(
                             "gui.mirebound.worldgen.scale_variation"),
                             layout.variationWidth),
-                    layout.variationLeft, layout.labelTop, MUTED, false);
+                    stacked ? previewLeft() + 6 : layout.variationLeft,
+                    stacked ? layout.controlTop + 51 : layout.labelTop, MUTED, false);
         }
     }
 
@@ -1716,12 +1703,12 @@ public final class NaturalMudWorldgenScreen extends Screen {
         int right = previewLeft() - 4;
         NaturalMudDepositForm[] forms = NaturalMudDepositForm.values();
         int availableHeight = Math.max(forms.length * 12,
-                height - FOOTER_HEIGHT - 47);
+                height - FOOTER_HEIGHT - 64);
         int rowStep = Mth.clamp(availableHeight / forms.length, 13, 22);
         int cellHeight = Math.max(12, rowStep - 2);
         List<FormBounds> result = new ArrayList<>();
         for (int index = 0; index < forms.length; index++) {
-            int y = 47 + index * rowStep;
+            int y = 64 + index * rowStep;
             result.add(new FormBounds(
                     forms[index], left, y, right, y + cellHeight));
         }
@@ -1732,7 +1719,7 @@ public final class NaturalMudWorldgenScreen extends Screen {
         String needle = query.trim().toLowerCase(Locale.ROOT);
         List<BiomeEntry> result = new ArrayList<>();
         for (BiomeEntry entry : allBiomes) {
-            if (!dimension.matches(entry.holder)
+            if (!biomeMatchesDimension(entry)
                     || !biomeSource.matches(entry)) {
                 continue;
             }
@@ -1907,7 +1894,7 @@ public final class NaturalMudWorldgenScreen extends Screen {
     }
 
     private int previewTop() {
-        return 45;
+        return 64;
     }
 
     private int settingsTop() {
@@ -1915,7 +1902,7 @@ public final class NaturalMudWorldgenScreen extends Screen {
     }
 
     private int previewControlsTop() {
-        return height - FOOTER_HEIGHT - 39;
+        return height - FOOTER_HEIGHT - (previewWidth() < 330 ? 112 : 39);
     }
 
     private int previewShapeBottom() {
@@ -1930,7 +1917,7 @@ public final class NaturalMudWorldgenScreen extends Screen {
     }
 
     private PreviewControlLayout previewControlLayout() {
-        if (previewWidth() < 250) {
+        if (previewWidth() < 70) {
             return null;
         }
         int left = previewLeft() + 6;
@@ -1950,7 +1937,7 @@ public final class NaturalMudWorldgenScreen extends Screen {
     }
 
     private int biomeRowsTop() {
-        return 116;
+        return 146;
     }
 
     private int visibleMediumRows() {
@@ -1977,20 +1964,6 @@ public final class NaturalMudWorldgenScreen extends Screen {
                 (height - FOOTER_HEIGHT - biomeRowsTop() - 3) / ROW_HEIGHT);
     }
 
-    private static boolean validNumberInput(String value) {
-        return value.isEmpty() || value.matches("(?:\\d+(?:\\.\\d*)?|\\.\\d*)");
-    }
-
-    private static String formatPercent(int chance) {
-        return String.format(Locale.ROOT, "%.3f", chance / 1000.0D);
-    }
-
-    private static String formatRadiusMetric(double value) {
-        return Math.abs(value - Math.rint(value)) < 1.0E-6D
-                ? Integer.toString((int) Math.rint(value))
-                : String.format(Locale.ROOT, "%.1f", value);
-    }
-
     private Component displayName(ResourceLocation id) {
         String key = id.toLanguageKey("biome");
         return I18n.exists(key) ? Component.translatable(key)
@@ -2012,18 +1985,43 @@ public final class NaturalMudWorldgenScreen extends Screen {
                 Math.max(0, available - font.width("..."))) + "...");
     }
 
-    private static DimensionFilter inferredDimension(Rule rule) {
-        for (String selector : rule.biomeSelectors()) {
-            if (selector.contains("nether") || selector.contains("crimson")
-                    || selector.contains("warped") || selector.contains("soul_sand")
-                    || selector.contains("basalt")) {
-                return DimensionFilter.NETHER;
-            }
-            if (selector.contains("end_")) {
-                return DimensionFilter.END;
-            }
+    private boolean dimensionEnabled() { return profile.dimensionEnabled(dimension); }
+
+    private boolean disabledDepositArea(double mouseX, double mouseY) {
+        return coverageMode && mouseX >= 0 && mouseX < biomeLeft()
+                && mouseY >= HEADER_HEIGHT && mouseY < height - FOOTER_HEIGHT;
+    }
+
+    private boolean dimensionMatches(ResourceLocation biome) {
+        return allBiomes.stream().filter(entry -> entry.id.equals(biome))
+                .anyMatch(this::biomeMatchesDimension);
+    }
+
+    private boolean biomeMatchesDimension(BiomeEntry entry) {
+        Set<ResourceLocation> tagged = new LinkedHashSet<>();
+        if (entry.holder.is(net.minecraft.tags.BiomeTags.IS_OVERWORLD)) tagged.add(ResourceLocation.withDefaultNamespace("overworld"));
+        if (entry.holder.is(net.minecraft.tags.BiomeTags.IS_NETHER)) tagged.add(ResourceLocation.withDefaultNamespace("the_nether"));
+        if (entry.holder.is(net.minecraft.tags.BiomeTags.IS_END)) tagged.add(ResourceLocation.withDefaultNamespace("the_end"));
+        return NaturalMudDimensionCatalog.matches(dimensions, dimension, entry.id, tagged);
+    }
+
+    private Component dimensionName() {
+        String key = NaturalMudDimensionCatalog.translationKey(dimension);
+        return I18n.exists(key)
+                ? Component.translatable(key) : Component.literal(dimension.toString());
+    }
+
+    private void addCoverageTabs() {
+        int left = biomeLeft() + 4, half = Math.max(35, (width - left - 12) / 2);
+        for (int index = 0; index < 2; index++) {
+            boolean mode = index == 1;
+            addRenderableWidget(MireflowButton.builder(NaturalMudCoveragePanel.text(mode ? "tab" : "deposits"), ignored -> {
+                if (!commitRuleEditors()) return;
+                coverageMode = mode;
+                rotatingPreview = false;
+                rebuildWidgets();
+            }).selected(coverageMode == mode).bounds(left + index * (half + 4), 32, half, 20).build());
         }
-        return DimensionFilter.OVERWORLD;
     }
 
     @Override
@@ -2071,32 +2069,6 @@ public final class NaturalMudWorldgenScreen extends Screen {
 
     private static final class InvalidRadiusException
             extends RuntimeException {
-    }
-
-    private enum DimensionFilter {
-        ALL,
-        OVERWORLD,
-        NETHER,
-        END;
-
-        private boolean matches(Holder<Biome> biome) {
-            return switch (this) {
-                case ALL -> true;
-                case OVERWORLD -> biome.is(BiomeTags.IS_OVERWORLD);
-                case NETHER -> biome.is(BiomeTags.IS_NETHER);
-                case END -> biome.is(BiomeTags.IS_END);
-            };
-        }
-
-        private DimensionFilter next() {
-            DimensionFilter[] values = values();
-            return values[(ordinal() + 1) % values.length];
-        }
-
-        private String translationKey() {
-            return "gui.mirebound.worldgen.dimension."
-                    + name().toLowerCase(Locale.ROOT);
-        }
     }
 
     private enum BiomeSourceFilter {

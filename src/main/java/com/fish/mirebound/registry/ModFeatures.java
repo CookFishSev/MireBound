@@ -11,6 +11,14 @@ import net.neoforged.neoforge.registries.DeferredRegister;
 
 /** Feature types referenced by the mod's data-driven world generation. */
 public final class ModFeatures {
+    private static final DeferredRegister<com.mojang.serialization.MapCodec<? extends
+            net.neoforged.neoforge.common.world.BiomeModifier>> BIOME_MODIFIERS = DeferredRegister.create(
+                    net.neoforged.neoforge.registries.NeoForgeRegistries.Keys.BIOME_MODIFIER_SERIALIZERS,
+                    Mirebound.MOD_ID);
+    static {
+        BIOME_MODIFIERS.register("natural_mud", () ->
+                com.fish.mirebound.generation.natural.NaturalMudBiomeModifier.CODEC);
+    }
     private static final DeferredRegister<Feature<?>> FEATURES =
             DeferredRegister.create(BuiltInRegistries.FEATURE, Mirebound.MOD_ID);
 
@@ -25,5 +33,6 @@ public final class ModFeatures {
 
     public static void register(IEventBus modBus) {
         FEATURES.register(modBus);
+        BIOME_MODIFIERS.register(modBus);
     }
 }

@@ -243,9 +243,7 @@ final class MudContactResolver {
         surfaceAxisX = surfaceAxisX.normalize();
         surfaceAxisZ = surfaceAxisZ.normalize();
         double availableDepth = Math.max(1.0D / 16.0D, column.availableDepth());
-        double depth = Mth.clamp(
-                feetDepth, 0.0D,
-                Math.max(2.8D, player.getBbHeight() + 0.8D));
+        double depth = Mth.clamp(feetDepth, 0.0D, availableDepth);
         LayerDepth layerDepth = activeLayer == null
                 ? new LayerDepth(0.0D, availableDepth, false)
                 : layerDepth(
@@ -334,9 +332,7 @@ final class MudContactResolver {
     }
 
     static double depthFromSurface(Player player, double surfaceY) {
-        return Mth.clamp(
-                surfaceY - player.position().y, 0.0D,
-                Math.max(2.8D, player.getBbHeight() + 0.8D));
+        return Math.max(0.0D, surfaceY - player.position().y);
     }
 
     private static PhysicsLayer activeWorldPhysicsLayer(

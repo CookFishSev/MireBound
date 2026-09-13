@@ -1,6 +1,7 @@
 package com.fish.mirebound.network.payload;
 
 import com.fish.mirebound.Mirebound;
+import com.fish.mirebound.mud.MudCompressionShape;
 import com.fish.mirebound.mud.SinkingMedium;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
@@ -25,30 +26,52 @@ public record MudDebugSyncPayload(
         int liftTicks,
         int stuckTicks,
         int agitationPermille,
-        boolean physicalized) implements CustomPacketPayload {
+        boolean physicalized,
+        MudCompressionShape compressionShape) implements CustomPacketPayload {
     public static final Type<MudDebugSyncPayload> TYPE = new Type<>(ResourceLocation.fromNamespaceAndPath(Mirebound.MOD_ID, "mud_debug"));
     public static final StreamCodec<RegistryFriendlyByteBuf, MudDebugSyncPayload> STREAM_CODEC = new StreamCodec<>() {
         @Override
         public MudDebugSyncPayload decode(RegistryFriendlyByteBuf buffer) {
+            int entityId = buffer.readVarInt();
+            boolean active = buffer.readBoolean();
+            int mediumId = buffer.readVarInt();
+            int depthMillis = buffer.readVarInt();
+            int columnDepthMillis = buffer.readVarInt();
+            int sinkLimitMillis = buffer.readVarInt();
+            int remainingDepthMillis = buffer.readVarInt();
+            int yBeforeMicros = buffer.readVarInt();
+            int yAfterMicros = buffer.readVarInt();
+            int horizontalSpeedMicros = buffer.readVarInt();
+            int sinkStepMicros = buffer.readVarInt();
+            int walkScalePermille = buffer.readVarInt();
+            int verticalScalePermille = buffer.readVarInt();
+            int holdTicks = buffer.readVarInt();
+            int liftTicks = buffer.readVarInt();
+            int stuckTicks = buffer.readVarInt();
+            int agitationPermille = buffer.readVarInt();
+            boolean physicalized = buffer.readBoolean();
+            boolean hasCompressionShape = buffer.readBoolean();
             return new MudDebugSyncPayload(
-                    buffer.readVarInt(),
-                    buffer.readBoolean(),
-                    buffer.readVarInt(),
-                    buffer.readVarInt(),
-                    buffer.readVarInt(),
-                    buffer.readVarInt(),
-                    buffer.readVarInt(),
-                    buffer.readVarInt(),
-                    buffer.readVarInt(),
-                    buffer.readVarInt(),
-                    buffer.readVarInt(),
-                    buffer.readVarInt(),
-                    buffer.readVarInt(),
-                    buffer.readVarInt(),
-                    buffer.readVarInt(),
-                    buffer.readVarInt(),
-                    buffer.readVarInt(),
-                    buffer.readBoolean());
+                    entityId,
+                    active,
+                    mediumId,
+                    depthMillis,
+                    columnDepthMillis,
+                    sinkLimitMillis,
+                    remainingDepthMillis,
+                    yBeforeMicros,
+                    yAfterMicros,
+                    horizontalSpeedMicros,
+                    sinkStepMicros,
+                    walkScalePermille,
+                    verticalScalePermille,
+                    holdTicks,
+                    liftTicks,
+                    stuckTicks,
+                    agitationPermille,
+                    physicalized,
+                    hasCompressionShape ? MudCompressionShape.read(buffer)
+                            : MudCompressionShape.EMPTY);
         }
 
         @Override
@@ -71,8 +94,19 @@ public record MudDebugSyncPayload(
             buffer.writeVarInt(payload.stuckTicks);
             buffer.writeVarInt(payload.agitationPermille);
             buffer.writeBoolean(payload.physicalized);
+            boolean hasCompressionShape = payload.compressionShape != null
+                    && !payload.compressionShape.empty();
+            buffer.writeBoolean(hasCompressionShape);
+            if (hasCompressionShape) {
+                payload.compressionShape.write(buffer);
+            }
         }
     };
+
+    public MudDebugSyncPayload {
+        compressionShape = compressionShape == null
+                ? MudCompressionShape.EMPTY : compressionShape;
+    }
 
     public SinkingMedium medium() {
         return SinkingMedium.byId(mediumId);

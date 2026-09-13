@@ -46,6 +46,7 @@ public final class NaturalMudGenerationPresetCodec {
             rules.add(entry);
         }
         root.add("rules", rules);
+        root.add("surface_generation", NaturalMudCoverageCodec.encode(profile));
         return GSON.toJson(root);
     }
 
@@ -96,9 +97,12 @@ public final class NaturalMudGenerationPresetCodec {
                 return Optional.empty();
             }
             String name = string(root, "name", fallbackName);
+            NaturalMudGenerationProfile profile = new NaturalMudGenerationProfile(decoded);
+            if (root.has("surface_generation")) profile = NaturalMudCoverageCodec.decode(
+                    root.getAsJsonObject("surface_generation"), profile);
             return Optional.of(new NamedProfile(
                     name.isBlank() ? fallbackName : name,
-                    new NaturalMudGenerationProfile(decoded)));
+                    profile));
         } catch (RuntimeException ignored) {
             return Optional.empty();
         }

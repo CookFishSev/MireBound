@@ -20,14 +20,43 @@ import net.minecraft.world.level.biome.Biome;
 public final class NaturalMudGenerationProfile {
     public static final int PROBABILITY_SCALE = 100_000;
     public static final int MAXIMUM_CHANCE = 5_000;
+    private static final NaturalMudCoverageRule DISABLED_COVERAGE = NaturalMudCoverageRule.defaults(false);
 
     private final EnumMap<SinkingMedium, Rule> rules;
+    private final Map<String, NaturalMudCoverageRule> coverageRules;
+    private final Set<String> disabledDimensions;
 
     public NaturalMudGenerationProfile(List<Rule> requested) {
+        this(requested, NaturalMudCoverageRule.defaultBiomes(), Set.of());
+    }
+
+    public NaturalMudGenerationProfile(List<Rule> requested,
+            Map<String, NaturalMudCoverageRule> coverageRules, Set<String> disabledDimensions) {
         rules = new EnumMap<>(SinkingMedium.class);
         for (Rule rule : requested) {
             rules.put(rule.medium(), rule);
         }
+        this.coverageRules = Map.copyOf(coverageRules);
+        this.disabledDimensions = Set.copyOf(disabledDimensions);
+    }
+
+    public Map<String, NaturalMudCoverageRule> coverageRules() { return coverageRules; }
+    public Set<String> disabledDimensions() { return disabledDimensions; }
+    public boolean dimensionEnabled(ResourceLocation dimension) {
+        return !disabledDimensions.contains(dimension.toString());
+    }
+    public NaturalMudCoverageRule coverageRule(String biome) {
+        return coverageRules.getOrDefault(biome, DISABLED_COVERAGE);
+    }
+    public NaturalMudGenerationProfile withCoverageRule(String biome, NaturalMudCoverageRule rule) {
+        Map<String, NaturalMudCoverageRule> copy = new java.util.HashMap<>(coverageRules);
+        copy.put(biome, rule);
+        return new NaturalMudGenerationProfile(rules(), copy, disabledDimensions);
+    }
+    public NaturalMudGenerationProfile withDimensionEnabled(ResourceLocation dimension, boolean enabled) {
+        Set<String> copy = new LinkedHashSet<>(disabledDimensions);
+        if (enabled) copy.remove(dimension.toString()); else copy.add(dimension.toString());
+        return new NaturalMudGenerationProfile(rules(), coverageRules, copy);
     }
 
     public static NaturalMudGenerationProfile defaults() {
@@ -46,13 +75,14 @@ public final class NaturalMudGenerationProfile {
         List<Rule> copy = new ArrayList<>(rules.values());
         copy.removeIf(rule -> rule.medium() == replacement.medium());
         copy.add(replacement);
-        return new NaturalMudGenerationProfile(copy);
+        return new NaturalMudGenerationProfile(copy, coverageRules, disabledDimensions);
     }
 
     public NaturalMudGenerationProfile withAllEnabled(boolean enabled) {
         return new NaturalMudGenerationProfile(rules.values().stream()
                 .map(rule -> rule.withEnabled(enabled))
-                .toList());
+                .toList(), coverageRules.entrySet().stream().collect(java.util.stream.Collectors.toMap(
+                        Map.Entry::getKey, entry -> entry.getValue().withEnabled(enabled))), disabledDimensions);
     }
 
     public NaturalMudGenerationProfile reset(SinkingMedium medium) {

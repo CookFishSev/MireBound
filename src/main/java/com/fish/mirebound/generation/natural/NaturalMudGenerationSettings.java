@@ -24,7 +24,7 @@ import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 /** Per-world persisted natural-generation choices with a server-scoped hot cache. */
 public final class NaturalMudGenerationSettings extends SavedData {
     private static final String DATA_NAME = "mirebound_natural_mud_generation";
-    private static final int DATA_VERSION = 6;
+    private static final int DATA_VERSION = 7;
     private static final int MAX_PERSISTED_RULES = SinkingMedium.COUNT;
     private static final int MAX_BIOME_SELECTORS_PER_RULE = 4096;
     private static final int MAX_SELECTOR_LENGTH = 256;
@@ -37,7 +37,7 @@ public final class NaturalMudGenerationSettings extends SavedData {
 
     private NaturalMudGenerationProfile profile;
 
-    private NaturalMudGenerationSettings(NaturalMudGenerationProfile profile) {
+    NaturalMudGenerationSettings(NaturalMudGenerationProfile profile) {
         this.profile = profile;
     }
 
@@ -157,6 +157,20 @@ public final class NaturalMudGenerationSettings extends SavedData {
             }
             profile = profile.withRule(loaded);
         }
+        if (tag.contains("SurfaceGeneration", Tag.TAG_STRING)) {
+            String json = tag.getString("SurfaceGeneration");
+            if (json.length() <= 2_000_000) {
+                try {
+                    profile = NaturalMudCoverageCodec.decode(
+                            com.google.gson.JsonParser.parseString(json).getAsJsonObject(), profile);
+                } catch (RuntimeException ex) {
+                    Mirebound.LOGGER.warn("Invalid natural surface settings; keeping defaults", ex);
+                }
+            }
+        } else if (tag.getInt("Version") < DATA_VERSION) {
+            // Existing worlds retain their old sparse generation until explicitly configured.
+            profile = new NaturalMudGenerationProfile(profile.rules(), Map.of(), Set.of());
+        }
         return profile;
     }
 
@@ -181,6 +195,7 @@ public final class NaturalMudGenerationSettings extends SavedData {
     @Override
     public CompoundTag save(CompoundTag tag, HolderLookup.Provider registries) {
         tag.putInt("Version", DATA_VERSION);
+        tag.putString("SurfaceGeneration", NaturalMudCoverageCodec.encode(profile).toString());
         ListTag entries = new ListTag();
         for (Rule rule : profile.rules()) {
             CompoundTag entry = new CompoundTag();

@@ -155,6 +155,9 @@ public final class MudPlayerData {
     public boolean inMud;
     public boolean eyeSubmerged;
     public boolean debugPhysicalized;
+    public MudEntityGeometry.PlaneSlice previousDebugCompressionSlice;
+    public Vec3 previousDebugCompressionOrigin = Vec3.ZERO;
+    public int previousDebugCompressionTick = Integer.MIN_VALUE;
     public boolean holdingStruggle;
     public boolean hasLookSample;
     public boolean nextFootprintLeft = true;
@@ -248,6 +251,9 @@ public final class MudPlayerData {
         lastClientPhysicsProfilePos = null;
         lastClientPhysicsProfileSyncTick = Integer.MIN_VALUE;
         debugPhysicalized = false;
+        previousDebugCompressionSlice = null;
+        previousDebugCompressionOrigin = Vec3.ZERO;
+        previousDebugCompressionTick = Integer.MIN_VALUE;
     }
 
     public void resetFootprintTracking() {

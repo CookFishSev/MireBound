@@ -33,7 +33,7 @@ final class SinkingPhysicsSolver {
                         columnDepth,
                         input.layerTopDepth(),
                         input.layerDepth(),
-                        input.hasDeeperLayer(),
+                        input.hasDeeperLayer() && !profile.endsGeneratedColumn(),
                         profile.simpleNaturalDepth,
                         input.depthLimitScale())
                 : sinkLimit;
@@ -201,7 +201,7 @@ final class SinkingPhysicsSolver {
                 columnDepth,
                 layerTopDepth,
                 layerDepth,
-                hasDeeperLayer,
+                hasDeeperLayer && !profile.endsGeneratedColumn(),
                 configuredDepth(profile),
                 depthLimitScale);
     }
@@ -225,7 +225,7 @@ final class SinkingPhysicsSolver {
 
     private static boolean allowsLayerTransition(SinkingPhysicsProfile profile,
             boolean hasDeeperLayer, double depthLimitScale) {
-        return hasDeeperLayer
+        return hasDeeperLayer && !profile.endsGeneratedColumn()
                 && configuredDepth(profile) >= 1.0D - 1.0E-9D
                 && depthLimitScale >= 1.0D - 1.0E-9D;
     }

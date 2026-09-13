@@ -6,7 +6,6 @@ import java.util.Map;
 import java.util.WeakHashMap;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.worldselection.CreateWorldScreen;
-import net.minecraft.world.level.levelgen.presets.WorldPresets;
 
 /** Client-owned draft profiles for create-world screens. */
 public final class NaturalMudWorldCreationClient {
@@ -17,9 +16,10 @@ public final class NaturalMudWorldCreationClient {
     }
 
     public static boolean supports(CreateWorldScreen screen) {
-        return screen.getUiState().getWorldType().preset() != null
-                && screen.getUiState().getWorldType().preset().unwrapKey()
-                        .filter(WorldPresets.NORMAL::equals).isPresent();
+        var overworld = screen.getUiState().getSettings().selectedDimensions().dimensions()
+                .get(net.minecraft.world.level.dimension.LevelStem.OVERWORLD);
+        return overworld != null && !(overworld.generator()
+                instanceof net.minecraft.world.level.levelgen.FlatLevelSource);
     }
 
     public static NaturalMudGenerationProfile profile(CreateWorldScreen screen) {

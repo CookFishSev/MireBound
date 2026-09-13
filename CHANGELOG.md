@@ -1,5 +1,22 @@
 # Development Updates
 
+## 2026-09-13 - MireBound-Beta1.3.0-MC1.21.1-NeoForge
+
+- Fixed multiplayer mud compression area and closing synchronization.
+- Fixed buried mud strands appearing dark.
+- Added regional mud coverage with probability, material mixing, and tree-dependent sinking depth.
+- Added per-dimension generation switches and presets for the new settings.
+- Fixed world-generation controls and dimension names.
+
+- 修复了多人游戏中泥面挤压范围和闭合同步的问题。
+- 修复了泥面拉丝埋入介质后变黑的问题。
+- 添加了大范围流沙覆盖、生成概率、材质混合和树木附近下陷加深设置。
+- 添加了单维度生成开关和新设置的预设支持。
+- 修复了世界生成面板的控件状态和维度名称显示。
+
+Minecraft 1.21.1 / NeoForge. Version: `1.3.0-beta`. Author: CookFishSev.
+Clients and servers must both update to this version. 客户端与服务端均需更新至此版本。
+
 ## 2026-09-13 - MireBound-Beta1.2.3-MC1.21.1-NeoForge
 
 - Fixed recessed corners on wall stains with some shader packs.

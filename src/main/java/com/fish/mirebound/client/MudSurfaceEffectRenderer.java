@@ -39,6 +39,7 @@ import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 /** Batched 2.5D holes, raised pixel rims, and low-poly mud bubbles. */
 final class MudSurfaceEffectRenderer {
     private static final double PIXEL = 1.0D / 16.0D;
+    private static final double SURFACE_ANCHOR_HIDDEN_FRACTION = 0.10D;
     private static final double SURFACE_DECAL_NORMAL_OFFSET = PIXEL * 0.10D;
     private static final int TENDER_FLESH_PILLAR_COUNT = 4;
     private static final int TENDER_FLESH_MEMBRANE_SLICES = 4;
@@ -481,6 +482,12 @@ final class MudSurfaceEffectRenderer {
         if (length <= 0.012D || !strand.bridgeInitialized) {
             return;
         }
+        if (strand.surfaceAnchored
+                && end.subtract(start).dot(hole.normal) <= PIXEL * 0.12D) {
+            // A submerged bridge is behind the medium surface. Keeping its
+            // vertices makes it receive dark lighting and causes depth noise.
+            return;
+        }
         double growth = smooth(Mth.lerp(partialTick,
                 strand.previousAttachProgress, strand.attachProgress));
         if (growth <= 0.006D) {
@@ -488,9 +495,12 @@ final class MudSurfaceEffectRenderer {
         }
         double breakLength = Math.max(0.15D, profile.breakLength());
         double stretch = Mth.clamp(length / breakLength, 0.0D, 1.0D);
-        Vec3 midpoint = start.add(end).scale(0.5D);
+        // Sample light just outside the medium. Sampling the midpoint makes a
+        // submerged bridge inherit the medium's darkness even when its visible
+        // part is above the surface.
+        Vec3 lightPoint = start.add(hole.normal.scale(0.10D));
         int packedLight = LevelRenderer.getLightColor(
-                minecraft.level, BlockPos.containing(midpoint));
+                minecraft.level, BlockPos.containing(lightPoint));
         MudSurfaceAppearance.Appearance appearance = MudSurfaceAppearance.resolve(
                 minecraft.level, strand.visualSource, hole.medium.coverTexture());
         RenderType renderType = adhesionRenderType(hole.medium, appearance.texture());
@@ -502,20 +512,21 @@ final class MudSurfaceEffectRenderer {
         prepareAdhesionFrames(strand, hole, partialTick);
         double breakProgress = Mth.lerp(partialTick,
                 strand.previousBreakProgress, strand.breakProgress);
-        double lobeVisibility = strand.breaking
-                ? growth * (1.0D - smooth(breakProgress)) : growth;
-        renderAdhesionSurfaceLobe(pose, vertices, hole, strand, profile,
-                start, stretch, lobeVisibility, uv, alpha, packedLight, appearance);
+        // The surface endpoint is intentionally kept for attachment logic, but its
+        // small lobe can sit inside the medium and become a dark, detached-looking dot.
+        // The bridge already supplies the visible connection from the surface onward.
+        double visibleFrom = strand.surfaceAnchored
+                ? SURFACE_ANCHOR_HIDDEN_FRACTION : 0.0D;
         if (strand.breaking && breakProgress > 0.0D) {
             double retained = 0.5D * (1.0D - smooth(breakProgress));
             renderAdhesionBridgePiece(pose, vertices, profile,
-                    0.0D, Math.min(retained, growth), stretch, uv, alpha, packedLight,
+                    visibleFrom, Math.min(retained, growth), stretch, uv, alpha, packedLight,
                     appearance);
             renderAdhesionBridgePiece(pose, vertices, profile,
                     1.0D - retained, growth, stretch, uv, alpha, packedLight, appearance);
         } else {
             renderAdhesionBridgePiece(pose, vertices, profile,
-                    0.0D, growth, stretch, uv, alpha, packedLight, appearance);
+                    visibleFrom, growth, stretch, uv, alpha, packedLight, appearance);
         }
     }
 

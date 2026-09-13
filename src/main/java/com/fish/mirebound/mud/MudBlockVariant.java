@@ -6,7 +6,9 @@ import net.minecraft.util.StringRepresentable;
 public enum MudBlockVariant implements StringRepresentable {
     DEFAULT("default"),
     HEIGHT("height"),
-    SPECIAL("special");
+    SPECIAL("special"),
+    NATURAL_DEPTH("natural_depth"),
+    NATURAL_DEPTH_END("natural_depth_end");
 
     private final String serializedName;
 
@@ -18,6 +20,8 @@ public enum MudBlockVariant implements StringRepresentable {
     public String getSerializedName() {
         return serializedName;
     }
+
+    public boolean naturalDepth() { return this == NATURAL_DEPTH || this == NATURAL_DEPTH_END; }
 
     public static MudBlockVariant byId(int id) {
         MudBlockVariant[] values = values();

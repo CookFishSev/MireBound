@@ -575,6 +575,15 @@ public final class MudTuningManager {
         } else if (objectId.kind() == MudTuningObjectId.Kind.NATIVE_MEDIUM) {
             SinkingMedium medium = objectId.nativeMedium();
             for (BlockPos pos : targets) {
+                if (payload.followWorld() || hasChanged(effectiveChanged)) {
+                    BlockState state = level.getBlockState(pos);
+                    if (MudBlock.variant(state).naturalDepth()) {
+                        // A real wand edit promotes generated terrain to ordinary user-owned settings.
+                        level.setBlock(pos, state.setValue(MudBlock.VARIANT, MudBlockVariant.DEFAULT)
+                                .setValue(MudBlock.HEIGHT, 16), 2);
+                        changedChunks.add(new ChunkPos(pos));
+                    }
+                }
                 if (payload.followWorld()) {
                     if (store.remove(pos)) {
                         changedChunks.add(new ChunkPos(pos));

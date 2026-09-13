@@ -80,7 +80,7 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
 import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 
 public final class ModNetworking {
-    private static final String PROTOCOL_VERSION = "177";
+    private static final String PROTOCOL_VERSION = "178";
 
     private ModNetworking() {
     }

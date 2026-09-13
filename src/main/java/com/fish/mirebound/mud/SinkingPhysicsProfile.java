@@ -4,6 +4,31 @@ import java.util.Arrays;
 import net.minecraft.util.Mth;
 
 final class SinkingPhysicsProfile {
+    private SinkingPhysicsProfile[] generatedDepthProfiles;
+    private boolean generatedDepthEnd;
+
+    boolean endsGeneratedColumn() { return generatedDepthEnd; }
+
+    /** Palette-owned generated depth keeps the surface full and avoids per-column saved profiles. */
+    synchronized SinkingPhysicsProfile withGeneratedDepth(int pixels) {
+        return withGeneratedDepth(pixels, false);
+    }
+
+    synchronized SinkingPhysicsProfile withGeneratedDepth(int pixels, boolean end) {
+        int depthPixels = Math.clamp(pixels, 1, 16);
+        int index = depthPixels - 1 + (end ? 16 : 0);
+        if (generatedDepthProfiles == null) generatedDepthProfiles = new SinkingPhysicsProfile[32];
+        if (generatedDepthProfiles[index] == null) {
+            double[] values = new double[MudPhysicsParameter.values().length];
+            writeTo(values);
+            values[MudPhysicsParameter.SINKING_DEPTH_CONTROL_MODE.ordinal()] = 0;
+            values[MudPhysicsParameter.SIMPLE_MAXIMUM_SINKING_DEPTH.ordinal()] = depthPixels / 16.0;
+            values[MudPhysicsParameter.SIMPLE_NATURAL_SINKING_DEPTH.ordinal()] = depthPixels / 16.0;
+            generatedDepthProfiles[index] = fromValues(values);
+            generatedDepthProfiles[index].generatedDepthEnd = end;
+        }
+        return generatedDepthProfiles[index];
+    }
     private static final SinkingPhysicsProfile MUD = builder(0.24D)
             .behavior(0.05D, 0.65D, 0.12D)
             .sink(0.0036D, 0.16D, 0.036D, 0.20D)
@@ -431,7 +456,7 @@ final class SinkingPhysicsProfile {
         builder.simpleNaturalDepth = lerp(
                 from.simpleNaturalDepth, to.simpleNaturalDepth, t);
         builder.depthControlMode = t < 0.5D ? from.depthControlMode : to.depthControlMode;
-        return builder
+        SinkingPhysicsProfile result = builder
                 .sink(
                         lerp(from.baseSinkSpeed, to.baseSinkSpeed, t),
                         lerp(from.deepSinkRatio, to.deepSinkRatio, t),
@@ -477,6 +502,8 @@ final class SinkingPhysicsProfile {
                         lerp(from.behavior.cohesiveSuction(), to.behavior.cohesiveSuction(), t),
                         lerp(from.behavior.adhesiveGrip(), to.behavior.adhesiveGrip(), t))
                 .build();
+        result.generatedDepthEnd = to.generatedDepthEnd;
+        return result;
     }
 
     private static Builder builder(double maxDepthFactor) {

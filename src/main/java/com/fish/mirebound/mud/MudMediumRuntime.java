@@ -337,6 +337,18 @@ public final class MudMediumRuntime {
 
     static SinkingPhysicsProfile ordinaryProfile(
             Level level, BlockPos pos, SinkingMedium medium, SinkingPhysicsProfile fallback) {
+        SinkingPhysicsProfile base = ordinaryBaseProfile(level, pos, medium, fallback);
+        if (level != null && pos != null) {
+            BlockState state = level.getBlockState(pos);
+            if (state.getBlock() instanceof MudBlock && MudBlock.variant(state).naturalDepth())
+                return base.withGeneratedDepth(MudBlock.storedHeight(state),
+                        MudBlock.variant(state) == MudBlockVariant.NATURAL_DEPTH_END);
+        }
+        return base;
+    }
+
+    private static SinkingPhysicsProfile ordinaryBaseProfile(
+            Level level, BlockPos pos, SinkingMedium medium, SinkingPhysicsProfile fallback) {
         if (level instanceof ServerLevel serverLevel && pos != null) {
             return MudBlockProfileStore.ordinary(serverLevel, pos, medium);
         }

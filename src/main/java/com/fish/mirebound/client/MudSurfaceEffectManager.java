@@ -319,7 +319,9 @@ final class MudSurfaceEffectManager {
                         fleshTemplate
                                 ? MudPhysics.clientTenderFleshWrap(player) : 0.0D,
                         fleshTemplate
-                                ? MudPhysics.clientTenderFleshPressure(player) : 0.0D);
+                                ? MudPhysics.clientTenderFleshPressure(player) : 0.0D,
+                        null,
+                        null);
             }
         }
         MudDebugSyncPayload debug = ClientMudDebugState.currentFor(player.getId());
@@ -327,7 +329,13 @@ final class MudSurfaceEffectManager {
             return null;
         }
         Vec3 motion = player.getDeltaMovement();
-        Vec3 surfacePoint = new Vec3(player.getX(), player.getY() + debug.depth(), player.getZ());
+        Vec3 compressionOrigin = debug.compressionShape() == null
+                ? player.position()
+                : debug.compressionShape().originOr(player.position());
+        Vec3 surfacePoint = new Vec3(
+                compressionOrigin.x,
+                compressionOrigin.y + debug.depth(),
+                compressionOrigin.z);
         BlockPos profilePos = supportPos(surfacePoint, new Vec3(0.0D, 1.0D, 0.0D));
         VisualSurface visual = visualSurfaceAt(
                 minecraft.level, profilePos, debug.medium(),
@@ -368,7 +376,10 @@ final class MudSurfaceEffectManager {
                 debug.walkScale(),
                 contraction,
                 0.0D,
-                0.0D);
+                0.0D,
+                debug.compressionShape() == null
+                        ? null : debug.compressionShape().toPlaneSlice(player.position()),
+                compressionOrigin);
     }
 
     private static Direction contactVisualFace(ClientLevel level, BlockPos profilePos,
@@ -478,8 +489,12 @@ final class MudSurfaceEffectManager {
         hole.axisZ = axisZ;
         hole.center = hole.targetCenter;
         hole.normal = safeNormal(lerp(hole.normal, hole.targetNormal, 0.36D));
+        // A synchronized server slice is already the authoritative pressure
+        // footprint. Stamp it every tick so distance-based remote throttling
+        // cannot discard most of a fast swimming trail.
         boolean updateSurface = !contact.physicalized
-                && surfaceUpdateDue(hole, minecraft);
+                && (contact.compressionSlice != null
+                        || surfaceUpdateDue(hole, minecraft));
         if (updateSurface) {
             prepareSurfaceUpdate(hole, minecraft.level.getGameTime());
             hole.surfaceUpdateRequested = true;
@@ -2679,6 +2694,11 @@ final class MudSurfaceEffectManager {
 
     private static MudEntityGeometry.PlaneSlice surfaceSlice(
             Player player, Contact contact, double scale) {
+        if (contact.compressionSlice != null && !contact.compressionSlice.empty()) {
+            Vec3 origin = contact.compressionOrigin == null
+                    ? player.position() : contact.compressionOrigin;
+            return scaledSlice(contact.compressionSlice, origin, scale);
+        }
         if (continuousSlopeFootprint(contact.surfaceNormal)) {
             AABB bounds = player.getBoundingBox();
             return continuousPressureSlice(
@@ -2851,7 +2871,9 @@ final class MudSurfaceEffectManager {
             double walkScale,
             double fleshContraction,
             double fleshWrap,
-            double fleshPressure) {
+            double fleshPressure,
+            MudEntityGeometry.PlaneSlice compressionSlice,
+            Vec3 compressionOrigin) {
     }
 
     record VisualSurface(
