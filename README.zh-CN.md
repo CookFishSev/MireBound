@@ -75,12 +75,12 @@ gradle "-Dorg.gradle.problems.report=false" build --no-configuration-cache --sta
 
 本模组的开发离不开以下开源项目的启发与帮助，特此致谢：
 
-- **[Memento In Abyss / Made In Abyss]** – 提供了物理绳索的实现思路；
-- **[Aeronautics / Simulated Project]** – 为适配物理世界提供了巨大帮助；
+- **[Memento In Abyss / Made In Abyss](https://github.com/MIA-Development-Team/Made-In-Abyss)** – 提供了物理绳索的实现思路；
+- **[Aeronautics / Simulated Project](https://github.com/Creators-of-Aeronautics/Simulated-Project)** – 为适配物理世界提供了巨大帮助；
 - **[Sable](https://github.com/ryanhcode/sable)** – 用于物理结构兼容；
 - **[Litematica](https://github.com/maruohon/litematica)** – 参考了其框选内容的渲染方式与逻辑，极大优化了性能；
-- **[Quicksand-Rehydrated]** – 提供了玩法灵感，并激励我在高版本实现流沙模组；
-- **[MFQM Decompiled Reference]** – 为本模组的起步提供了宝贵的指引。
+- **[Quicksand-Rehydrated](https://github.com/Theyoungster/Quicksand-Rehydrated)** – 提供了玩法灵感，并激励我在高版本实现流沙模组；
+- **[MFQM Decompiled Reference](https://github.com/Iwaku-Real/MFQM-decompiled)** – 为本模组的起步提供了宝贵的指引。
 
 ### 开发备注
 
