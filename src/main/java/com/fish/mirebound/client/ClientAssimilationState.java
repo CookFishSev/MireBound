@@ -41,7 +41,9 @@ public final class ClientAssimilationState {
         view.restoringTicks = payload.restoringTicks();
         Vec3 nextAnchor = new Vec3(payload.anchorX(), payload.anchorY(), payload.anchorZ());
         if (!view.anchorInitialized || !view.stage.frozen()
-                || previousStage == AssimilationStage.NORMAL) {
+                || !previousStage.frozen()
+                || nextAnchor.distanceToSqr(view.targetAnchor)
+                        > view.profile.soulRadius() * view.profile.soulRadius()) {
             view.displayAnchor = nextAnchor;
             view.previousDisplayAnchor = nextAnchor;
             view.anchorInitialized = true;

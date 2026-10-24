@@ -30,7 +30,7 @@ import net.minecraft.world.level.saveddata.SavedData;
 /** Persistent, per-dimension profile snapshots for individually tuned mud blocks. */
 public final class MudBlockProfileStore extends SavedData {
     private static final String DATA_NAME = "mirebound_mud_block_profiles";
-    private static final int DATA_VERSION = 10;
+    private static final int DATA_VERSION = 11;
     private static final int MAX_PERSISTED_PROFILES = 262_144;
     private static final int MAX_PERSISTED_SHAPE_MARKERS = 262_144;
     private static final Factory<MudBlockProfileStore> FACTORY =
@@ -162,6 +162,9 @@ public final class MudBlockProfileStore extends SavedData {
                     MudSinkingDepthControl.maximumDepth(
                             values[MudPhysicsParameter.MAX_DEPTH_FACTOR.ordinal()],
                             values[MudPhysicsParameter.COLUMN_MARGIN.ordinal()]);
+        }
+        if (version < 11) {
+            AdhesionStrandProfile.migrateTenderFleshDefaults(medium, values);
         }
     }
 

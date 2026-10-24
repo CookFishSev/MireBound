@@ -41,7 +41,7 @@ final class AssimilationFrozenBodySystem {
         Vec3 current = player.position();
         if (player.isPassenger()) {
             Vec3 carriedMotion = current.subtract(state.anchor);
-            state.anchor = current;
+            state.moveAnchor(current);
             state.rigidVelocity = Vec3.ZERO;
             state.carriedLastTick = true;
             state.transportHandoffTicks = profile.shellTransportHandoffTicks();
@@ -53,7 +53,7 @@ final class AssimilationFrozenBodySystem {
         }
 
         if (state.carriedLastTick) {
-            state.anchor = current;
+            state.moveAnchor(current);
             state.rigidVelocity = Vec3.ZERO;
             state.carriedLastTick = false;
             state.transportHandoffTicks = profile.shellTransportHandoffTicks();
@@ -61,7 +61,7 @@ final class AssimilationFrozenBodySystem {
         }
         if (state.transportHandoffTicks > 0) {
             Vec3 inheritedMotion = current.subtract(state.anchor);
-            state.anchor = current;
+            state.moveAnchor(current);
             state.rigidVelocity = Vec3.ZERO;
             state.transportHandoffTicks--;
             updateTilt(state, profile, inheritedMotion, false);
@@ -72,7 +72,7 @@ final class AssimilationFrozenBodySystem {
 
         if (SableCompat.isTracking(player)) {
             Vec3 inheritedMotion = current.subtract(state.anchor);
-            state.anchor = current;
+            state.moveAnchor(current);
             updateTilt(state, profile, inheritedMotion, false);
             state.dirty |= inheritedMotion.lengthSqr() > POSITION_EPSILON_SQR;
         } else {
@@ -100,7 +100,7 @@ final class AssimilationFrozenBodySystem {
 
         if (MudPhysics.hasSinkingContact(player)) {
             state.rigidVelocity = Vec3.ZERO;
-            state.anchor = player.position();
+            state.moveAnchor(player.position());
             player.setDeltaMovement(Vec3.ZERO);
             return true;
         }
@@ -116,7 +116,7 @@ final class AssimilationFrozenBodySystem {
                         requested, actual, profile.shellRestitution(),
                         profile.shellGroundFriction());
         state.rigidVelocity = collision.velocity();
-        state.anchor = player.position();
+        state.moveAnchor(player.position());
         updateTilt(state, profile, state.rigidVelocity,
                 collision.blockedY() && requested.y < 0.0D);
         state.dirty |= actual.lengthSqr() > POSITION_EPSILON_SQR

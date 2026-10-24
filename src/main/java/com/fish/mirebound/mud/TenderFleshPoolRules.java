@@ -40,45 +40,57 @@ public final class TenderFleshPoolRules {
     public static Anchor findAnchor(Level level, BlockPos surfacePos,
             SinkingMedium medium, TenderFleshProfile profile, double availableDepth,
             double localPlayerX, double localPlayerZ, double bodyHalfWidth) {
-        if (level == null || surfacePos == null || profile == null
-                || availableDepth + 1.0E-4D < profile.enclosureMinLayers()) {
+        if (level == null || surfacePos == null || profile == null) {
             return null;
         }
+        if (!supportsFootprint(profile, availableDepth, localPlayerX, localPlayerZ, bodyHalfWidth,
+                (x, z, layers) -> isCompleteColumn(level, surfacePos, medium, x, z, layers))) {
+            return null;
+        }
+        BlockState surfaceState = level.getBlockState(surfacePos);
+        double surfaceHeight = MudMediumRuntime.surfaceHeightAt(
+                level, surfacePos, surfaceState, medium,
+                surfacePos.getX() + localPlayerX, surfacePos.getZ() + localPlayerZ);
+        return Double.isFinite(surfaceHeight)
+                ? new Anchor(surfacePos.getX() + localPlayerX,
+                        surfacePos.getY() + surfaceHeight, surfacePos.getZ() + localPlayerZ)
+                : null;
+    }
 
+    static boolean supportsFootprint(TenderFleshProfile profile, double availableDepth,
+            double localX, double localZ, double bodyHalfWidth, ColumnSupport support) {
+        if (!Double.isFinite(availableDepth) || !Double.isFinite(localX)
+                || !Double.isFinite(localZ) || !Double.isFinite(bodyHalfWidth)
+                || availableDepth + 1.0E-4D < profile.enclosureMinLayers()) {
+            return false;
+        }
         int layers = Mth.clamp(profile.enclosureMinLayers(), 1, 4);
         int width = Mth.clamp(profile.enclosureMinPoolWidth(), 1, 4);
-        double edgeMargin = Math.min(width * 0.5D - 0.01D,
-                Math.max(0.22D, Math.max(0.20D, bodyHalfWidth) + 0.12D));
-        double rootMargin = Math.min(width * 0.5D - 0.01D,
-                requiredRootClearance(profile, bodyHalfWidth));
-        for (int startX = 1 - width; startX <= 0; startX++) {
-            for (int startZ = 1 - width; startZ <= 0; startZ++) {
-                double playerX = localPlayerX - startX;
-                double playerZ = localPlayerZ - startZ;
-                double requiredMargin = Math.max(edgeMargin, rootMargin);
-                if (playerX < requiredMargin || playerX > width - requiredMargin
-                        || playerZ < requiredMargin || playerZ > width - requiredMargin) {
-                    continue;
-                }
-                if (isCompletePool(
-                        level, surfacePos, medium, startX, startZ, width, layers)) {
-                    BlockState surfaceState = level.getBlockState(surfacePos);
-                    double surfaceHeight = MudMediumRuntime.surfaceHeightAt(
-                            level, surfacePos, surfaceState, medium,
-                            surfacePos.getX() + localPlayerX,
-                            surfacePos.getZ() + localPlayerZ);
-                    if (!Double.isFinite(surfaceHeight)) {
-                        continue;
-                    }
-                    double rootY = surfacePos.getY() + surfaceHeight;
-                    return new Anchor(
-                            surfacePos.getX() + localPlayerX,
-                            rootY,
-                            surfacePos.getZ() + localPlayerZ);
+        double clearance = requiredRootClearance(profile, bodyHalfWidth);
+        // Include actual roots across block seams instead of fitting the player
+        // into one grid-aligned square, which rejects even the middle of a large pool.
+        int minX = Math.min(Mth.floor(localX - clearance + 1.0E-6D),
+                Mth.floor(localX - (width - 1) * 0.5D));
+        int minZ = Math.min(Mth.floor(localZ - clearance + 1.0E-6D),
+                Mth.floor(localZ - (width - 1) * 0.5D));
+        int maxX = Math.max(Mth.floor(localX + clearance - 1.0E-6D), minX + width - 1);
+        int maxZ = Math.max(Mth.floor(localZ + clearance - 1.0E-6D), minZ + width - 1);
+        if (maxX - minX > 4 || maxZ - minZ > 4) {
+            return false;
+        }
+        for (int x = minX; x <= maxX; x++) {
+            for (int z = minZ; z <= maxZ; z++) {
+                if (!support.contains(x, z, layers)) {
+                    return false;
                 }
             }
         }
-        return null;
+        return true;
+    }
+
+    @FunctionalInterface
+    interface ColumnSupport {
+        boolean contains(int x, int z, int layers);
     }
 
     public static double pillarOuterRadius(TenderFleshProfile profile,
@@ -104,22 +116,16 @@ public final class TenderFleshPoolRules {
         return pillarOuterRadius(profile, bodyHalfWidth) + halfTube + PIXEL * 0.50D;
     }
 
-    private static boolean isCompletePool(Level level, BlockPos surfacePos,
-            SinkingMedium medium, int startX, int startZ, int width, int layers) {
-        for (int x = 0; x < width; x++) {
-            for (int z = 0; z < width; z++) {
-                for (int layer = 0; layer < layers; layer++) {
-                    BlockPos pos = surfacePos.offset(startX + x, -layer, startZ + z);
-                    BlockState state = level.getBlockState(pos);
-                    if (ModBlocks.mediumOf(state.getBlock()) != medium
-                            || !MudBlock.supportsVerticalSinking(
-                                    state, medium)
-                            || !MudMediumRuntime.enabled(
-                                    level, pos, medium)
-                            || !MudBehaviorContext.tenderFlesh(level, pos, medium)) {
-                        return false;
-                    }
-                }
+    private static boolean isCompleteColumn(Level level, BlockPos surfacePos,
+            SinkingMedium medium, int x, int z, int layers) {
+        for (int layer = 0; layer < layers; layer++) {
+            BlockPos pos = surfacePos.offset(x, -layer, z);
+            BlockState state = level.getBlockState(pos);
+            if (ModBlocks.mediumOf(state.getBlock()) != medium
+                    || !MudBlock.supportsVerticalSinking(state, medium)
+                    || !MudMediumRuntime.enabled(level, pos, medium)
+                    || !MudBehaviorContext.tenderFlesh(level, pos, medium)) {
+                return false;
             }
         }
         return true;

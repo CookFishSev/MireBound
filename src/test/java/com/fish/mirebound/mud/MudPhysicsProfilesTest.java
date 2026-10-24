@@ -292,6 +292,47 @@ class MudPhysicsProfilesTest {
     }
 
     @Test
+    void tenderFleshDefaultsToEnclosureWhileOnlyTarDefaultsToAdhesion() {
+        for (SinkingMedium medium : SinkingMedium.values()) {
+            double[] values = MudPhysicsProfiles.defaultValues(medium);
+            assertEquals(medium == SinkingMedium.TAR ? 1.0D : 0.0D,
+                    value(values, MudPhysicsParameter.ADHESION_STRANDS_ENABLED), medium.name());
+            assertEquals(medium == SinkingMedium.TAR ? 1.0D : 0.0D,
+                    value(values, MudPhysicsParameter.ADHESION_SHEET_ENABLED), medium.name());
+            assertEquals(medium == SinkingMedium.TENDER_FLESH ? 1.0D : 0.0D,
+                    value(values, MudPhysicsParameter.FLESH_ENABLED), medium.name());
+        }
+    }
+
+    @Test
+    void oldUntouchedFleshAdhesionMigratesWithoutDisablingTheEnclosure() {
+        double[] values = MudPhysicsProfiles.defaultValues(SinkingMedium.TENDER_FLESH);
+        AdhesionStrandProfile.defaultsBeforeSharedTarTemplate(SinkingMedium.TENDER_FLESH)
+                .writeTo(values);
+        MudBlockProfileStore.migrateLoadedValues(10, SinkingMedium.TENDER_FLESH, values);
+        assertEquals(0.0D, value(values, MudPhysicsParameter.ADHESION_STRANDS_ENABLED));
+        assertEquals(0.0D, value(values, MudPhysicsParameter.ADHESION_SHEET_ENABLED));
+        assertEquals(1.0D, value(values, MudPhysicsParameter.FLESH_ENABLED));
+    }
+
+    @Test
+    void adhesionMigrationPreservesCustomizationAndNewExplicitOptIn() {
+        double[] values = MudPhysicsProfiles.defaultValues(SinkingMedium.TENDER_FLESH);
+        AdhesionStrandProfile.defaultsBeforeSharedTarTemplate(SinkingMedium.TENDER_FLESH)
+                .writeTo(values);
+        values[MudPhysicsParameter.ADHESION_STRAND_WIDTH_PIXELS.ordinal()] = 2.5D;
+        MudBlockProfileStore.migrateLoadedValues(10, SinkingMedium.TENDER_FLESH, values);
+        assertEquals(1.0D, value(values, MudPhysicsParameter.ADHESION_STRANDS_ENABLED));
+        assertEquals(2.5D, value(values, MudPhysicsParameter.ADHESION_STRAND_WIDTH_PIXELS));
+
+        AdhesionStrandProfile.defaultsBeforeSharedTarTemplate(SinkingMedium.TENDER_FLESH)
+                .writeTo(values);
+        MudBlockProfileStore.migrateLoadedValues(11, SinkingMedium.TENDER_FLESH, values);
+        assertEquals(1.0D, value(values, MudPhysicsParameter.ADHESION_STRANDS_ENABLED));
+        assertEquals(1.0D, value(values, MudPhysicsParameter.ADHESION_SHEET_ENABLED));
+    }
+
+    @Test
     void clientProfileHotSyncRebuildsAdhesionTemplate() {
         double[] values = MudPhysicsProfiles.defaultValues(SinkingMedium.MUD);
         values[MudPhysicsParameter.ADHESION_STRANDS_ENABLED.ordinal()] = 1.0D;

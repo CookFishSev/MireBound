@@ -9,6 +9,7 @@
     "mud.PathNavigationMudAccessor",
     "mud.WalkNodeEvaluatorMudMixin",
     "mud.PlayerMudMovementMixin",
+    "mud.ServerPlayerAssimilationTeleportMixin",
     "mud.BlockStateMudPlantSurvivalMixin",
     "compat.carryon.CarryOnAssimilationPlacementMixin",
     "compat.sable.SableVoxelNeighborhoodStateMixin",

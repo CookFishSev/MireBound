@@ -514,10 +514,10 @@ final class MudSurfaceEffectManager {
                     hole.fleshEnclosureAnchorSet = true;
                 }
             } else {
-                boolean poolQualified = TenderFleshPoolRules.qualifies(
-                        level, contact.profilePos, fleshProfile, contact.availableDepth,
+                boolean poolQualified = TenderFleshPoolRules.findAnchor(
+                        level, contact.profilePos, contact.medium, fleshProfile, contact.availableDepth,
                         player.getX() - contact.profilePos.getX(),
-                        player.getZ() - contact.profilePos.getZ());
+                        player.getZ() - contact.profilePos.getZ(), player.getBbWidth() * 0.5D) != null;
                 double threshold = fleshProfile.enclosureWalkScaleThreshold();
                 if (!poolQualified && !wasEnclosureActive) {
                     hole.fleshEnclosureActive = false;

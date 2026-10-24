@@ -984,7 +984,7 @@ final class MudSurfaceEffectRenderer {
                 : smooth(Mth.clamp((pillarProgress - 0.18D) / 0.82D, 0.0D, 1.0D));
         double membraneProgress = withdrawing
                 ? 1.0D
-                : smooth(Mth.clamp((pillarProgress - 0.50D) / 0.50D, 0.0D, 1.0D));
+                : closure;
         double membraneRetention = withdrawing
                 ? smooth(smooth(Mth.clamp(
                         (pillarProgress - 0.48D) / 0.52D, 0.0D, 1.0D)))
@@ -1056,7 +1056,7 @@ final class MudSurfaceEffectRenderer {
             double stalkHeight = pillarHeight;
             for (int node = 0; node <= segments; node++) {
                 double progress = (double) node / segments;
-                pillarPoints[index][node] = tenderFleshPillarPoint(
+                pillarPoints[index][node] = TenderFleshEnclosureGeometry.pillarPoint(
                         enclosureCenter, radial, normal,
                         outerRadius, innerRadius, stalkHeight,
                         emergence, closure, breathContraction,
@@ -1082,47 +1082,38 @@ final class MudSurfaceEffectRenderer {
             int alpha = opaque ? 255 : Mth.clamp((int) Math.round(
                     255.0D * profile.membraneOpacity()
                             * membraneProgress * visibility), 0, 255);
-            Vec3 membraneOffset = Vec3.ZERO;
-            double membraneCurve = Math.max(PIXEL,
-                    profile.enclosureOpenRadius() * 0.22D
-                            * membraneProgress * membraneRetention)
+            double membraneSpan = membraneProgress * membraneRetention;
+            double membraneCurve = profile.enclosureOpenRadius() * 0.22D * membraneSpan
                     * (1.0D - breathContraction * 0.80D);
-            double filledRows = membraneProgress * segments;
             for (int index = 0; index < TENDER_FLESH_PILLAR_COUNT; index++) {
                 int next = (index + 1) % TENDER_FLESH_PILLAR_COUNT;
                 for (int row = 0; row < segments; row++) {
-                    double rowFill = Mth.clamp(filledRows - row, 0.0D, 1.0D);
-                    if (rowFill <= 0.003D) {
-                        continue;
-                    }
                     Vec3 lowerA = pillarPoints[index][row];
                     Vec3 lowerB = pillarPoints[next][row];
-                    Vec3 upperA = lerp(
-                            pillarPoints[index][row], pillarPoints[index][row + 1], rowFill);
-                    Vec3 upperB = lerp(
-                            pillarPoints[next][row], pillarPoints[next][row + 1], rowFill);
+                    Vec3 upperA = pillarPoints[index][row + 1];
+                    Vec3 upperB = pillarPoints[next][row + 1];
                     for (int slice = 0; slice < TENDER_FLESH_MEMBRANE_SLICES; slice++) {
                         double sliceStart = (double) slice / TENDER_FLESH_MEMBRANE_SLICES;
                         double sliceEnd = (double) (slice + 1) / TENDER_FLESH_MEMBRANE_SLICES;
                         boolean firstHalf = slice < TENDER_FLESH_MEMBRANE_SLICES / 2;
                         double retainedStart = firstHalf
-                                ? sliceStart * membraneRetention
-                                : 1.0D - (1.0D - sliceStart) * membraneRetention;
+                                ? sliceStart * membraneSpan
+                                : 1.0D - (1.0D - sliceStart) * membraneSpan;
                         double retainedEnd = firstHalf
-                                ? sliceEnd * membraneRetention
-                                : 1.0D - (1.0D - sliceEnd) * membraneRetention;
-                        Vec3 sliceLowerA = curvedMembranePoint(
+                                ? sliceEnd * membraneSpan
+                                : 1.0D - (1.0D - sliceEnd) * membraneSpan;
+                        Vec3 sliceLowerA = TenderFleshEnclosureGeometry.membranePoint(
                                 lowerA, lowerB, enclosureCenter, normal, retainedStart,
-                                membraneOffset, membraneCurve);
-                        Vec3 sliceLowerB = curvedMembranePoint(
+                                membraneCurve);
+                        Vec3 sliceLowerB = TenderFleshEnclosureGeometry.membranePoint(
                                 lowerA, lowerB, enclosureCenter, normal, retainedEnd,
-                                membraneOffset, membraneCurve);
-                        Vec3 sliceUpperA = curvedMembranePoint(
+                                membraneCurve);
+                        Vec3 sliceUpperA = TenderFleshEnclosureGeometry.membranePoint(
                                 upperA, upperB, enclosureCenter, normal, retainedStart,
-                                membraneOffset, membraneCurve);
-                        Vec3 sliceUpperB = curvedMembranePoint(
+                                membraneCurve);
+                        Vec3 sliceUpperB = TenderFleshEnclosureGeometry.membranePoint(
                                 upperA, upperB, enclosureCenter, normal, retainedEnd,
-                                membraneOffset, membraneCurve);
+                                membraneCurve);
                         MudTextureUv.Region uv = MudTextureUv.sample(
                                 hole.seed + index * 67L + row * 131L + slice * 17L
                                         + 0x5f3759dfL, 8);
@@ -1199,7 +1190,7 @@ final class MudSurfaceEffectRenderer {
             Vec3 previous = null;
             for (int node = 0; node <= segments; node++) {
                 double nodeProgress = (double) node / segments;
-                Vec3 point = tenderFleshPillarPoint(
+                Vec3 point = TenderFleshEnclosureGeometry.pillarPoint(
                         enclosureCenter, radial, normal, outerRadius, innerRadius,
                         pillarHeight, smooth(progress), closure, breathContraction,
                         profile.tentacleSwayPixels() * PIXEL, nodeProgress);
@@ -1250,43 +1241,6 @@ final class MudSurfaceEffectRenderer {
             }
         }
         return minimum;
-    }
-
-    private static Vec3 tenderFleshPillarPoint(
-            Vec3 center, Vec3 radial, Vec3 normal,
-            double outerRadius, double innerRadius, double height,
-            double emergence, double closure, double breathContraction,
-            double outwardBulge, double progress) {
-        double eased = progress * progress * (3.0D - 2.0D * progress);
-        double enclosureProgress = smooth(Mth.clamp(progress / 0.72D, 0.0D, 1.0D));
-        double enclosureRadius = Mth.lerp(
-                closure * enclosureProgress, outerRadius, innerRadius);
-        double middleWeight = Math.pow(Math.sin(progress * Math.PI), 2.0D);
-        enclosureRadius *= 1.0D - breathContraction * middleWeight;
-        double topJoin = closure
-                * smooth(Mth.clamp((progress - 0.70D) / 0.30D, 0.0D, 1.0D));
-        // All four centerlines share one exact endpoint. The membrane strips
-        // therefore close as part of their own final row instead of requiring
-        // a separate roof patch.
-        double radius = Mth.lerp(topJoin, enclosureRadius, 0.0D);
-        radius += Math.sin(progress * Math.PI) * outwardBulge;
-        double heightProgress = height * eased - height * (1.0D - emergence)
-                - PIXEL * 0.45D;
-        return center.add(radial.scale(radius))
-                .add(normal.scale(heightProgress + 0.006D));
-    }
-
-    private static Vec3 curvedMembranePoint(
-            Vec3 from, Vec3 to, Vec3 center, Vec3 normal,
-            double progress, Vec3 offset, double curve) {
-        Vec3 point = lerp(from, to, progress);
-        Vec3 radial = point.subtract(center);
-        Vec3 planar = radial.subtract(normal.scale(radial.dot(normal)));
-        if (planar.lengthSqr() > 1.0E-8D) {
-            point = point.add(planar.normalize().scale(
-                    Math.sin(progress * Math.PI) * curve));
-        }
-        return point.add(offset);
     }
 
     /** Renders one shared-ring tube so adjacent bends have no open gaps. */

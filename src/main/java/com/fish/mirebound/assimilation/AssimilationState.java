@@ -107,6 +107,15 @@ final class AssimilationState {
         return stage.frozen();
     }
 
+    void moveAnchor(Vec3 nextAnchor) {
+        Vec3 displacement = nextAnchor.subtract(anchor);
+        if (soulPositionTick != Integer.MIN_VALUE) {
+            soulPosition = soulPosition.add(displacement);
+        }
+        anchor = nextAnchor;
+        dirty |= displacement.lengthSqr() > 1.0E-8D;
+    }
+
     void beginAssimilating(int seed) {
         ensurePatternSeed(seed);
         if (stage == AssimilationStage.NORMAL) {

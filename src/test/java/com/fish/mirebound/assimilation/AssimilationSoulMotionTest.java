@@ -8,6 +8,25 @@ import org.junit.jupiter.api.Test;
 
 class AssimilationSoulMotionTest {
     @Test
+    void bodyTransportPreservesCameraOffsetDuringInterpolation() {
+        Vec3 anchor = new Vec3(100.0D, 64.0D, -20.0D);
+        Vec3 previous = new Vec3(1.0D, 1.0D, 1.0D);
+        Vec3 current = new Vec3(2.0D, 1.5D, 1.0D);
+        Vec3 displacement = new Vec3(200.0D, 20.0D, -500.0D);
+        for (double partial : new double[] {0.0D, 0.25D, 0.5D, 1.0D}) {
+            Vec3 before = AssimilationSoulMotion.relativeRenderPosition(
+                    anchor, previous, current, partial);
+            Vec3 after = AssimilationSoulMotion.relativeRenderPosition(
+                    anchor.add(displacement), previous, current, partial);
+            assertEquals(displacement, after.subtract(before));
+        }
+        assertEquals(anchor.add(previous), AssimilationSoulMotion.relativeRenderPosition(
+                anchor, previous, current, -1.0D));
+        assertEquals(anchor.add(current), AssimilationSoulMotion.relativeRenderPosition(
+                anchor, previous, current, 2.0D));
+    }
+
+    @Test
     void spaceAscendsAndShiftDescends() {
         assertEquals(1.0D, AssimilationSoulMotion.verticalInput(true, false), 0.0D);
         assertEquals(-1.0D, AssimilationSoulMotion.verticalInput(false, true), 0.0D);

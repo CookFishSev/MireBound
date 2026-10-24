@@ -42,6 +42,12 @@ public final class AssimilationSoulMotion {
         return bounded * bounded * (3.0D - bounded * 2.0D);
     }
 
+    /** Interpolate camera input, not world transport: the body and camera share one anchor. */
+    public static Vec3 relativeRenderPosition(Vec3 anchor, Vec3 previousOffset,
+            Vec3 offset, double partialTick) {
+        return anchor.add(previousOffset.lerp(offset, Mth.clamp(partialTick, 0.0D, 1.0D)));
+    }
+
     public static Vec3 updateVelocity(Vec3 velocity, Vec3 inputDirection,
             double speed, double acceleration, double drag) {
         if (inputDirection.lengthSqr() > STOP_EPSILON_SQUARED) {

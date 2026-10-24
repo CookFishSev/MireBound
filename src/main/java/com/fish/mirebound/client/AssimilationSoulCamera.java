@@ -15,9 +15,8 @@ import net.neoforged.neoforge.network.PacketDistributor;
 
 /** Owner-only collisionless soul camera. The authoritative player remains at the body. */
 public final class AssimilationSoulCamera {
-    private static Vec3 position;
-    private static Vec3 previousPosition;
-    private static Vec3 emergenceTarget;
+    private static Vec3 relativePosition;
+    private static Vec3 previousRelativePosition;
     private static Vec3 restoreStart;
     private static Vec3 velocity = Vec3.ZERO;
     private static boolean stasisActiveLastTick;
@@ -33,9 +32,8 @@ public final class AssimilationSoulCamera {
 
     public static void tick(Minecraft minecraft) {
         if (!ClientAssimilationState.localStasisActive(minecraft) || minecraft.player == null) {
-            position = null;
-            previousPosition = null;
-            emergenceTarget = null;
+            relativePosition = null;
+            previousRelativePosition = null;
             restoreStart = null;
             velocity = Vec3.ZERO;
             stasisActiveLastTick = false;
@@ -52,11 +50,9 @@ public final class AssimilationSoulCamera {
         if (view == null) {
             return;
         }
-        if (!stasisActiveLastTick || position == null) {
-            Vec3 bodyEye = bodyEye(view, minecraft);
-            position = bodyEye;
-            previousPosition = position;
-            emergenceTarget = emergenceTarget(view, bodyEye);
+        if (!stasisActiveLastTick || relativePosition == null) {
+            relativePosition = bodyEyeOffset(minecraft);
+            previousRelativePosition = relativePosition;
             velocity = Vec3.ZERO;
             yaw = minecraft.player.getYRot();
             pitch = minecraft.player.getXRot();
@@ -66,29 +62,29 @@ public final class AssimilationSoulCamera {
         if (lockedHotbarSlot >= 0) {
             minecraft.player.getInventory().selected = lockedHotbarSlot;
         }
-        previousPosition = position;
+        previousRelativePosition = relativePosition;
         if (view.stage() == AssimilationStage.SEALED
                 && view.soulTransitionTicks() > 0) {
             restoringLastTick = false;
-            Vec3 currentBodyEye = bodyEye(view, minecraft);
-            emergenceTarget = emergenceTarget(view, currentBodyEye);
+            Vec3 currentBodyEye = bodyEyeOffset(minecraft);
+            Vec3 emergenceTarget = emergenceTarget(view, currentBodyEye);
             float total = Math.max(1.0F, view.profile().soulTransitionTicks());
             float progress = 1.0F - Mth.clamp(view.soulTransitionTicks() / total, 0.0F, 1.0F);
             double eased = AssimilationSoulMotion.smoothTransition(progress);
-            position = currentBodyEye.lerp(emergenceTarget, eased);
+            relativePosition = currentBodyEye.lerp(emergenceTarget, eased);
             velocity = Vec3.ZERO;
             syncPosition();
             return;
         }
         if (view.stage() == AssimilationStage.RESTORING) {
             if (!restoringLastTick || restoreStart == null) {
-                restoreStart = position;
+                restoreStart = relativePosition;
                 restoringLastTick = true;
             }
             float total = Math.max(1.0F, view.profile().restoreTicks());
             float elapsed = 1.0F - Mth.clamp(view.restoringTicks() / total, 0.0F, 1.0F);
             double returnProgress = AssimilationSoulMotion.restoreReturnProgress(elapsed);
-            position = restoreStart.lerp(bodyEye(view, minecraft), returnProgress);
+            relativePosition = restoreStart.lerp(bodyEyeOffset(minecraft), returnProgress);
             velocity = Vec3.ZERO;
             syncPosition();
             return;
@@ -106,22 +102,24 @@ public final class AssimilationSoulCamera {
         }
         velocity = AssimilationSoulMotion.updateVelocity(velocity, input, speed,
                 profile.soulAcceleration(), profile.soulDrag());
-        Vec3 center = view.anchor().add(0.0D, minecraft.player.getEyeHeight() * 0.5D, 0.0D);
+        Vec3 center = new Vec3(0.0D, minecraft.player.getEyeHeight() * 0.5D, 0.0D);
         AssimilationSoulMotion.Step step = AssimilationSoulMotion.advance(
-                position, velocity, center, profile.soulRadius(), profile.soulBoundarySoftness());
-        position = step.position();
+                relativePosition, velocity, center, profile.soulRadius(), profile.soulBoundarySoftness());
+        relativePosition = step.position();
         velocity = step.velocity();
         syncPosition();
     }
 
     public static void applyPosition(Camera camera, Entity cameraEntity, float partialTick) {
         Minecraft minecraft = Minecraft.getInstance();
-        if (position != null && minecraft.player != null && cameraEntity == minecraft.player
+        if (relativePosition != null && minecraft.player != null && cameraEntity == minecraft.player
                 && ClientAssimilationState.localStasisActive(minecraft)) {
-            Vec3 from = previousPosition == null ? position : previousPosition;
             ClientAssimilationState.View view = ClientAssimilationState.view(minecraft.player.getId());
-            Vec3 rendered = from.lerp(position, partialTick);
-            if (view != null && ClientAssimilationState.localSoulActive(minecraft)) {
+            Vec3 rendered = renderPosition(partialTick);
+            if (view == null || rendered == null) {
+                return;
+            }
+            if (ClientAssimilationState.localSoulActive(minecraft)) {
                 double renderPhase = AssimilationQteClient.stabilizeCamera(view)
                         ? floatPhase : floatPhase + partialTick * view.profile().soulFloatSpeed();
                 double bob = Math.sin(renderPhase)
@@ -147,7 +145,11 @@ public final class AssimilationSoulCamera {
     }
 
     public static Vec3 position() {
-        return position;
+        Minecraft minecraft = Minecraft.getInstance();
+        ClientAssimilationState.View view = minecraft.player == null ? null
+                : ClientAssimilationState.view(minecraft.player.getId());
+        return view == null || relativePosition == null ? null
+                : view.anchor().add(relativePosition);
     }
 
     public static float yaw() {
@@ -159,16 +161,20 @@ public final class AssimilationSoulCamera {
     }
 
     static Vec3 renderPosition(float partialTick) {
-        if (position == null) {
+        Minecraft minecraft = Minecraft.getInstance();
+        ClientAssimilationState.View view = minecraft.player == null ? null
+                : ClientAssimilationState.view(minecraft.player.getId());
+        if (relativePosition == null || view == null) {
             return null;
         }
-        return (previousPosition == null ? position : previousPosition.lerp(position, partialTick));
+        Vec3 from = previousRelativePosition == null ? relativePosition : previousRelativePosition;
+        return AssimilationSoulMotion.relativeRenderPosition(
+                view.renderAnchor(partialTick), from, relativePosition, partialTick);
     }
 
     public static void reset() {
-        position = null;
-        previousPosition = null;
-        emergenceTarget = null;
+        relativePosition = null;
+        previousRelativePosition = null;
         restoreStart = null;
         velocity = Vec3.ZERO;
         stasisActiveLastTick = false;
@@ -199,8 +205,8 @@ public final class AssimilationSoulCamera {
         return AssimilationSoulMotion.inputDirection(yaw, forward, strafe, vertical);
     }
 
-    private static Vec3 bodyEye(ClientAssimilationState.View view, Minecraft minecraft) {
-        return view.anchor().add(0.0D, minecraft.player.getEyeHeight(), 0.0D);
+    private static Vec3 bodyEyeOffset(Minecraft minecraft) {
+        return new Vec3(0.0D, minecraft.player.getEyeHeight(), 0.0D);
     }
 
     private static Vec3 emergenceTarget(ClientAssimilationState.View view, Vec3 bodyEye) {
@@ -210,6 +216,7 @@ public final class AssimilationSoulCamera {
     }
 
     private static void syncPosition() {
+        Vec3 position = position();
         if (position != null && positionSyncTicks-- <= 0) {
             PacketDistributor.sendToServer(new AssimilationSoulPositionPayload(
                     (float) position.x, (float) position.y, (float) position.z));

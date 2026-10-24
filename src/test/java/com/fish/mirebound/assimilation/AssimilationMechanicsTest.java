@@ -22,6 +22,25 @@ class AssimilationMechanicsTest {
     private static final AssimilationProfile PROFILE = AssimilationProfile.DEFAULT;
 
     @Test
+    void movingBodyTranslatesReportedSoulPositionWithoutResettingState() {
+        AssimilationState state = new AssimilationState();
+        state.seal(new Vec3(10.0D, 64.0D, 10.0D), "minecraft:overworld",
+                37.0F, -12.0F, 4.5F, 0.2F);
+        state.soulPosition = new Vec3(11.0D, 65.0D, 11.0D);
+        state.soulPositionTick = 100;
+        state.dirty = false;
+        state.moveAnchor(new Vec3(12.0D, 66.0D, 12.0D));
+        assertEquals(new Vec3(13.0D, 67.0D, 13.0D), state.soulPosition);
+        assertEquals(100, state.soulPositionTick);
+        assertEquals(AssimilationStage.SEALED, state.stage);
+        assertTrue(state.dirty);
+        state.dirty = false;
+        state.moveAnchor(state.anchor);
+        assertFalse(state.dirty);
+    }
+
+
+    @Test
     void immersionGainIsBoundedAndMonotonic() {
         assertEquals(0.0F, PROFILE.gainForImmersion(-1.0F), 1.0E-7F);
         float shallow = PROFILE.gainForImmersion(0.25F);

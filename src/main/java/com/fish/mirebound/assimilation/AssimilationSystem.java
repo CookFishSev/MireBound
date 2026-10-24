@@ -301,6 +301,25 @@ public final class AssimilationSystem {
                 && AssimilationStateStore.get(serverPlayer).frozen();
     }
 
+    public static void onBodyTeleported(ServerPlayer player) {
+        AssimilationState state = AssimilationStateStore.get(player);
+        if (state == null || !state.frozen()) {
+            return;
+        }
+        if (sameDimension(player, state)
+                && state.anchor.distanceToSqr(player.position()) <= 1.0E-8D) {
+            return;
+        }
+        state.moveAnchor(player.position());
+        state.dimension = dimensionId(player);
+        state.rigidVelocity = Vec3.ZERO;
+        state.carriedLastTick = false;
+        state.transportHandoffTicks = 0;
+        state.dirty = true;
+        save(player, state);
+        sync(player, state, profileFor(state), true);
+    }
+
     /**
      * Frozen players are transported in world space. Letting Sable inherit the
      * carrier's hidden plot space corrupts the player's chunk-tracking ticket

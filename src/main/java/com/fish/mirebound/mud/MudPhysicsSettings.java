@@ -228,7 +228,7 @@ public final class MudPhysicsSettings {
                 .defineInRange("coverage_appearance_profile_version", 0, 0, 2);
         ADHESION_VISUAL_PROFILE_VERSION = builder
                 .comment("Internal migration marker for adhesive-sheet presentation defaults.")
-                .defineInRange("adhesion_visual_profile_version", 0, 0, 5);
+                .defineInRange("adhesion_visual_profile_version", 0, 0, 6);
         WATER_GUN_PROFILE_VERSION = builder
                 .comment("Internal migration marker for pressure-water defaults.")
                 .defineInRange("water_gun_profile_version", 0, 0, 5);
@@ -1321,7 +1321,7 @@ public final class MudPhysicsSettings {
     }
 
     private static void migrateAdhesionVisualDefaults() {
-        if (!SPEC.isLoaded() || ADHESION_VISUAL_PROFILE_VERSION.get() >= 5) {
+        if (!SPEC.isLoaded() || ADHESION_VISUAL_PROFILE_VERSION.get() >= 6) {
             return;
         }
         int version = ADHESION_VISUAL_PROFILE_VERSION.get();
@@ -1372,7 +1372,17 @@ public final class MudPhysicsSettings {
                 }
             }
         }
-        ADHESION_VISUAL_PROFILE_VERSION.set(5);
+        Map<MudPhysicsParameter, ModConfigSpec.DoubleValue> fleshValues =
+                CONFIG_VALUES.get(SinkingMedium.TENDER_FLESH);
+        double[] flesh = MudPhysicsProfiles.defaultValues(SinkingMedium.TENDER_FLESH);
+        for (Map.Entry<MudPhysicsParameter, ModConfigSpec.DoubleValue> entry : fleshValues.entrySet()) {
+            flesh[entry.getKey().ordinal()] = entry.getValue().get();
+        }
+        if (AdhesionStrandProfile.migrateTenderFleshDefaults(SinkingMedium.TENDER_FLESH, flesh)) {
+            fleshValues.get(MudPhysicsParameter.ADHESION_STRANDS_ENABLED).set(0.0D);
+            fleshValues.get(MudPhysicsParameter.ADHESION_SHEET_ENABLED).set(0.0D);
+        }
+        ADHESION_VISUAL_PROFILE_VERSION.set(6);
         SPEC.save();
     }
 

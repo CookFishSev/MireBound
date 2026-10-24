@@ -63,7 +63,7 @@ public record AdhesionStrandProfile(
                     0.14D, 0.0D, 0.0D, 0.08D,
                     6, 8, 3, 12, 4, 1);
 
-    private static final AdhesionStrandProfile TENDER_FLESH_DEFAULTS =
+    private static final AdhesionStrandProfile LEGACY_TENDER_FLESH_DEFAULTS =
             new AdhesionStrandProfile(
                     true, 5, 7, 3, 0.08D, 2.20D, 2.15D, 0.20D, 22,
                     0.74D, 0.28D, 0.56D, 1.28D, 1.20D,
@@ -75,7 +75,7 @@ public record AdhesionStrandProfile(
     public static AdhesionStrandProfile defaultsFor(SinkingMedium medium) {
         return switch (medium) {
             case TAR -> TAR_TEMPLATE;
-            case TENDER_FLESH -> TENDER_FLESH_DEFAULTS;
+            case TENDER_FLESH -> withFeatureSwitches(LEGACY_TENDER_FLESH_DEFAULTS, false, false);
             default -> withFeatureSwitches(TAR_TEMPLATE, false, false);
         };
     }
@@ -83,7 +83,7 @@ public record AdhesionStrandProfile(
     static AdhesionStrandProfile defaultsBeforeSharedTarTemplate(SinkingMedium medium) {
         return switch (medium) {
             case TAR -> LEGACY_TAR_DEFAULTS;
-            case TENDER_FLESH -> TENDER_FLESH_DEFAULTS;
+            case TENDER_FLESH -> LEGACY_TENDER_FLESH_DEFAULTS;
             default -> LEGACY_GENERIC_DEFAULTS;
         };
     }
@@ -91,6 +91,24 @@ public record AdhesionStrandProfile(
     static boolean isFeatureSwitch(MudPhysicsParameter parameter) {
         return parameter == MudPhysicsParameter.ADHESION_STRANDS_ENABLED
                 || parameter == MudPhysicsParameter.ADHESION_SHEET_ENABLED;
+    }
+
+    static boolean migrateTenderFleshDefaults(SinkingMedium medium, double[] values) {
+        if (medium != SinkingMedium.TENDER_FLESH) {
+            return false;
+        }
+        double[] previous = new double[MudPhysicsParameter.COUNT];
+        LEGACY_TENDER_FLESH_DEFAULTS.writeTo(previous);
+        for (MudPhysicsParameter parameter : MudPhysicsParameter.values()) {
+            if (parameter.category() == MudPhysicsParameter.Category.ADHESION_STRANDS
+                    && Math.abs(values[parameter.ordinal()] - previous[parameter.ordinal()]) > 1.0E-9D) {
+                return false;
+            }
+        }
+        // Only retire the old untouched preset; explicitly tuned adhesion stays opt-in.
+        values[MudPhysicsParameter.ADHESION_STRANDS_ENABLED.ordinal()] = 0.0D;
+        values[MudPhysicsParameter.ADHESION_SHEET_ENABLED.ordinal()] = 0.0D;
+        return true;
     }
 
     private static AdhesionStrandProfile withFeatureSwitches(
