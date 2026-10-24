@@ -1,0 +1,32 @@
+name: Verify Beta fixes
+
+on:
+  push:
+    branches: [release/beta1.3.0-fixes-20261024]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.3'
+      - name: Build and test
+        run: gradle '-Dorg.gradle.problems.report=false' '-Dorg.gradle.jvmargs=-Xmx4G' build --no-configuration-cache --stacktrace --max-workers=2
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: beta1.3.0-verified-build
+          path: |
+            build/libs/*.jar
+            build/test-results/test/*.xml
+            build/reports/tests/test/
