@@ -1,0 +1,54 @@
+name: Build test artifact
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'build.gradle'
+      - 'settings.gradle'
+      - 'gradle.properties'
+      - '.github/workflows/build-test.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.3'
+      - name: Build and test
+        run: gradle '-Dorg.gradle.problems.report=false' '-Dorg.gradle.jvmargs=-Xmx4G' build --no-configuration-cache --stacktrace --max-workers=2
+      - name: Upload test JAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: MireBound-test-${{ github.run_number }}
+          path: build/libs/*.jar
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports-${{ github.run_number }}
+          path: |
+            build/test-results/test/*.xml
+            build/reports/tests/test/
+          if-no-files-found: warn
+          retention-days: 14
