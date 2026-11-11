@@ -45,8 +45,6 @@ final class MudTuningConnectedHighlightRenderer {
                 playerPosition, maxDistanceSquared, frustum,
                 rendersHighlightKind(mode,
                         MudTuningSelectionPayload.HighlightKind.INCOMPATIBLE));
-        VertexConsumer lines = buffers.getBuffer(RenderType.lines());
-        VertexConsumer faces = buffers.getBuffer(MudTuningTargetRenderTypes.face());
         refreshTopology();
         for (CachedGroup group : cachedGroups) {
             if (!rendersHighlightKind(mode, group.kind)) {
@@ -68,10 +66,10 @@ final class MudTuningConnectedHighlightRenderer {
             }
             Color color = Color.forKind(group.kind);
             if (!group.faces.isEmpty()) {
-                renderFaces(pose, faces, group.faces,
+                renderFaces(pose, buffers.getBuffer(MudTuningTargetRenderTypes.face()), group.faces,
                         subLevel, camera, playerPosition, maxDistanceSquared, color);
             }
-            renderEdges(pose, lines, group.edges,
+            renderEdges(pose, buffers.getBuffer(RenderType.lines()), group.edges,
                     subLevel, camera, playerPosition, maxDistanceSquared, color);
         }
     }

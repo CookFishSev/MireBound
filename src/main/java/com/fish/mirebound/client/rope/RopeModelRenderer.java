@@ -48,23 +48,24 @@ public final class RopeModelRenderer {
         if (!ropes.isEmpty()) {
             Vec3 camera = event.getCamera().getPosition();
             MultiBufferSource.BufferSource buffers = minecraft.renderBuffers().bufferSource();
-            VertexConsumer inner = buffers.getBuffer(INNER_TYPE);
-            VertexConsumer outer = buffers.getBuffer(OUTER_TYPE);
             LightSampler lights = LightSampler.forLevel(minecraft.level);
             PoseStack poseStack = event.getPoseStack();
             poseStack.pushPose();
             poseStack.translate(-camera.x, -camera.y, -camera.z);
-            for (ClientRopes.View rope : ropes) {
-                if (event.getFrustum() != null && !event.getFrustum().isVisible(rope.bounds())) {
-                    continue;
+            for (RopeSegmentSpec.Cuboid layer : List.of(RopeSegmentSpec.INNER, RopeSegmentSpec.OUTER)) {
+                RenderType type = layer == RopeSegmentSpec.INNER ? INNER_TYPE : OUTER_TYPE;
+                VertexConsumer vertices = buffers.getBuffer(type);
+                for (ClientRopes.View rope : ropes) {
+                    if (event.getFrustum() != null && !event.getFrustum().isVisible(rope.bounds())) {
+                        continue;
+                    }
+                    renderChain(poseStack.last(), vertices, layer, lights, rope.nodes(), rope.frames(),
+                            rope.startConnection() == null, rope.endConnection() == null);
                 }
-                renderChain(poseStack.last(), inner, outer, lights, rope.nodes(), rope.frames(),
-                        rope.startConnection() == null, rope.endConnection() == null);
+                renderConnections(poseStack.last(), vertices, layer, lights, ropes);
+                buffers.endBatch(type);
             }
-            renderConnections(poseStack.last(), inner, outer, lights, ropes);
             poseStack.popPose();
-            buffers.endBatch(INNER_TYPE);
-            buffers.endBatch(OUTER_TYPE);
         }
         ClientRopes.BreakSelection breaking = ClientRopes.breakSelection(partialTick);
         if (breaking != null) {
@@ -145,8 +146,8 @@ public final class RopeModelRenderer {
                 .setNormal(pose, (float) normal.x, (float) normal.y, (float) normal.z);
     }
 
-    private static void renderChain(PoseStack.Pose pose, VertexConsumer inner,
-            VertexConsumer outer, LightSampler lights, List<Vec3> nodes,
+    private static void renderChain(PoseStack.Pose pose, VertexConsumer vertices,
+            RopeSegmentSpec.Cuboid layer, LightSampler lights, List<Vec3> nodes,
             RopeSegmentPose.Frame[] frames, boolean capStart, boolean capEnd) {
         Vec3[] startRing = new Vec3[4];
         Vec3[] endRing = new Vec3[4];
@@ -157,36 +158,30 @@ public final class RopeModelRenderer {
             Vec3 end = nodes.get(segment + 1);
             RopeSegmentPose.Frame frame = frames[segment];
             int light = lights.sample(start.lerp(end, 0.5D));
-            renderSegmentLayer(pose, inner, start, end, frame,
-                    RopeSegmentSpec.INNER, light, startRing, endRing);
-            renderSegmentLayer(pose, outer, start, end, frame,
-                    RopeSegmentSpec.OUTER, light, startRing, endRing);
-            if (segment > 0 && RopeSegmentSpec.shouldRenderJoint(
+            renderSegmentLayer(pose, vertices, start, end, frame,
+                    layer, light, startRing, endRing);
+            if (layer == RopeSegmentSpec.INNER && segment > 0 && RopeSegmentSpec.shouldRenderJoint(
                     frames[segment - 1], frame)) {
-                renderJoint(pose, inner, start, frames[segment - 1], frame,
+                renderJoint(pose, vertices, start, frames[segment - 1], frame,
                         RopeSegmentSpec.OUTER.halfWidth(), lights.sample(start),
                         jointFirstRing, jointSecondRing);
             }
         }
         int startLight = lights.sample(nodes.getFirst());
         if (capStart) {
-            renderCap(pose, inner, nodes.getFirst(), frames[0], true,
-                    RopeSegmentSpec.INNER, startLight, startRing);
-            renderCap(pose, outer, nodes.getFirst(), frames[0], true,
-                    RopeSegmentSpec.OUTER, startLight, startRing);
+            renderCap(pose, vertices, nodes.getFirst(), frames[0], true,
+                    layer, startLight, startRing);
         }
         int last = frames.length - 1;
         int endLight = lights.sample(nodes.getLast());
         if (capEnd) {
-            renderCap(pose, inner, nodes.getLast(), frames[last], false,
-                    RopeSegmentSpec.INNER, endLight, startRing);
-            renderCap(pose, outer, nodes.getLast(), frames[last], false,
-                    RopeSegmentSpec.OUTER, endLight, startRing);
+            renderCap(pose, vertices, nodes.getLast(), frames[last], false,
+                    layer, endLight, startRing);
         }
     }
 
-    private static void renderConnections(PoseStack.Pose pose, VertexConsumer inner,
-            VertexConsumer outer, LightSampler lights, List<ClientRopes.View> ropes) {
+    private static void renderConnections(PoseStack.Pose pose, VertexConsumer vertices,
+            RopeSegmentSpec.Cuboid layer, LightSampler lights, List<ClientRopes.View> ropes) {
         Map<Integer, ClientRopes.View> byId = new HashMap<>();
         for (ClientRopes.View rope : ropes) byId.put(rope.id(), rope);
         Vec3[] firstRing = new Vec3[4];
@@ -206,8 +201,7 @@ public final class RopeModelRenderer {
                 if (a.distanceToSqr(b) < 1.0E-8D) continue;
                 RopeSegmentPose.Frame frame = RopeSegmentPose.initial(b.subtract(a));
                 int light = lights.sample(a.lerp(b, 0.5D));
-                renderSegmentLayer(pose, inner, a, b, frame, RopeSegmentSpec.INNER, light, firstRing, secondRing);
-                renderSegmentLayer(pose, outer, a, b, frame, RopeSegmentSpec.OUTER, light, firstRing, secondRing);
+                renderSegmentLayer(pose, vertices, a, b, frame, layer, light, firstRing, secondRing);
             }
         }
     }

@@ -85,7 +85,8 @@ public final class ProceduralTentacleRenderer {
                 minecraft.level.getGameTime() + partialTick);
         MultiBufferSource.BufferSource buffers = minecraft.renderBuffers().bufferSource();
         VertexConsumer vertices = buffers.getBuffer(RENDER_TYPE);
-        VertexConsumer highlightVertices = null;
+        PreparedTube highlighted = null;
+        double highlightedAge = 0;
         PoseStack poseStack = event.getPoseStack();
         poseStack.pushPose();
         poseStack.translate(-camera.x, -camera.y, -camera.z);
@@ -103,19 +104,18 @@ public final class ProceduralTentacleRenderer {
                 PreparedTube prepared = FRAME_GEOMETRY.get(
                         new GeometryKey(view.id(), renderedSides));
                 if (prepared != null) {
-                    if (highlightVertices == null) {
-                        highlightVertices = buffers.getBuffer(HIGHLIGHT_RENDER_TYPE);
-                    }
-                    renderHighlight(poseStack.last(), highlightVertices,
-                            prepared.body(), highlightColor, view.age());
+                    highlighted = prepared;
+                    highlightedAge = view.age();
                 }
             }
         }
-        poseStack.popPose();
         buffers.endBatch(RENDER_TYPE);
-        if (highlightVertices != null) {
+        if (highlighted != null) {
+            renderHighlight(poseStack.last(), buffers.getBuffer(HIGHLIGHT_RENDER_TYPE),
+                    highlighted.body(), highlightColor, highlightedAge);
             buffers.endBatch(HIGHLIGHT_RENDER_TYPE);
         }
+        poseStack.popPose();
     }
 
     public static void renderIrisShadowPass(MultiBufferSource.BufferSource buffers,

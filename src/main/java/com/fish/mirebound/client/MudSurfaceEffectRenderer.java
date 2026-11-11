@@ -1035,10 +1035,6 @@ final class MudSurfaceEffectRenderer {
                         minecraft.level, MudVisualSource.NONE, TENDER_FLESH_BROKEN_TEXTURE)
                 : intactAppearance;
         int brokenShade = nativeTenderAppearance ? 255 : 176;
-        VertexConsumer intactVertices = buffers.getBuffer(
-                RenderType.entityCutoutNoCull(intactAppearance.texture()));
-        VertexConsumer brokenVertices = buffers.getBuffer(
-                RenderType.entityCutoutNoCull(brokenAppearance.texture()));
         fleshTextures.add(intactAppearance.texture());
         fleshTextures.add(brokenAppearance.texture());
         int packedLight = LevelRenderer.getLightColor(
@@ -1068,7 +1064,7 @@ final class MudSurfaceEffectRenderer {
             int damage = broken ? requiredHits : TenderFleshMechanics.pillarPackedValue(
                     hole.fleshPillarDamagePacked, index);
             renderTenderFleshPillarTube(
-                    pose, intactVertices, brokenVertices,
+                    pose, buffers,
                     pillarPoints[index], baseWidth,
                      segments, normal, tangent, seed, packedLight,
                      255, brokenShade, breathContraction, damage, requiredHits,
@@ -1246,8 +1242,7 @@ final class MudSurfaceEffectRenderer {
     /** Renders one shared-ring tube so adjacent bends have no open gaps. */
     private static void renderTenderFleshPillarTube(
             PoseStack.Pose pose,
-            VertexConsumer intactVertices,
-            VertexConsumer brokenVertices,
+            MultiBufferSource buffers,
             Vec3[] points,
             double width,
             int segments,
@@ -1303,36 +1298,38 @@ final class MudSurfaceEffectRenderer {
             rings[node][2] = points[node].add(side.scale(half)).add(depth.scale(half));
             rings[node][3] = points[node].subtract(side.scale(half)).add(depth.scale(half));
         }
-        for (int segment = 0; segment < segments; segment++) {
-            MudTextureUv.Region uv = MudTextureUv.sample(seed + segment * 31L, 8);
-            for (int face = 0; face < 4; face++) {
-                int nextFace = (face + 1) % 4;
-                boolean damaged = tenderFleshPatchDamaged(
-                        seed, segment, face, segments, damage, requiredHits);
-                VertexConsumer vertices = damaged ? brokenVertices : intactVertices;
-                MudSurfaceAppearance.Appearance appearance = damaged
-                        ? brokenAppearance : intactAppearance;
-                MudTextureUv.Region mappedUv = appearanceUv(uv, appearance);
+        // Emit each material completely before requesting the next shared buffer.
+        for (int pass = 0; pass < 2; pass++) {
+            boolean damagedPass = pass == 1;
+            MudSurfaceAppearance.Appearance appearance = damagedPass ? brokenAppearance : intactAppearance;
+            VertexConsumer vertices = buffers.getBuffer(RenderType.entityCutoutNoCull(appearance.texture()));
+            for (int segment = 0; segment < segments; segment++) {
+                MudTextureUv.Region uv = MudTextureUv.sample(seed + segment * 31L, 8);
+                for (int face = 0; face < 4; face++) {
+                    int nextFace = (face + 1) % 4;
+                    boolean damaged = tenderFleshPatchDamaged(
+                            seed, segment, face, segments, damage, requiredHits);
+                    if (damaged != damagedPass) continue;
+                    MudTextureUv.Region mappedUv = appearanceUv(uv, appearance);
+                    renderAdhesionSheetQuad(
+                            pose, vertices,
+                            rings[segment][face], rings[segment][nextFace],
+                            rings[segment + 1][nextFace], rings[segment + 1][face],
+                            mappedUv, 255, packedLight,
+                            damaged ? brokenShade : shade, appearance);
+                }
+            }
+            MudTextureUv.Region capUv = MudTextureUv.sample(seed + 0x1234L, 8);
+            boolean damagedCap = requiredHits > 0 && damage >= requiredHits;
+            if (damagedCap == damagedPass) {
                 renderAdhesionSheetQuad(
                         pose, vertices,
-                        rings[segment][face], rings[segment][nextFace],
-                        rings[segment + 1][nextFace], rings[segment + 1][face],
-                        mappedUv, 255, packedLight,
-                        damaged ? brokenShade : shade, appearance);
+                        rings[segments][0], rings[segments][1],
+                        rings[segments][2], rings[segments][3],
+                        appearanceUv(capUv, appearance), 255, packedLight,
+                        damagedCap ? brokenShade : shade, appearance);
             }
         }
-        MudTextureUv.Region capUv = MudTextureUv.sample(seed + 0x1234L, 8);
-        VertexConsumer capVertices = requiredHits > 0 && damage >= requiredHits
-                ? brokenVertices : intactVertices;
-        MudSurfaceAppearance.Appearance capAppearance = requiredHits > 0 && damage >= requiredHits
-                ? brokenAppearance : intactAppearance;
-        renderAdhesionSheetQuad(
-                pose, capVertices,
-                rings[segments][0], rings[segments][1],
-                rings[segments][2], rings[segments][3],
-                appearanceUv(capUv, capAppearance), 255, packedLight,
-                requiredHits > 0 && damage >= requiredHits ? brokenShade : shade,
-                capAppearance);
     }
 
     private static boolean tenderFleshPatchDamaged(

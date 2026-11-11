@@ -25,7 +25,7 @@ public final class SodiumVertexGeometryCapture {
     }
 
     public static VertexConsumer noop() {
-        return NoopSodiumVertexConsumer.INSTANCE;
+        return new NoopSodiumVertexConsumer();
     }
 
     private abstract static class CaptureConsumer
@@ -223,9 +223,8 @@ public final class SodiumVertexGeometryCapture {
         }
     }
 
-    private enum NoopSodiumVertexConsumer
+    private static final class NoopSodiumVertexConsumer
             implements VertexConsumer, VertexBufferWriter, NoopGeometryVertexSink {
-        INSTANCE;
 
         @Override
         public boolean canUseIntrinsics() {

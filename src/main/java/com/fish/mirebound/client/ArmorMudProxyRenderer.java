@@ -6,6 +6,7 @@ import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.RenderType;
 import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
@@ -16,8 +17,7 @@ import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
  */
 final class ArmorMudProxyRenderer {
     private static final int CAPTURE_INTERVAL_TICKS = 2;
-    private static final MultiBufferSource NOOP_BUFFERS = renderType ->
-            SodiumGeometryCaptureBridge.noopConsumer(NoopVertexConsumer.INSTANCE);
+    private static final CaptureBuffers NOOP_BUFFERS = new CaptureBuffers();
     private static int lastCaptureTick = Integer.MIN_VALUE;
     private static boolean capturePass;
 
@@ -69,6 +69,7 @@ final class ArmorMudProxyRenderer {
                 player.setInvisible(true);
             }
             capturePass = false;
+            NOOP_BUFFERS.clear();
         }
     }
 
@@ -79,11 +80,34 @@ final class ArmorMudProxyRenderer {
     static void reset() {
         lastCaptureTick = Integer.MIN_VALUE;
         capturePass = false;
+        NOOP_BUFFERS.clear();
         AnimatedPlayerGeometryCapture.reset();
     }
 
-    private enum NoopVertexConsumer implements VertexConsumer, NoopGeometryVertexSink {
-        INSTANCE;
+    /** A foil renderer combines several materials and rejects identical delegates. */
+    static final class CaptureBuffers implements MultiBufferSource {
+        private final java.util.Map<Object, VertexConsumer> consumers = new java.util.IdentityHashMap<>();
+
+        @Override
+        public VertexConsumer getBuffer(RenderType type) {
+            return consumer(type);
+        }
+
+        VertexConsumer consumer(Object type) {
+            VertexConsumer consumer = consumers.get(type);
+            if (consumer == null) {
+                consumer = SodiumGeometryCaptureBridge.noopConsumer(new NoopVertexConsumer());
+                if (consumers.size() < 256) consumers.put(type, consumer);
+            }
+            return consumer;
+        }
+
+        void clear() {
+            consumers.clear();
+        }
+    }
+
+    private static final class NoopVertexConsumer implements VertexConsumer, NoopGeometryVertexSink {
 
         @Override
         public VertexConsumer addVertex(float x, float y, float z) {

@@ -11,6 +11,7 @@ import com.fish.mirebound.registry.ModBlocks;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import java.util.UUID;
+import java.util.function.Supplier;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
@@ -79,8 +80,6 @@ final class MudTuningTargetRenderer {
         RenderType faceType = MudTuningTargetRenderTypes.face();
         RenderType edgeType = MudTuningTargetRenderTypes.edge();
         MultiBufferSource.BufferSource buffers = minecraft.renderBuffers().bufferSource();
-        VertexConsumer faces = buffers.getBuffer(faceType);
-        VertexConsumer edges = buffers.getBuffer(edgeType);
         PoseStack.Pose pose = event.getPoseStack().last();
         float partialTick = event.getPartialTick().getGameTimeDeltaPartialTick(false);
         double time = minecraft.level.getGameTime() + partialTick;
@@ -89,6 +88,8 @@ final class MudTuningTargetRenderer {
         float red = (color >> 16 & 0xFF) / 255.0F;
         float green = (color >> 8 & 0xFF) / 255.0F;
         float blue = (color & 0xFF) / 255.0F;
+        Supplier<VertexConsumer> faces = () -> buffers.getBuffer(faceType);
+        Supplier<VertexConsumer> edges = () -> buffers.getBuffer(edgeType);
         if (target.rotatingSummon()) {
             float outerAngle = (float) Math.toRadians(time * 2.6D);
             float innerAngle = (float) Math.toRadians(-time * 3.7D);
@@ -139,16 +140,19 @@ final class MudTuningTargetRenderer {
                 ? null : new RenderTarget(pos, null, subLevel, false);
     }
 
-    private static void renderBox(PoseStack.Pose pose,
-            VertexConsumer faces, VertexConsumer edges, Vec3[] corners,
+    static void renderBox(PoseStack.Pose pose,
+            Supplier<VertexConsumer> faceBuffer, Supplier<VertexConsumer> edgeBuffer, Vec3[] corners,
             float red, float green, float blue,
             float faceAlpha, float edgeAlpha) {
+        VertexConsumer faces = faceBuffer.get();
         for (int[] face : FACES) {
             quad(pose, faces,
                     corners[face[0]], corners[face[1]],
                     corners[face[2]], corners[face[3]],
                     red, green, blue, faceAlpha);
         }
+        // Switching a shared buffer finishes the previous material.
+        VertexConsumer edges = edgeBuffer.get();
         Vec3[] edgeAxes = boxAxes(corners);
         for (int[] edge : EDGES) {
             edgeCuboid(pose, edges, corners, edgeAxes, edge,

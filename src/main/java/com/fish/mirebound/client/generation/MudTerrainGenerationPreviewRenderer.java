@@ -90,7 +90,6 @@ public final class MudTerrainGenerationPreviewRenderer {
         MultiBufferSource.BufferSource buffers =
                 minecraft.renderBuffers().bufferSource();
         VertexConsumer faces = buffers.getBuffer(FACE);
-        VertexConsumer lines = buffers.getBuffer(OUTLINE);
         PoseStack.Pose pose = event.getPoseStack().last();
         Vec3 camera = event.getCamera().getPosition();
         for (MudTerrainGenerationPreviewGeometry.Face face
@@ -100,12 +99,13 @@ public final class MudTerrainGenerationPreviewRenderer {
             renderFace(minecraft, pose, faces, camera,
                     face.pos(), face.direction(), shell);
         }
+        renderCore(minecraft, pose, faces, camera, preview.request().center(), false);
+        VertexConsumer lines = buffers.getBuffer(OUTLINE);
         for (MudTerrainGenerationPreviewGeometry.EdgeRun edge
                 : preview.geometry().edges()) {
             renderEdge(pose, lines, camera, edge);
         }
-        renderCore(minecraft, pose, faces, lines, camera,
-                preview.request().center());
+        renderCore(minecraft, pose, lines, camera, preview.request().center(), true);
         renderAxis(pose, lines, camera, preview.request().center(),
                 preview.geometry().bounds(),
                 MudTerrainGenerationController.rotationAxis());
@@ -175,7 +175,7 @@ public final class MudTerrainGenerationPreviewRenderer {
 
     private static void renderCore(
             Minecraft minecraft, PoseStack.Pose pose,
-            VertexConsumer faces, VertexConsumer lines, Vec3 camera, BlockPos center) {
+            VertexConsumer vertices, Vec3 camera, BlockPos center, boolean outline) {
         Vec3 target = Vec3.atCenterOf(center).subtract(camera);
         double radius = 0.18D;
         int light = LevelRenderer.getLightColor(minecraft.level, center);
@@ -185,24 +185,27 @@ public final class MudTerrainGenerationPreviewRenderer {
         double maxX = target.x + radius;
         double maxY = target.y + radius;
         double maxZ = target.z + radius;
-        quad(pose, faces, minX, minY, minZ, maxX, minY, minZ,
-                maxX, minY, maxZ, minX, minY, maxZ,
-                0.0F, -1.0F, 0.0F, 1.0F, 0.72F, 0.18F, 0.42F, light);
-        quad(pose, faces, minX, maxY, minZ, minX, maxY, maxZ,
-                maxX, maxY, maxZ, maxX, maxY, minZ,
-                0.0F, 1.0F, 0.0F, 1.0F, 0.72F, 0.18F, 0.42F, light);
-        quad(pose, faces, minX, minY, minZ, minX, maxY, minZ,
-                maxX, maxY, minZ, maxX, minY, minZ,
-                0.0F, 0.0F, -1.0F, 1.0F, 0.72F, 0.18F, 0.42F, light);
-        quad(pose, faces, minX, minY, maxZ, maxX, minY, maxZ,
-                maxX, maxY, maxZ, minX, maxY, maxZ,
-                0.0F, 0.0F, 1.0F, 1.0F, 0.72F, 0.18F, 0.42F, light);
-        quad(pose, faces, minX, minY, minZ, minX, minY, maxZ,
-                minX, maxY, maxZ, minX, maxY, minZ,
-                -1.0F, 0.0F, 0.0F, 1.0F, 0.72F, 0.18F, 0.42F, light);
-        quad(pose, faces, maxX, minY, minZ, maxX, maxY, minZ,
-                maxX, maxY, maxZ, maxX, minY, maxZ,
-                1.0F, 0.0F, 0.0F, 1.0F, 0.72F, 0.18F, 0.42F, light);
+        if (!outline) {
+            quad(pose, vertices, minX, minY, minZ, maxX, minY, minZ,
+                    maxX, minY, maxZ, minX, minY, maxZ,
+                    0.0F, -1.0F, 0.0F, 1.0F, 0.72F, 0.18F, 0.42F, light);
+            quad(pose, vertices, minX, maxY, minZ, minX, maxY, maxZ,
+                    maxX, maxY, maxZ, maxX, maxY, minZ,
+                    0.0F, 1.0F, 0.0F, 1.0F, 0.72F, 0.18F, 0.42F, light);
+            quad(pose, vertices, minX, minY, minZ, minX, maxY, minZ,
+                    maxX, maxY, minZ, maxX, minY, minZ,
+                    0.0F, 0.0F, -1.0F, 1.0F, 0.72F, 0.18F, 0.42F, light);
+            quad(pose, vertices, minX, minY, maxZ, maxX, minY, maxZ,
+                    maxX, maxY, maxZ, minX, maxY, maxZ,
+                    0.0F, 0.0F, 1.0F, 1.0F, 0.72F, 0.18F, 0.42F, light);
+            quad(pose, vertices, minX, minY, minZ, minX, minY, maxZ,
+                    minX, maxY, maxZ, minX, maxY, minZ,
+                    -1.0F, 0.0F, 0.0F, 1.0F, 0.72F, 0.18F, 0.42F, light);
+            quad(pose, vertices, maxX, minY, minZ, maxX, maxY, minZ,
+                    maxX, maxY, maxZ, maxX, minY, maxZ,
+                    1.0F, 0.0F, 0.0F, 1.0F, 0.72F, 0.18F, 0.42F, light);
+            return;
+        }
         double[][] edges = {
                 {minX, minY, minZ, maxX, minY, minZ},
                 {minX, minY, maxZ, maxX, minY, maxZ},
@@ -221,10 +224,10 @@ public final class MudTerrainGenerationPreviewRenderer {
             Vec3 normal = new Vec3(
                     edge[3] - edge[0], edge[4] - edge[1], edge[5] - edge[2])
                     .normalize();
-            cameraBiasedLineVertex(pose, lines, edge[0], edge[1], edge[2],
+            cameraBiasedLineVertex(pose, vertices, edge[0], edge[1], edge[2],
                     (float) normal.x, (float) normal.y, (float) normal.z,
                     1.0F, 0.82F, 0.28F, 1.0F);
-            cameraBiasedLineVertex(pose, lines, edge[3], edge[4], edge[5],
+            cameraBiasedLineVertex(pose, vertices, edge[3], edge[4], edge[5],
                     (float) normal.x, (float) normal.y, (float) normal.z,
                     1.0F, 0.82F, 0.28F, 1.0F);
         }

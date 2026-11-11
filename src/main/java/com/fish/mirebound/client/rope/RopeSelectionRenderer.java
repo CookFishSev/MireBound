@@ -91,39 +91,45 @@ public final class RopeSelectionRenderer {
     private static void renderSelections(RenderLevelStageEvent event,
             List<ClientRopes.Selection> selections, float red, float green,
             float blue, float faceAlpha) {
+        if (selections.isEmpty()) return;
         Minecraft minecraft = Minecraft.getInstance();
         MultiBufferSource.BufferSource buffers = minecraft.renderBuffers().bufferSource();
-        VertexConsumer faces = buffers.getBuffer(FACE_TYPE);
-        VertexConsumer edges = buffers.getBuffer(EDGE_TYPE);
         PoseStack poseStack = event.getPoseStack();
         Vec3 camera = event.getCamera().getPosition();
         poseStack.pushPose();
         poseStack.translate(-camera.x, -camera.y, -camera.z);
         PoseStack.Pose pose = poseStack.last();
-        for (ClientRopes.Selection fixed : selections) {
-            renderSelection(pose, faces, edges, fixed, red, green, blue, faceAlpha);
+        for (int pass = 0; pass < 2; pass++) {
+            boolean outline = pass == 1;
+            RenderType type = outline ? EDGE_TYPE : FACE_TYPE;
+            VertexConsumer vertices = buffers.getBuffer(type);
+            for (ClientRopes.Selection fixed : selections) {
+                renderSelection(pose, vertices, fixed, red, green, blue, faceAlpha, outline);
+            }
+            buffers.endBatch(type);
         }
         poseStack.popPose();
-        buffers.endBatch(FACE_TYPE);
-        buffers.endBatch(EDGE_TYPE);
     }
 
-    private static void renderSelection(PoseStack.Pose pose, VertexConsumer faces,
-            VertexConsumer edges, ClientRopes.Selection selection,
-            float red, float green, float blue, float faceAlpha) {
+    private static void renderSelection(PoseStack.Pose pose, VertexConsumer vertices,
+            ClientRopes.Selection selection,
+            float red, float green, float blue, float faceAlpha, boolean outline) {
         RopeSelectionGeometry.Box box = RopeSelectionGeometry.of(
                 selection.start(), selection.end(), selection.frame(),
                 HALF_WIDTH, HALF_LENGTH);
         List<Vec3> corners = box.corners();
-        for (int[] face : RopeSelectionGeometry.faces()) {
-            quad(pose, faces, corners.get(face[0]), corners.get(face[1]),
-                    corners.get(face[2]), corners.get(face[3]),
-                    red, green, blue, faceAlpha);
-        }
-        for (int[] edge : RopeSelectionGeometry.edges()) {
-            line(pose, edges, corners.get(edge[0]), corners.get(edge[1]),
-                    red, green, blue, selection.anchored() ? 0.98F
-                            : selection.dragging() ? 0.92F : 0.98F);
+        if (!outline) {
+            for (int[] face : RopeSelectionGeometry.faces()) {
+                quad(pose, vertices, corners.get(face[0]), corners.get(face[1]),
+                        corners.get(face[2]), corners.get(face[3]),
+                        red, green, blue, faceAlpha);
+            }
+        } else {
+            for (int[] edge : RopeSelectionGeometry.edges()) {
+                line(pose, vertices, corners.get(edge[0]), corners.get(edge[1]),
+                        red, green, blue, selection.anchored() ? 0.98F
+                                : selection.dragging() ? 0.92F : 0.98F);
+            }
         }
     }
 

@@ -9,7 +9,6 @@ final class SodiumGeometryCaptureBridge {
     private static final Method WRAP_BODY;
     private static final Method WRAP_CAPE;
     private static final Method NOOP;
-    private static VertexConsumer noopConsumer;
 
     static {
         Method body = null;
@@ -48,14 +47,11 @@ final class SodiumGeometryCaptureBridge {
     }
 
     static VertexConsumer noopConsumer(VertexConsumer fallback) {
-        if (noopConsumer != null) {
-            return noopConsumer;
-        }
         if (NOOP == null) {
             return fallback;
         }
         try {
-            noopConsumer = (VertexConsumer) NOOP.invoke(null);
+            VertexConsumer noopConsumer = (VertexConsumer) NOOP.invoke(null);
             return noopConsumer == null ? fallback : noopConsumer;
         } catch (ReflectiveOperationException | LinkageError ignored) {
             return fallback;
